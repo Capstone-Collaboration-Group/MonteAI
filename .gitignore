@@ -520,3 +520,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+!packages/
+!packages/**
