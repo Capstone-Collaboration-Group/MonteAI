@@ -606,7 +606,7 @@ User Question:
 {user_message}
 ```
 
-### 6.3 Literature Search Pipeline
+### 7.3 Literature Search Pipeline
 
 - User enters a natural language search query
 - Query is embedded via ONNX → queried against Pinecone
