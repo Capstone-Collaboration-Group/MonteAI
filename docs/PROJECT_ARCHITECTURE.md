@@ -334,18 +334,39 @@ src/
 
 ### 6.1 PDF Ingestion Pipeline
 
-**Trigger:** Admin uploads a thesis PDF via the Desktop application.
+**Trigger:** Admin downloads a pending thesis PDF to their local machine via the Desktop app, reviews it, then clicks **Approve**. The approval action fires the full local pipeline on the admin's machine.
 
 **Step 1 — PDF Text Extraction**
-- Library: `PdfPig` (open-source, .NET native)
-- Extracts raw text per page along with bounding box metadata
-- Normalizes encoding and removes non-printable characters
+- Library: `pdfjs-dist` (Node.js, runs in Electron main process)
+- Extracts raw text of Abstract, Intro, Keywords, and Table of Contents, along with bounding box metadata
+- Normalizes whitespaces, encoding and removes non-printable characters
+- Only the pages needed for abstract isolation are processed - not the full document
 
+```JavaScript
+// pipeline/pdfExtractor.js
+import * as pdfjs from 'pdfjs-dist';
+
+export async function extractText(filePath) {
+    const pdf = await pdfjs.getDocument({url: filePath }).promise;
+    let fullText = '';
+
+    // Scan first 5 pages only - adjust this if abstract is deeper
+    const pagesToScan = Math.min(pdf.numPages, 5);
+
+    for(let i = 1; i <= pagesToScan; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        fullText += content.items.map(item => item.str).join(' ') + '\n';
+    }
+    return fullText;
+}
+
+```
 **Step 2 — Abstract Isolation**
-- Rule-based section detection: searches for the heading `Abstract` (case-insensitive, supports variations like `ABSTRACT`, `Summary`)
+- Rule-based section detection: searches for the heading `Abstract` (case-insensitive, supports variations like `ABSTRACT`, `Summary`, `Executive Summary`)
 - Captures all text between `Abstract` and the next section heading (e.g., `Introduction`, `Keywords`, `Table of Contents`)
 - Fallback: If abstract section not found, logs a warning and flags the document for manual review
-- Extracts title and author from document metadata or first page heuristics
+- Also extracts title and author from the first page using positional heuristics (largest font block = title, line directly below = author)
 
 **Step 3 — Text Chunking**
 - Strategy: Fixed-size chunking with overlap
