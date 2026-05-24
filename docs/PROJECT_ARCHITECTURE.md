@@ -409,22 +409,37 @@ export function extractMetadata(firstPageText){
 - Tokenizer: matched to the ONNX model's vocabulary (e.g., WordPiece for BERT-based models)
 - Purpose: Prevents exceeding the model's context window during embedding inference
 
-```csharp
-// Pseudocode — ChunkingService.cs
-public List<string> ChunkText(string text, int chunkSize = 512, int overlap = 50)
-{
-    var tokens = Tokenize(text);
-    var chunks = new List<string>();
-    int start = 0;
+```JavaScript
+// Pseudocode — pipeline/chunker.js
+export function chunkText(text, chunkSize = 512, overlap = 50) {
+    const words = text.split(/\s+/).filter(Boolean);
+    const chunks = [];
+    let start = 0;
 
-    while (start < tokens.Count)
-    {
-        var chunkTokens = tokens.Skip(start).Take(chunkSize).ToList();
-        chunks.Add(Detokenize(chunkTokens));
+    while (start < words.length) {
+        const chunk = words.slice(start, start + chunkSize).join(' ');
+        chunks.push(chunk);
+        if (start + chunkSize >= words.length) break;
         start += chunkSize - overlap;
+
     }
     return chunks;
 }
+
+// public List<string> ChunkText(string text, int chunkSize = 512, int overlap = 50)
+// {
+//     var tokens = Tokenize(text);
+//     var chunks = new List<string>();
+//     int start = 0;
+
+//     while (start < tokens.Count)
+//     {
+//         var chunkTokens = tokens.Skip(start).Take(chunkSize).ToList();
+//         chunks.Add(Detokenize(chunkTokens));
+//         start += chunkSize - overlap;
+//     }
+//     return chunks;
+// }
 ```
 
 **Step 4 — ONNX Embedding**
