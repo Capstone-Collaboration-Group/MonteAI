@@ -481,23 +481,73 @@ export async function generateEmbedding(text) {
 }
 ```
 
-**Step 5 — Pinecone Upsert**
-- Each chunk embedding is upserted into Pinecone as a vector record
+**Step 5 — Local Pipeline Orchestration**
+Before anything reaches the cloud, the full pipeline runs locally and prduces a clean payload:
+```JavaScript
+// pipeline/ingestThesis.js
+export async function ingestThesis(filePath, thesisId) {
+    // Extract
+    const rawText = await extractText(filePath);
+
+    // Isolate abstract + metadata
+    const {abstract, found } = isolateAbstract(rawText);
+    if(!found) throw new Error('ABSTRACT_NOT_FOUND');
+
+    const { title, author } = extractMetaData(rawText);
+
+    // Chunk
+    const chunks = chunkText(abstract);
+
+    const vectors = [];
+    for(const [index, chunk] of chunks.entries()) {
+        const embedding = await generateEmbedding(chunk);
+        vectors.push({ 
+            id: `thesis_${thesisId}_chunk_${index}`,
+            chunkIndex: index,
+            chunkText: chunk,
+            embedding: Array.from(embedding),
+        });
+    }
+
+    return {title, author, abstract, vectors };
+
+
+
+}
+```
+B
+**Step 6 — Send to Cloud -> Pinecone Upsert**
+- The payload from the local pipeline is sent to the API which then  upserted into Pinecone as a vector record
 - Metadata included per vector:
 
-```json
-{
-  "id": "thesis_{thesisId}_chunk_{chunkIndex}",
-  "values": [0.021, -0.043, ...],   // 384-dim float vector
-  "metadata": {
-    "thesisId": "uuid",
-    "title": "Effects of Machine Learning in...",
-    "author": "Juan dela Cruz",
-    "chunkIndex": 2,
-    "chunkText": "This study investigates...",
-    "uploadedAt": "2026-05-22T00:00:00Z"
-  }
-}
+```JavaScript
+// handlers/approveThesis.js
+ipcMain.handle('approve-thesis', async (event, {thesisId, filePath }) => {
+    // Run full pipeline locally
+    const { title, author, abstract ,vectors } = await ingestThesis(filePath, thesisId);
+
+    // Send lightweight payload to cloud API
+    await api.post('/theses/ingest', {
+        thesisId,
+        title,
+        author,
+        abstract, 
+        vectors
+    });
+})
+
+// {
+//   "id": "thesis_{thesisId}_chunk_{chunkIndex}",
+//   "values": [0.021, -0.043, ...],   // 384-dim float vector
+//   "metadata": {
+//     "thesisId": "uuid",
+//     "title": "Effects of Machine Learning in...",
+//     "author": "Juan dela Cruz",
+//     "chunkIndex": 2,
+//     "chunkText": "This study investigates...",
+//     "uploadedAt": "2026-05-22T00:00:00Z"
+//   }
+// }
 ```
 
 - Pinecone index configuration: cosine similarity metric, serverless tier (AWS us-east-1 or Azure equivalent)
