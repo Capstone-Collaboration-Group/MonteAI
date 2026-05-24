@@ -443,20 +443,41 @@ export function chunkText(text, chunkSize = 512, overlap = 50) {
 ```
 
 **Step 4 — ONNX Embedding**
-- Runtime: `Microsoft.ML.OnnxRuntime`
-- Model: `all-MiniLM-L6-v2` (Sentence-BERT, 384-dimensional embeddings) — optimized for semantic similarity
-- ONNX model file is stored locally in the API's `Models/` directory
-- Each chunk is independently embedded into a float vector
-- Batch inference supported to reduce per-request overhead
+- Runtime: `onnxruntime-node` (Microsoft's official Node.js ONNX binding—same underlying engine as Microsoft.ML.OnnxRuntime)
+- Model: `all-MiniLM-L6-v2` (Sentence-BERT, 384-dimensional embeddings) —bundled inside the Electron app via Forge extraResources
+- Singleton session: model is loaded once when the app starts, reused for ever subsequent ingestion — eliminates cold-start after the first thesis
+- Each chunk is independently embedded into a 384-dimensional float32 vector
+- Mean pooling applied over token embeddings to produce sentence-level representation
 
-```csharp
-// Pseudocode — EmbeddingService.cs
-public float[] GenerateEmbedding(string text)
-{
-    using var session = new InferenceSession("Models/all-MiniLM-L6-v2.onnx");
-    var inputTensor = PreprocessText(text);      // Tokenize + Attention mask
-    var outputs = session.Run(new[] { inputTensor });
-    return MeanPooling(outputs[0].AsTensor<float>());
+```JavaScript
+// Pseudocode — pipeline/embedder.js
+import * as ort from 'onnxruntime-node';
+import path from 'path';
+import { app } from 'electron'
+
+let session = null; // singleton — loaded once at startup
+
+export async function getSession() {
+    if(!session) {
+        const modelPath = app.isPackaged 
+            ? path.join(process.resourcePath, 'models', 'all-MiniLM-L6-v2.onnx') : path.join(app.getAppPathI(), 'models' 'all-MiniLM-L6-v2.onnx');
+
+        session = await ort.InferenceSession.create(modelPath);
+    }
+    return session;
+}
+
+export async function generateEmbedding(text) {
+    const sess = awit getSession();
+    const { inputIds, attentionMask } = tokenize(text); // WordPiece tokenizer
+    
+    const feeds = {
+        input_ids: new ort.Tensor('int64', inputIds, [1, inputIds.length]),
+        attention_mask: new ort.Tensor('int64', attentionMask, [1, attentionMask.length],)
+    };
+
+    const output = await sess.run(feeds);
+    return meanPooling(output['last_hidden_state'], attentionMask); //float32 Array
 }
 ```
 
