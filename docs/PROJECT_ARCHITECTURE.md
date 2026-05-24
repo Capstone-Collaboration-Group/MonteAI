@@ -27,7 +27,7 @@
 
 ## 1. Executive Summary
 
-This document outlines the complete project plan for a **full-stack, AI-powered Research Assistant System** designed for an academic institution. The system enables students and faculty to explore, search, and interact with a curated repository of thesis documents through a conversational AI interface powered by **Retrieval-Augmented Generation (RAG)**.
+This document outlines the complete project plan for **MonteAI, a full-stack, AI-powered Research Assistant System** designed for an Colegio de Montalban. The system enables students and faculty to explore, search, and interact with a curated repository of thesis documents through a conversational AI interface powered by **Retrieval-Augmented Generation (RAG)**.
 
 The system is distributed across three distinct frontends — Web (React + Vite), Mobile (React Native), and Desktop (Electron + Forge) — each targeting a specific user group. The backend is a unified **ASP.NET Core Web API** layer that orchestrates authentication, document management, vector search, and AI inference.
 
@@ -90,31 +90,31 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          CLIENT LAYER                               │
 │                                                                     │
-│  ┌─────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │  React + Vite   │  │  React Native    │  │ Electron + Forge │  │
-│  │  (Web — Public  │  │  (Mobile)        │  │ (Desktop — Admin)│  │
-│  │   + Chat)       │  │  Students/Faculty│  │                  │  │
-│  └────────┬────────┘  └────────┬─────────┘  └────────┬─────────┘  │
-└───────────┼──────────────────┼──────────────────────┼─────────────┘
-            │                  │                      │
-            └─────────────────┬┘                     │
-                              │  HTTPS / REST         │
-┌─────────────────────────────┼──────────────────────┼─────────────┐
-│                    BACKEND LAYER (ASP.NET Core)     │             │
-│                              │                      │             │
-│  ┌───────────────────────────▼──────────────────────▼──────────┐  │
-│  │                    API Gateway / Controllers                  │  │
-│  │    AuthController │ ThesisController │ ChatController        │  │
-│  │    UserController │ SearchController │ AdminController        │  │
-│  └──────┬──────────────────┬───────────────────┬───────────────┘  │
-│         │                  │                   │                   │
-│  ┌──────▼──────┐   ┌───────▼────────┐  ┌──────▼──────────────┐   │
-│  │  Auth       │   │  RAG Pipeline  │  │  Document Service   │   │
-│  │  Service    │   │  Service       │  │  (Upload/Storage)   │   │
-│  │ (Firebase)  │   │                │  │                     │   │
-│  └──────┬──────┘   └───────┬────────┘  └──────┬──────────────┘   │
-│         │                  │                  │                    │
-└─────────┼──────────────────┼──────────────────┼────────────────────┘
+│  ┌─────────────────┐  ┌──────────────────┐  ┌──────────────────┐    │
+│  │  React + Vite   │  │  React Native    │  │ Electron + Forge │    │
+│  │  (Web — Public  │  │  (Mobile)        │  │ (Desktop — Admin)│    │
+│  │   + Chat)       │  │  Students/Faculty│  │                  │    │
+│  └────────┬────────┘  └────────┬─────────┘  └────────┬─────────┘    │
+└───────────┼──────────────────┼───────────────────────┼──────────────┘
+            │                  │                       │
+            └─────────────────┬┘                       │
+                              │  HTTPS / REST          │
+┌─────────────────────────────┼────────────────────────┼────────────┐
+│                    BACKEND LAYER (ASP.NET Core)      │            │
+│                              │                       │            │
+│  ┌───────────────────────────▼───────────────────────▼──────────┐ │
+│  │                    API Gateway / Controllers                 │ │
+│  │    AuthController │ ThesisController │ ChatController        │ │
+│  │    UserController │ SearchController │ AdminController       │ │
+│  └──────┬──────────────────┬───────────────────┬────────────────┘ │
+│         │                  │                   │                  │
+│  ┌──────▼──────┐   ┌───────▼────────┐  ┌──────▼──────────────┐    │
+│  │  Auth       │   │  RAG Pipeline  │  │  Document Service   │    │
+│  │  Service    │   │  Service       │  │  (Upload/Storage)   │    │
+│  │ (Firebase)  │   │                │  │                     │    │
+│  └──────┬──────┘   └───────┬────────┘  └──────┬──────────────┘    │
+│         │                  │                  │                   │
+└─────────┼──────────────────┼──────────────────┼───────────────────┘
           │                  │                  │
 ┌─────────▼──────────────────▼──────────────────▼────────────────────┐
 │                         DATA LAYER                                  │
