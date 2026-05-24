@@ -552,11 +552,11 @@ ipcMain.handle('approve-thesis', async (event, {thesisId, filePath }) => {
 
 - Pinecone index configuration: cosine similarity metric, serverless tier (AWS us-east-1 or Azure equivalent)
 
-**Step 6 — Azure SQL Insert**
+**Step 7 — Azure SQL Insert**
 - Upon successful upsert, a `Thesis` record is persisted in Azure SQL with:
   - Title, Author, Abstract text, file path (Blob URL), upload timestamp, status, uploader ID
 
-### 6.2 RAG Query Pipeline (Chat Interface)
+### 7.2 RAG Query Pipeline (Chat Interface)
 
 **Trigger:** User submits a message via Chat interface (Web or Desktop)
 
