@@ -117,14 +117,14 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 └─────────┼──────────────────┼──────────────────┼───────────────────┘
           │                  │                  │
 ┌─────────▼──────────────────▼──────────────────▼────────────────────┐
-│                         DATA LAYER                                  │
-│                                                                     │
-│  ┌──────────────┐   ┌─────────────────┐   ┌──────────────────┐    │
+│                         DATA LAYER                                 │
+│                                                                    │
+│  ┌──────────────┐   ┌──────────────────┐   ┌──────────────────┐    │
 │  │   Firebase   │   │    Pinecone      │   │  Azure SQL DB    │    │
 │  │   Auth       │   │  Vector Store    │   │  (Relational)    │    │
 │  │              │   │  (Embeddings)    │   │                  │    │
-│  └──────────────┘   └─────────────────┘   └──────────────────┘    │
-│                                                                     │
+│  └──────────────┘   └──────────────────┘   └──────────────────┘    │
+│                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │          Azure Blob Storage (Raw PDF Files)                  │  │
 │  └──────────────────────────────────────────────────────────────┘  │
@@ -134,9 +134,9 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 ### 3.2 RAG Pipeline Architecture
 
 ```
-PDF Upload
-    │
-    ▼
+     PDF Upload
+         │
+         ▼
 ┌───────────────────┐
 │  PDF Extractor    │  ←── Extracts raw text + metadata (title, author, abstract)
 └────────┬──────────┘
@@ -236,7 +236,7 @@ PDF Upload
 ResearchAssistant.API/
 ├── Controllers/
 │   ├── AuthController.cs
-│   ├── ThesisController.cs
+│   ├── ThesisController.cs          ← /theses/ingest now just relays vectors
 │   ├── SearchController.cs
 │   ├── ChatController.cs
 │   ├── UserController.cs
@@ -246,12 +246,12 @@ ResearchAssistant.API/
 │   ├── Auth/
 │   │   └── FirebaseAuthService.cs
 │   ├── AI/
-│   │   ├── PdfExtractorService.cs
-│   │   ├── AbstractIsolatorService.cs
-│   │   ├── ChunkingService.cs
-│   │   ├── EmbeddingService.cs          ← ONNX Runtime
-│   │   ├── PineconeUpsertService.cs
-│   │   └── RagQueryService.cs
+│   │   ├── PdfExtractorService.cs        ← moved to Electron
+│   │   ├── AbstractIsolatorService.cs    ← moved to Electron
+│   │   ├── ChunkingService.cs            ← moved to Electron
+│   │   ├── EmbeddingService.cs           ← moved to Electron (onnxruntime-node)
+│   │   ├── PineconeUpsertService.cs      ← receives vectors[], upserts to Pinecone
+│   │   └── RagQueryService.cs             ← query pipeline unchanged
 │   ├── Thesis/
 │   │   ├── ThesisService.cs
 │   │   ├── SubmissionService.cs
@@ -265,13 +265,14 @@ ResearchAssistant.API/
 ├── Models/
 │   ├── Entities/
 │   └── DTOs/
+│       └── ThesisIngestDto.cs            ← { title, author, abstract, vectors[] }
 │
 ├── Data/
 │   ├── AppDbContext.cs
 │   └── Migrations/
 │
-├── Jobs/                               ← Hangfire background jobs
-│   └── PdfIngestionJob.cs
+├── Jobs/
+│   └── PdfIngestionJob.cs            ← removed, Electron handles async
 │
 ├── Middleware/
 │   ├── FirebaseAuthMiddleware.cs
@@ -279,7 +280,7 @@ ResearchAssistant.API/
 │
 └── Configuration/
     ├── PineconeConfig.cs
-    └── OnnxConfig.cs
+    └── OnnxConfig.cs                 ← removed, ONNX no longer on server
 ```
 
 ### 5.2 Frontend Module Summary
