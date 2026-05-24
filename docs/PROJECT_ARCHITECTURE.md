@@ -368,6 +368,27 @@ export async function extractText(filePath) {
 - Fallback: If abstract section not found, logs a warning and flags the document for manual review
 - Also extracts title and author from the first page using positional heuristics (largest font block = title, line directly below = author)
 
+```JavaScript
+// pipeline/abstractIsolator.js
+export function isolateAbstract(rawText) {
+    const abstractPattern = 
+    /(?:abstract|summary|executive\s+summary)\s*[\n\r]+([\s\S]*?)(?=\n\s*(?:introduction|keywords|table of contents|chapter\s+1|acknowledgements)|$)/i;
+
+    const match = rawText.match(abstractPattern);
+
+    if(!match || !match[1].trim()) {
+        return { abstract: null, found: false };
+    }
+
+    return { 
+        abstract: match[1].trim(),
+        found: true
+    };
+}
+
+
+```
+
 **Step 3 — Text Chunking**
 - Strategy: Fixed-size chunking with overlap
 - Chunk size: 512 tokens (configurable)
