@@ -385,8 +385,21 @@ export function isolateAbstract(rawText) {
         found: true
     };
 }
+export function extractMetadata(firstPageText){
+    const lines = firstPageText
+        .split('\n')
+        .map(l => l.trim())
+        .filter(Boolean());
+        
+    // Heuristic: title = longest line in first 10 lines
+    const title = lines.slice(0, 10).reduce((a, b)=> b.length > a.length ? b: a, '');
 
+    //Heuristic: author = line containing "by" or line after title
+    const authorLine = lines.find(l => /^(by|submitted by|preparedby)/i.test(l));
+    const author = authorLine ? authorLine.replace(/^(by|submitted by|prepared by)\s*/i, '').trim() : lines[lines.indexOf(title) + 1] || 'Unknown';
 
+    return {title, author};
+}
 ```
 
 **Step 3 — Text Chunking**
