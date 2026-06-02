@@ -1090,6 +1090,6 @@ APP_ENV=Production
 
 ---
 
-*End of Document — Research Assistant System Project Plan v1.0.0*
+*End of Document — MonteAI Research Assistant System Project Plan v1.0.0*
 
 *This document is intended for the core development team. All architecture decisions are subject to revision following technical discovery sessions in Phase 1.*
