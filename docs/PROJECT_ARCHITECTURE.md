@@ -302,6 +302,22 @@ src/
 
 **Mobile (React Native + Expo)**
 ```
+app
+├── (auth)/
+│   └── index.tsx
+│── (tabs)/
+│   ├── _layout.tsx
+│   ├── index.tsx
+│   ├── search.tsx
+├── thesis/
+│   └── [id].tsx
+│── _layout.tsx
+└── modal.tsx
+components/
+services/
+
+
+
 src/
 ├── screens/
 │   ├── Auth/
