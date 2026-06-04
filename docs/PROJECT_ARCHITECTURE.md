@@ -302,31 +302,23 @@ src/
 
 **Mobile (React Native + Expo)**
 ```
-app
-├── (auth)/
-│   └── index.tsx
-│── (tabs)/
-│   ├── _layout.tsx
-│   ├── index.tsx
-│   ├── search.tsx
-├── thesis/
-│   └── [id].tsx
-│── _layout.tsx
-└── modal.tsx
-components/
-services/
-
-
-
-src/
-├── screens/
-│   ├── Auth/
-│   ├── Home/
-│   ├── ThesisDetail/
-│   └── Search/           ← Literature search
+mobile/
+├── app/
+|   ├── (auth)/
+│   │   └── index.tsx
+│   │── (tabs)/
+│   │   ├── _layout.tsx
+│   │   ├── index.tsx
+│   │   ├── search.tsx
+│   ├── thesis/
+│   │   └── [id].tsx
+│   │── _layout.tsx
+│   └── modal.tsx
 ├── components/
-├── navigation/           ← React Navigation stack
-└── services/
+├── services/
+├── hooks/
+├── constants/
+└── assets/
 ```
 
 **Desktop (Electron + Forge)**
