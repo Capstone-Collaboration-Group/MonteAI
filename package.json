@@ -10,6 +10,7 @@
     "dev:desktop": "pnpm --filter desktop start",
     "build:web": "pnpm --filter web build",
     "build:desktop": "pnpm --filter desktop make"
+    
   },
   "keywords": [],
   "author": "",
