@@ -1,6 +1,6 @@
-# Research Assistant System — Project Plan
+# Research Assistant and Digital Thesis Repository System — Project Plan
 **Document Version:** 1.0.0
-**Prepared by:** Senior System Architect
+**Prepared by:** Charles Bernard Balaguer
 **Date:** May 22, 2026
 **Classification:** Internal — Development Team
 
@@ -49,6 +49,7 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 | Research Discovery | Allow students and faculty to search related literature using natural language queries |
 | AI-Assisted Research | Provide a conversational interface to answer research questions grounded in indexed documents |
 | Thesis Management | Enable admins to manage submissions and assign faculty reviewers |
+| Defense Schedule | Enable admins to create defense schedule for theses defense | 
 | Role Enforcement | Enforce distinct permissions for students, faculty, and administrators |
 | Cross-Platform Access | Deliver a consistent experience across web, mobile, and desktop |
 
