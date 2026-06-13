@@ -30,6 +30,20 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="touch"
+        options={{
+          title: 'touch',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.text.rectangle.trianglebadge.exclamationmark" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'settings',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="character.bubble.fill.ar" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

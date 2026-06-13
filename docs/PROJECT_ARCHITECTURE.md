@@ -1,6 +1,6 @@
-# Research Assistant System — Project Plan
+# Research Assistant and Digital Thesis Repository System — Project Plan
 **Document Version:** 1.0.0
-**Prepared by:** Senior System Architect
+**Prepared by:** Charles Bernard Balaguer
 **Date:** May 22, 2026
 **Classification:** Internal — Development Team
 
@@ -49,6 +49,7 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 | Research Discovery | Allow students and faculty to search related literature using natural language queries |
 | AI-Assisted Research | Provide a conversational interface to answer research questions grounded in indexed documents |
 | Thesis Management | Enable admins to manage submissions and assign faculty reviewers |
+| Defense Schedule | Enable admins to create defense schedule for theses defense | 
 | Role Enforcement | Enforce distinct permissions for students, faculty, and administrators |
 | Cross-Platform Access | Deliver a consistent experience across web, mobile, and desktop |
 
@@ -58,9 +59,9 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 |-------------|------|----------|
 | Students | Search literature, submit theses, use AI assistant | Mobile, Web |
 | Faculty | Review assigned theses, search literature, use AI assistant | Mobile, Web |
-| Admin | Manage users, submissions, roles, and permissions | Desktop (Electron) |
+| Program Head | Review Institute wide theses, search theses, comment, | Web, Desktop |
+| Admin | Manage users, submissions, roles, Schedule Defense, Assign Panelists | Desktop (Electron) |
 | Development Team | Build, maintain, and deploy the system | All |
-| Institution Management | Oversight and reporting | Web |
 
 ### 2.3 Scope
 
@@ -77,7 +78,6 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 **Out of Scope:**
 - Plagiarism detection engine (future phase)
 - Third-party journal indexing (e.g., IEEE, Scopus)
-- Mobile chat interface (deferred to Phase 2)
 - Real-time collaboration on documents
 
 ---
@@ -106,6 +106,7 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 │  │                    API Gateway / Controllers                 │ │
 │  │    AuthController │ ThesisController │ ChatController        │ │
 │  │    UserController │ SearchController │ AdminController       │ │
+|  |ScheduleController | GroupController  | FacultyController     | |
 │  └──────┬──────────────────┬───────────────────┬────────────────┘ │
 │         │                  │                   │                  │
 │  ┌──────▼──────┐   ┌───────▼────────┐  ┌──────▼──────────────┐    │
@@ -302,15 +303,23 @@ src/
 
 **Mobile (React Native + Expo)**
 ```
-src/
-├── screens/
-│   ├── Auth/
-│   ├── Home/
-│   ├── ThesisDetail/
-│   └── Search/           ← Literature search
+mobile/
+├── app/
+|   ├── (auth)/
+│   │   └── index.tsx
+│   │── (tabs)/
+│   │   ├── _layout.tsx
+│   │   ├── index.tsx
+│   │   ├── search.tsx
+│   ├── thesis/
+│   │   └── [id].tsx
+│   │── _layout.tsx
+│   └── modal.tsx
 ├── components/
-├── navigation/           ← React Navigation stack
-└── services/
+├── services/
+├── hooks/
+├── constants/
+└── assets/
 ```
 
 **Desktop (Electron + Forge)**
@@ -621,17 +630,67 @@ User Question:
 ### 7.1 Azure SQL Schema
 
 ```sql
--- Users table (synced from Firebase after auth)
-CREATE TABLE Users (
-    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    FirebaseUid     NVARCHAR(128) UNIQUE NOT NULL,
-    Email           NVARCHAR(256) NOT NULL,
-    DisplayName     NVARCHAR(256),
-    Role            NVARCHAR(50) NOT NULL DEFAULT 'Student',  -- Student | Faculty | Admin
-    IsActive        BIT DEFAULT 1,
-    CreatedAt       DATETIME2 DEFAULT GETUTCDATE(),
-    UpdatedAt       DATETIME2 DEFAULT GETUTCDATE()
-);
+-- Users  (will only be used as an abstract class in c# will not create table in the DB)
+Table Users {
+  Id UNIQUEIDENTIFIER [pk, default: `NEWID()`]
+  Email NVARCHAR(256) [not null]
+  FirstName NVARCHAR(256)
+  MiddleName NVARCHAR(256)
+  LastName NVARCHAR(256)
+  Role NVARCHAR(50) [not null, default: 'Student', note: 'Student | Faculty | Admin']
+  IsActive BIT [default: 1]
+  CreatedAt DATETIME2 [default: `GETUTCDATE()`]
+  UpdatedAt DATETIME2 [default: `GETUTCDATE()`]
+};
+-- Admin Table
+Table Admin {
+  Id uniqueidentifier [pk, default: `NEWID()`]
+  Email NVACHAR(256) [not null]
+  FirstName nvarchar(256) 
+  MiddleInitial nvarchar(256) 
+  LastName nvarchar(256)
+  Suffix nvarchar(5)
+};
+
+-- Student table
+Table Students { 
+  StudentNumber UNIQUEIDENTIFIER [pk, default: `NEWID()`]
+  GroupId UNIQUEIDENTIFIER
+  Email NVACHAR(256) [not null]
+  FirstName nvarchar(256)
+  Position nvarchar(40) 
+  MiddleInitial nvarchar(256) 
+  LastName nvarchar(256)
+  Suffix nvarchar(5)
+  Institute nvarchar(50) 
+  Program nvarchar(50)
+  YearLevel int
+  Section nvarchar(3)
+};
+
+-- Program Head Table
+Table ProgramHeads {
+  Id uniqueidentifier [pk, default: `NEWID()`]
+  Email nvarchar(256) [not null]
+  FirstName nvarchar(256) 
+  MiddleInitial nvarchar(256) 
+  LastName nvarchar(256)
+  Suffix nvarchar(5)
+  Institute nvarchar(50) 
+  ProgramHandled nvarchar(50)
+};
+
+-- Faculty Table
+Table Faculty { 
+  Id uniqueidentifier [pk, default: `NEWID()`]
+  Email nvarchar(256) [not null]
+  FirstName nvarchar(256) 
+  MiddleInitial nvarchar(256) 
+  LastName nvarchar(256)
+  Suffix nvarchar(5)
+  Institute nvarchar(50) 
+};
+
 
 -- Theses table
 CREATE TABLE Theses (
@@ -693,6 +752,26 @@ CREATE TABLE Permissions (
     GrantedById     UNIQUEIDENTIFIER REFERENCES Users(Id),
     GrantedAt       DATETIME2 DEFAULT GETUTCDATE()
 );
+
+-- Schedule 
+Table Schedule { 
+  ScheduleId uniqueidentifier [pk, default: `NEWID()`]
+  ScheduledBy nvarchar(256) [not null]
+  GroupId uniqueidentifier 
+  Date date [default: `GETUTCDATE()`]
+  StartingTime time 
+  EndingTime time
+  Panelists nvarchar(256) [not null]
+  RoomVenue nvarchar(256) [not null]
+  AdditionalInformation nvarchar(256)
+};
+
+-- Student Researcher Group
+Table ResearchGroup { 
+  GroupId uniqueidentifier [pk, default: `NEWID()`]
+  CreatedAt DATETIME2 [default: `GETUTCDATE()`]
+  UpdatedAt DATETIME2 [default: `GETUTCDATE()`]
+};
 ```
 
 ### 7.2 Pinecone Index Configuration
@@ -712,7 +791,8 @@ CREATE TABLE Permissions (
 
 ### 8.1 Base URL
 ```
-https://api.researchassistant.edu.ph/api/v1
+Format (temporary structure)
+https://api.monteai.edu.ph/api/v1
 ```
 
 ### 8.2 Endpoint Summary
@@ -748,14 +828,31 @@ https://api.researchassistant.edu.ph/api/v1
 | POST | `/chat/sessions/{id}/messages` | Send message, stream response (SSE) | Student, Faculty, Admin |
 | DELETE | `/chat/sessions/{id}` | Delete a session | Owner |
 
-#### User & Role Management
+#### User Management
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/users` | List all users | Admin |
 | GET | `/users/{id}` | Get user details | Admin |
-| PATCH | `/users/{id}/role` | Assign role | Admin |
-| POST | `/users/{id}/permissions` | Grant permission | Admin |
-| DELETE | `/users/{id}/permissions/{key}` | Revoke permission | Admin |
+| PATCH | `/users/{id}/update` | Update User Info | Admin |
+| DELETE | `/users/{id}/delete` | Delete User  | Admin |
+
+#### Faculty Management
+| Method| | Endpoint | Description | Access |
+|---------|----------|-------------|--------|
+| GET | `/faculties` | List all faculty staffs | Admin
+| GET | `/faculties/{id}` | Get faculty details | Admin |
+| PATCH | `/faculties/{id}/assign` | Assign faculty as panelist | Admin |
+| DELETE | `/faculties/{id}/revoke` | Revoke Panelist Permission | Admin | 
+
+#### Students Management 
+| Method | Endpoint | Description | Access |
+|---------|----------|-------------|--------|
+| GET | `/students` | List all students | Admin | 
+| GET | `/students/{id}` | Get student details | Admin, Student | 
+| PATCH | `/students/{id}` | Update user credential | Student
+| DELETE | `/students{id}`| Delete user account | Admin, Student |
+
+
 
 #### Review Workflow
 | Method | Endpoint | Description | Access |

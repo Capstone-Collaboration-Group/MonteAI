@@ -39,6 +39,7 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
+    "@monteai/api": "workspace:*",
     "@monteai/types": "workspace:*",
     "@tailwindcss/vite": "^4.2.4",
     "electron-squirrel-startup": "^1.0.1",
