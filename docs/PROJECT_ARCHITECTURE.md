@@ -58,9 +58,9 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 |-------------|------|----------|
 | Students | Search literature, submit theses, use AI assistant | Mobile, Web |
 | Faculty | Review assigned theses, search literature, use AI assistant | Mobile, Web |
-| Admin | Manage users, submissions, roles, and permissions | Desktop (Electron) |
+| Program Head | Review Institute wide theses, search theses, comment, | Web, Desktop |
+| Admin | Manage users, submissions, roles, Schedule Defense, Assign Panelists | Desktop (Electron) |
 | Development Team | Build, maintain, and deploy the system | All |
-| Institution Management | Oversight and reporting | Web |
 
 ### 2.3 Scope
 
@@ -77,7 +77,6 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 **Out of Scope:**
 - Plagiarism detection engine (future phase)
 - Third-party journal indexing (e.g., IEEE, Scopus)
-- Mobile chat interface (deferred to Phase 2)
 - Real-time collaboration on documents
 
 ---
