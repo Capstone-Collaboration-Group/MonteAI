@@ -629,16 +629,66 @@ User Question:
 
 ```sql
 -- Users table (synced from Firebase after auth)
-CREATE TABLE Users (
-    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    FirebaseUid     NVARCHAR(128) UNIQUE NOT NULL,
-    Email           NVARCHAR(256) NOT NULL,
-    DisplayName     NVARCHAR(256),
-    Role            NVARCHAR(50) NOT NULL DEFAULT 'Student',  -- Student | Faculty | Admin
-    IsActive        BIT DEFAULT 1,
-    CreatedAt       DATETIME2 DEFAULT GETUTCDATE(),
-    UpdatedAt       DATETIME2 DEFAULT GETUTCDATE()
-);
+Table Users {
+  Id UNIQUEIDENTIFIER [pk, default: `NEWID()`]
+  Email NVARCHAR(256) [not null]
+  FirstName NVARCHAR(256)
+  MiddleName NVARCHAR(256)
+  LastName NVARCHAR(256)
+  Role NVARCHAR(50) [not null, default: 'Student', note: 'Student | Faculty | Admin']
+  IsActive BIT [default: 1]
+  CreatedAt DATETIME2 [default: `GETUTCDATE()`]
+  UpdatedAt DATETIME2 [default: `GETUTCDATE()`]
+};
+-- Admin Table
+Table Admin {
+  Id uniqueidentifier [pk, default: `NEWID()`]
+  Email NVACHAR(256) [not null]
+  FirstName nvarchar(256) 
+  MiddleInitial nvarchar(256) 
+  LastName nvarchar(256)
+  Suffix nvarchar(5)
+};
+
+-- Student table
+Table Students { 
+  StudentNumber UNIQUEIDENTIFIER [pk, default: `NEWID()`]
+  GroupId UNIQUEIDENTIFIER
+  Email NVACHAR(256) [not null]
+  FirstName nvarchar(256)
+  Position nvarchar(40) 
+  MiddleInitial nvarchar(256) 
+  LastName nvarchar(256)
+  Suffix nvarchar(5)
+  Institute nvarchar(50) 
+  Program nvarchar(50)
+  YearLevel int
+  Section nvarchar(3)
+};
+
+-- Program Head Table
+Table ProgramHeads {
+  Id uniqueidentifier [pk, default: `NEWID()`]
+  Email nvarchar(256) [not null]
+  FirstName nvarchar(256) 
+  MiddleInitial nvarchar(256) 
+  LastName nvarchar(256)
+  Suffix nvarchar(5)
+  Institute nvarchar(50) 
+  ProgramHandled nvarchar(50)
+};
+
+-- Faculty Table
+Table Faculty { 
+  Id uniqueidentifier [pk, default: `NEWID()`]
+  Email nvarchar(256) [not null]
+  FirstName nvarchar(256) 
+  MiddleInitial nvarchar(256) 
+  LastName nvarchar(256)
+  Suffix nvarchar(5)
+  Institute nvarchar(50) 
+};
+
 
 -- Theses table
 CREATE TABLE Theses (
@@ -700,6 +750,26 @@ CREATE TABLE Permissions (
     GrantedById     UNIQUEIDENTIFIER REFERENCES Users(Id),
     GrantedAt       DATETIME2 DEFAULT GETUTCDATE()
 );
+
+-- Schedule 
+Table Schedule { 
+  ScheduleId uniqueidentifier [pk, default: `NEWID()`]
+  ScheduledBy nvarchar(256) [not null]
+  GroupId uniqueidentifier 
+  Date date [default: `GETUTCDATE()`]
+  StartingTime time 
+  EndingTime time
+  Panelists nvarchar(256) [not null]
+  RoomVenue nvarchar(256) [not null]
+  AdditionalInformation nvarchar(256)
+};
+
+-- Student Researcher Group
+Table ResearchGroup { 
+  GroupId uniqueidentifier [pk, default: `NEWID()`]
+  CreatedAt DATETIME2 [default: `GETUTCDATE()`]
+  UpdatedAt DATETIME2 [default: `GETUTCDATE()`]
+};
 ```
 
 ### 7.2 Pinecone Index Configuration
