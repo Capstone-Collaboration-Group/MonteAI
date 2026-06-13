@@ -106,6 +106,7 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 │  │                    API Gateway / Controllers                 │ │
 │  │    AuthController │ ThesisController │ ChatController        │ │
 │  │    UserController │ SearchController │ AdminController       │ │
+|  |ScheduleController | GroupController  | FacultyController     | |
 │  └──────┬──────────────────┬───────────────────┬────────────────┘ │
 │         │                  │                   │                  │
 │  ┌──────▼──────┐   ┌───────▼────────┐  ┌──────▼──────────────┐    │
@@ -790,7 +791,8 @@ Table ResearchGroup {
 
 ### 8.1 Base URL
 ```
-https://api.researchassistant.edu.ph/api/v1
+Format (temporary structure)
+https://api.monteai.edu.ph/api/v1
 ```
 
 ### 8.2 Endpoint Summary
@@ -826,14 +828,31 @@ https://api.researchassistant.edu.ph/api/v1
 | POST | `/chat/sessions/{id}/messages` | Send message, stream response (SSE) | Student, Faculty, Admin |
 | DELETE | `/chat/sessions/{id}` | Delete a session | Owner |
 
-#### User & Role Management
+#### User Management
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/users` | List all users | Admin |
 | GET | `/users/{id}` | Get user details | Admin |
-| PATCH | `/users/{id}/role` | Assign role | Admin |
-| POST | `/users/{id}/permissions` | Grant permission | Admin |
-| DELETE | `/users/{id}/permissions/{key}` | Revoke permission | Admin |
+| PATCH | `/users/{id}/update` | Update User Info | Admin |
+| DELETE | `/users/{id}/delete` | Delete User  | Admin |
+
+#### Faculty Management
+| Method| | Endpoint | Description | Access |
+|---------|----------|-------------|--------|
+| GET | `/faculties` | List all faculty staffs | Admin
+| GET | `/faculties/{id}` | Get faculty details | Admin |
+| PATCH | `/faculties/{id}/assign` | Assign faculty as panelist | Admin |
+| DELETE | `/faculties/{id}/revoke` | Revoke Panelist Permission | Admin | 
+
+#### Students Management 
+| Method | Endpoint | Description | Access |
+|---------|----------|-------------|--------|
+| GET | `/students` | List all students | Admin | 
+| GET | `/students/{id}` | Get student details | Admin, Student | 
+| PATCH | `/students/{id}` | Update user credential | Student
+| DELETE | `/students{id}`| Delete user account | Admin, Student |
+
+
 
 #### Review Workflow
 | Method | Endpoint | Description | Access |
