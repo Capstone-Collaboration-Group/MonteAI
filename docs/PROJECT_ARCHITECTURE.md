@@ -628,7 +628,7 @@ User Question:
 ### 7.1 Azure SQL Schema
 
 ```sql
--- Users table (synced from Firebase after auth)
+-- Users  (will only be used as an abstract class in c# will not create table in the DB)
 Table Users {
   Id UNIQUEIDENTIFIER [pk, default: `NEWID()`]
   Email NVARCHAR(256) [not null]
