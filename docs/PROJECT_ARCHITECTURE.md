@@ -644,7 +644,7 @@ Table Users {
 };
 -- Admin Table
 Table Admin {
-  Id uniqueidentifier [pk, default: `NEWID()`]
+  Uid uniqueidentifier [pk, default: `NEWID()`]
   Email NVACHAR(256) [not null]
   FirstName nvarchar(256) 
   MiddleInitial nvarchar(256) 

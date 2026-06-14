@@ -10,6 +10,7 @@ namespace server.Models.Entities
         public string? MiddleInitial { get; set; }
         public string? LastName { get; set; }
 
+        public string? Suffix { get; set; }
         public string? Role { get; set; }
         public bool? IsActive { get; set; }
 
