@@ -5,11 +5,13 @@ namespace server.Models.Entities
     public class Schedule
     {
         [Key]
-        public Guid ScheduleId { get; set; } 
+        public Guid ScheduleId { get; set; }
 
-        public string? ScheduledBy { get; set; }
+        public string ScheduledBy { get; set; } = string.Empty;
 
-        public string? GroupId { get; set; }
+        public Guid? GroupId { get; set; }
+        public ResearchGroup? ResearchGroup { get; set; } 
+
 
         public DateOnly Date { get; set; }
 
@@ -17,11 +19,12 @@ namespace server.Models.Entities
 
         public TimeOnly EndingTime { get; set; }
 
+        [Required]
         public string? RoomVenue { get; set; } 
 
         public string? AdditionalInformation { get; set; }
-        
-        public ICollection<PanelistSchedule>? Panelists { get; set; } 
+
+        public ICollection<PanelistSchedule> Panelists { get; set; } = [];
 
 
    
