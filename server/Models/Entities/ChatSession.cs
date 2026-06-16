@@ -1,14 +1,16 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace server.Models.Entities
 {
     public class ChatSession
     {
         [Key]
-        public Guid? Id { get; set; }
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public Guid Id { get; set; }
 
         [Required]
-        public string? UserId { get; set; }
+        public string UserId { get; set; } = string.Empty;
 
         [Required]
         public string? Title { get; set; }
