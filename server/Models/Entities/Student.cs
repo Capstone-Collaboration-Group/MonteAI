@@ -5,8 +5,13 @@ namespace server.Models.Entities
     public class Student : User
     {
         [Key]
+        [Required]
+        public string Id { get; set; } = string.Empty;
+
+        [Required]
         public string? StudentNumber { get; set; }
-        public int? GroupId { get; set; }
+
+        public Guid? GroupId { get; set; }
 
         public virtual ResearchGroup? ResearchGroup { get; set; }
 
