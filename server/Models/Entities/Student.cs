@@ -10,14 +10,23 @@ namespace server.Models.Entities
 
         public virtual ResearchGroup? ResearchGroup { get; set; }
 
+        [Required]
+        [MaxLength(50)]
         public string? Position { get; set; }
 
+        [Required]
+        [MaxLength(100)]
         public string? Institute { get; set; }
 
+        [Required]
+        [MaxLength(100)]
         public string? Program { get; set; }
 
+        [Required]
         public int? YearLevel { get; set; }
 
+        [Required]
+        [MaxLength(1)]
         public char Section { get; set; }
 
 
