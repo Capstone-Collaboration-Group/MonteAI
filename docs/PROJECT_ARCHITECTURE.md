@@ -703,6 +703,9 @@ CREATE TABLE Theses (
     Status          NVARCHAR(50) DEFAULT 'Pending',  -- Pending | UnderReview | Approved | Rejected
     PineconeStatus NVARCHAR(20) DEFAULT 'None'
     SubmittedAt     DATETIME2 DEFAULT GETUTCDATE(),
+    ReviewedAt      DATETIME2 DEFAULT GETUTCDATE(),
+    ApprovedAt      DATETIME2 DEFAULT GETUTCDATE(),
+    RejectedAt      DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt       DATETIME2 DEFAULT GETUTCDATE()
 );
 
