@@ -5,10 +5,11 @@ namespace server.Models.Entities
     public class Submission
     {
         [Key]
-        public int? Id { get; set; }
+        public Guid Id { get; set; }
 
         [Required]
-        public string? ThesisId { get; set; }
+        public Guid ThesisId { get; set; }
+   
         [Required]
         public string? StudentNumber { get; set; }
 
@@ -17,7 +18,9 @@ namespace server.Models.Entities
 
         [MaxLength(999)]
         public string? Notes { get; set; }
-
-
+        
+        // Navigation Properties
+        public Thesis? Thesis { get; set; }
+        public Student? Student { get; set; }
     }
 }
