@@ -5,8 +5,8 @@
         public Guid Id { get; set; }
 
 
-        public string CreatedAt { get; set; } = null!;
+        public DateTime CreatedAt { get; set; }
 
-        public string UpdatedAt { get; set; } = null!;
+        public DateTime UpdatedAt { get; set; }
     }
 }
