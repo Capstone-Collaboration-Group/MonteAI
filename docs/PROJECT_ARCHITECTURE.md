@@ -698,10 +698,10 @@ CREATE TABLE Theses (
     Title           NVARCHAR(512) NOT NULL,
     Authors         NVARCHAR(512) NOT NULL,
     Abstract        NVARCHAR(MAX),
-    FilePath        NVARCHAR(1024) NOT NULL,         -- Azure Blob URL
+    FilePath        NVARCHAR(1024) NOT NULL,         -- Firebase Storage URL
     UploadedById    UNIQUEIDENTIFIER REFERENCES Users(Id),
     Status          NVARCHAR(50) DEFAULT 'Pending',  -- Pending | UnderReview | Approved | Rejected
-    PineconeIndexed BIT DEFAULT 0,
+    PineconeStatus NVARCHAR(20) DEFAULT 'None'
     SubmittedAt     DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt       DATETIME2 DEFAULT GETUTCDATE()
 );
@@ -719,12 +719,10 @@ CREATE TABLE Submissions (
 CREATE TABLE Reviews (
     Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     ThesisId        UNIQUEIDENTIFIER REFERENCES Theses(Id),
-    ReviewerId      UNIQUEIDENTIFIER REFERENCES Users(Id),  -- Faculty member
-    AssignedById    UNIQUEIDENTIFIER REFERENCES Users(Id),  -- Admin
+    ReviewerId      UNIQUEIDENTIFIER REFERENCES Users(Id),  -- Faculty member, and ProgramHead
     Decision        NVARCHAR(50),   -- Approved | Rejected | Revise
     Comments        NVARCHAR(MAX),
     ReviewedAt      DATETIME2,
-    AssignedAt      DATETIME2 DEFAULT GETUTCDATE()
 );
 
 -- Chat Sessions table
@@ -733,6 +731,7 @@ CREATE TABLE ChatSessions (
     UserId          UNIQUEIDENTIFIER REFERENCES Users(Id),
     Title           NVARCHAR(256),
     CreatedAt       DATETIME2 DEFAULT GETUTCDATE()
+    LastChatDate    DATETIME2 DEFAULT GETUTCDATE()
 );
 
 -- Chat Messages table
