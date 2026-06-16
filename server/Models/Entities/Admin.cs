@@ -5,7 +5,9 @@ namespace server.Models.Entities
     public class Admin : User
     {
         [Key]
-        public string? Uid { get; set; }
+        public string? Id { get; set; }
+        [Required]
+        [MaxLength(100)]
 
         public string? Position { get; set; }
 
