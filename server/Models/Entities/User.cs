@@ -14,7 +14,6 @@ namespace server.Models.Entities
         [Required]
         
         public string? FirstName { get; set; }
-        [MaxLength(1)]
 
         [Required]
         public char? MiddleInitial { get; set; }
