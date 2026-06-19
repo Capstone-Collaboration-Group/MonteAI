@@ -272,9 +272,6 @@ ResearchAssistant.API/
 │   ├── AppDbContext.cs
 │   └── Migrations/
 │
-├── Jobs/
-│   └── PdfIngestionJob.cs            ← removed, Electron handles async
-│
 ├── Middleware/
 │   ├── FirebaseAuthMiddleware.cs
 │   └── RoleAuthorizationMiddleware.cs
@@ -494,7 +491,7 @@ export async function generateEmbedding(text) {
 Before anything reaches the cloud, the full pipeline runs locally and prduces a clean payload:
 ```JavaScript
 // pipeline/ingestThesis.js
-export async function ingestThesis(filePath, thesisId) {
+export async function ingestThesis(filePath, thesisId) {    
     // Extract
     const rawText = await extractText(filePath);
 
@@ -683,7 +680,7 @@ Table ProgramHeads {
 -- Faculty Table
 Table Faculty { 
   Id uniqueidentifier [pk, default: `NEWID()`]
-  Email nvarchar(256) [not null]
+  Email nvarchar(256) UNIQUE [not null]
   FirstName nvarchar(256) 
   MiddleInitial nvarchar(256) 
   LastName nvarchar(256)
