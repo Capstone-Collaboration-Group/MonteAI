@@ -234,7 +234,11 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 ### 5.1 Backend Modules
 
 ```
-ResearchAssistant.API/
+MonteAI.server/
+├── Configuration/                   ← /pinecone configuration
+│   └── PineconeConfig.cs               
+│   └── OnnxConfig.cs                 ← removed, ONNX no longer on server
+│
 ├── Controllers/
 │   ├── AuthController.cs
 │   ├── ThesisController.cs          ← /theses/ingest now just relays vectors
@@ -242,6 +246,23 @@ ResearchAssistant.API/
 │   ├── ChatController.cs
 │   ├── UserController.cs
 │   └── AdminController.cs
+│
+├── Data/
+│   ├── AppDbContext.cs
+│   └── Migrations/
+│
+├── Mappings/
+│   └── AutoMapper.cs
+│
+├── Middleware/
+│   ├── FirebaseAuthMiddleware.cs
+│   └── RoleAuthorizationMiddleware.cs
+│
+├── Models/
+│   ├── Entities/
+│   └── DTOs/
+│       └── ThesisIngestDto.cs            ← { title, author, abstract, vectors[] }
+│
 │
 ├── Services/
 │   ├── Auth/
@@ -263,22 +284,12 @@ ResearchAssistant.API/
 │   └── Chat/
 │       └── ChatSessionService.cs
 │
-├── Models/
-│   ├── Entities/
-│   └── DTOs/
-│       └── ThesisIngestDto.cs            ← { title, author, abstract, vectors[] }
+|
 │
-├── Data/
-│   ├── AppDbContext.cs
-│   └── Migrations/
 │
-├── Middleware/
-│   ├── FirebaseAuthMiddleware.cs
-│   └── RoleAuthorizationMiddleware.cs
-│
-└── Configuration/
-    ├── PineconeConfig.cs
-    └── OnnxConfig.cs                 ← removed, ONNX no longer on server
+└── Repositories/                        ← class files that have direct access to database
+    ├── Interface/                       ← Interface files that will be inherited
+    └── StudentRepository.cs
 ```
 
 ### 5.2 Frontend Module Summary
