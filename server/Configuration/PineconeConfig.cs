@@ -1,1 +1,1 @@
-// Configuration for pinecone
+// Configuration for pinecone 
