@@ -284,9 +284,6 @@ MonteAI.server/
 │   └── Chat/
 │       └── ChatSessionService.cs
 │
-|
-│
-│
 └── Repositories/                        ← class files that have direct access to database
     ├── Interface/                       ← Interface files that will be inherited
     └── StudentRepository.cs
