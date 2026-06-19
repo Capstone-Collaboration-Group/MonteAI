@@ -523,3 +523,7 @@ Thumbs.db
 
 !packages/
 !packages/**
+
+
+# firebase credential 
+firebase_credential.json
