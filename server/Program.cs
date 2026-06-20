@@ -1,3 +1,8 @@
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
+using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
+using Google.Cloud.Storage.V1;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
@@ -13,6 +18,7 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
+    
     Log.Information("Starting MonteAI Server Application...");
 
     var builder = WebApplication.CreateBuilder(args);
@@ -24,7 +30,25 @@ try
         .Enrich.FromLogContext()
     );
 
+    // firebase configuration
+    var firebaseJson = builder.Configuration["Firebase:AdminKeyPath"];
+    var credential = !string.IsNullOrEmpty(firebaseJson) && firebaseJson.Trim().StartsWith("{")
+        ? CredentialFactory.FromJson(firebaseJson, JsonCredentialParameters.ServiceAccountCredentialType)
+        : CredentialFactory.FromFile(firebaseJson, JsonCredentialParameters.ServiceAccountCredentialType);
 
+    var firebaseApp = FirebaseApp.DefaultInstance ?? FirebaseApp.Create(new AppOptions
+    {
+        Credential = credential
+    });
+    builder.Services.AddSingleton(firebaseApp);
+
+    var firebaseProjectId = builder.Configuration["Firebase:ProjectId"];
+    builder.Services.AddSingleton(_ => new FirestoreDbBuilder
+    { ProjectId = firebaseProjectId, Credential = credential }.Build());
+
+    builder.Services.AddSingleton(_ => StorageClient.Create(credential));
+
+    //Pinecone configuration
     builder.Services.Configure<PineconeConfig>(
             builder.Configuration.GetSection(PineconeConfig.SectionName)
             );
