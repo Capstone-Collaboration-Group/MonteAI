@@ -1,5 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
+using server.Configuration;
+using server.Data;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
@@ -21,8 +24,22 @@ try
         .Enrich.FromLogContext()
     );
 
-    // Add services to the container.
 
+    builder.Services.Configure<PineconeConfig>(
+            builder.Configuration.GetSection(PineconeConfig.SectionName)
+            );
+    // Add services to the container.
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseSqlServer(
+            builder.Configuration.GetConnectionString("DefaultConnection"),
+            sqlServerOptions =>
+            {
+                sqlServerOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorNumbersToAdd: null);
+            }));
+    
     builder.Services.AddControllers();
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
@@ -48,10 +65,11 @@ try
 
     app.Run();
 
-}catch(Exception ex)
+}catch(Exception ex) when (ex is not HostAbortedException)
 {
-    Log.Fatal("Application Terminated Unexpedtedly.", ex.Message);
-}finally
+    Log.Fatal(ex, "Application Terminated Unexpectedly.");
+}
+finally
 {
     Log.CloseAndFlush();
 }

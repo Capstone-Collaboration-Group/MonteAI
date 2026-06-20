@@ -14,7 +14,7 @@ namespace server.Models.Entities
         public string? StudentNumber { get; set; }
 
         [Required]
-        public string? SubmittedAt { get; set; }
+        public DateTime SubmittedAt { get; set; }    
 
         [MaxLength(999)]
         public string? Notes { get; set; }
