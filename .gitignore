@@ -527,6 +527,8 @@ Thumbs.db
 # appsettings.json
 appsettings.json
 
+# appsettings.Development.json
+appsettings.Development.json
 # firebase credential 
 firebase_credential.json
 
