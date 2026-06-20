@@ -524,8 +524,6 @@ Thumbs.db
 !packages/
 !packages/**
 
-# appsettings.json
-appsettings.json
 
 # appsettings.Development.json
 appsettings.Development.json
