@@ -528,5 +528,5 @@ Thumbs.db
 # appsettings.Development.json
 appsettings.Development.json
 # firebase credential 
-firebase_credential.json
+monteai-firebase-credential.json
 
