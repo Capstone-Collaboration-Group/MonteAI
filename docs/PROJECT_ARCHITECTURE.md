@@ -234,7 +234,11 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 ### 5.1 Backend Modules
 
 ```
-ResearchAssistant.API/
+MonteAI.server/
+├── Configuration/                   ← /pinecone configuration
+│   └── PineconeConfig.cs               
+│   └── OnnxConfig.cs                 ← removed, ONNX no longer on server
+│
 ├── Controllers/
 │   ├── AuthController.cs
 │   ├── ThesisController.cs          ← /theses/ingest now just relays vectors
@@ -242,6 +246,23 @@ ResearchAssistant.API/
 │   ├── ChatController.cs
 │   ├── UserController.cs
 │   └── AdminController.cs
+│
+├── Data/
+│   ├── AppDbContext.cs
+│   └── Migrations/
+│
+├── Mappings/
+│   └── AutoMapper.cs
+│
+├── Middleware/
+│   ├── FirebaseAuthMiddleware.cs
+│   └── RoleAuthorizationMiddleware.cs
+│
+├── Models/
+│   ├── Entities/
+│   └── DTOs/
+│       └── ThesisIngestDto.cs            ← { title, author, abstract, vectors[] }
+│
 │
 ├── Services/
 │   ├── Auth/
@@ -263,25 +284,9 @@ ResearchAssistant.API/
 │   └── Chat/
 │       └── ChatSessionService.cs
 │
-├── Models/
-│   ├── Entities/
-│   └── DTOs/
-│       └── ThesisIngestDto.cs            ← { title, author, abstract, vectors[] }
-│
-├── Data/
-│   ├── AppDbContext.cs
-│   └── Migrations/
-│
-├── Jobs/
-│   └── PdfIngestionJob.cs            ← removed, Electron handles async
-│
-├── Middleware/
-│   ├── FirebaseAuthMiddleware.cs
-│   └── RoleAuthorizationMiddleware.cs
-│
-└── Configuration/
-    ├── PineconeConfig.cs
-    └── OnnxConfig.cs                 ← removed, ONNX no longer on server
+└── Repositories/                        ← class files that have direct access to database
+    ├── Interface/                       ← Interface files that will be inherited
+    └── StudentRepository.cs
 ```
 
 ### 5.2 Frontend Module Summary
@@ -494,7 +499,7 @@ export async function generateEmbedding(text) {
 Before anything reaches the cloud, the full pipeline runs locally and prduces a clean payload:
 ```JavaScript
 // pipeline/ingestThesis.js
-export async function ingestThesis(filePath, thesisId) {
+export async function ingestThesis(filePath, thesisId) {    
     // Extract
     const rawText = await extractText(filePath);
 
@@ -683,7 +688,7 @@ Table ProgramHeads {
 -- Faculty Table
 Table Faculty { 
   Id uniqueidentifier [pk, default: `NEWID()`]
-  Email nvarchar(256) [not null]
+  Email nvarchar(256) UNIQUE [not null]
   FirstName nvarchar(256) 
   MiddleInitial nvarchar(256) 
   LastName nvarchar(256)
