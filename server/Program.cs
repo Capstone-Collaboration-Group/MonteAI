@@ -1,5 +1,6 @@
 using Serilog;
 using Serilog.Events;
+using server.Configuration;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
@@ -21,8 +22,13 @@ try
         .Enrich.FromLogContext()
     );
 
+
+    builder.Services.Configure<PineconeConfig>(
+            builder.Configuration.GetSection(PineconeConfig.SectionName)
+            );
     // Add services to the container.
 
+    
     builder.Services.AddControllers();
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
