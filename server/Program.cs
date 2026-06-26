@@ -8,6 +8,10 @@ using Serilog;
 using Serilog.Events;
 using server.Configuration;
 using server.Data;
+using server.Repositories;
+using server.Repositories.Interfaces;
+using server.Services;
+using server.Services.Interfaces;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
@@ -63,6 +67,16 @@ try
                     maxRetryDelay: TimeSpan.FromSeconds(10),
                     errorNumbersToAdd: null);
             }));
+
+    // AutoMapper Configuration
+    builder.Services.AddAutoMapper(config =>
+    {
+        config.AddMaps(typeof(Program).Assembly);
+    });
+
+    builder.Services.AddScoped<IThesisService, ThesisService>();
+    builder.Services.AddScoped<IThesisRepository, ThesisRepository>();
+
     
     builder.Services.AddControllers();
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

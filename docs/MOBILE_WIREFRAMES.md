@@ -1,5 +1,14 @@
 ## *Desktop Wireframes (Remaining)*
 ### Faculty Panel
+Create the high fidelity wireframe for the Faculty Main panel Directory. 
+It must show the following buttons and elements: 
+- Panel Header "Faculty Directory"
+- Faculty & Program Heads button
+- Table that has 4 Columns: Faculty Member, Department, Load/Panels, and Actions
+- Faculty information Row, as well as for the Program Heads
+**Strictly Follow the color palette
+
+You can use this as a reference for the wireframe:
 
 ### Announcements Panel
 
