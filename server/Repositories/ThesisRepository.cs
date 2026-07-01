@@ -17,9 +17,6 @@ namespace server.Repositories
 
         public async Task<IEnumerable<Thesis>> GetFirst20ThesisAsync()
         {
-  
-
-
             return await _db.Theses.Take(20).ToListAsync();
         }
         public async Task<Thesis?> GetThesisByIdAsync(Guid id)
