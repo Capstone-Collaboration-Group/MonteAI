@@ -13,7 +13,7 @@ using server.Services.Interfaces;
 namespace server.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/v1/[controller]")]
     public class ThesisController : ControllerBase
     {
         private readonly ILogger<ThesisController> _logger;
