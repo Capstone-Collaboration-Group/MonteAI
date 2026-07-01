@@ -1,13 +1,19 @@
-using FirebaseAdmin;
+﻿using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
 using Google.Cloud.Firestore.V1;
 using Google.Cloud.Storage.V1;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json.Serialization;
 using Serilog;
 using Serilog.Events;
 using server.Configuration;
 using server.Data;
+using server.Repositories;
+using server.Repositories.Interfaces;
+using server.Services;
+using server.Services.Interfaces;
+using server.Services.AI;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
@@ -63,11 +69,42 @@ try
                     maxRetryDelay: TimeSpan.FromSeconds(10),
                     errorNumbersToAdd: null);
             }));
+
+    // AutoMapper Configuration
+    builder.Services.AddAutoMapper(config =>
+    {
+        config.AddMaps(typeof(Program).Assembly);
+    });
+
+    builder.Services.Scan(scan => scan
+        .FromAssemblyOf<Program>()
+            .AddClasses(classes => classes
+                .InNamespaces("server.Repositories")
+                .NotInNamespaces("server.Repositories.Interfaces"))
+            .AsMatchingInterface()
+            .WithScopedLifetime()
+
+       .FromAssemblyOf<Program>()
+            .AddClasses(classes => classes
+                .Where(t => t.Namespace?.StartsWith("server.Services") == true))
+            .AsMatchingInterface()
+            .WithScopedLifetime()
+    );
+
+    builder.Services.AddSingleton<IPineconeUpsertService, PineconeUpsertService>();
+
+
+        
+
+    //builder.Services.AddScoped<IThesisService, ThesisService>();
+    //builder.Services.AddScoped<IThesisRepository, ThesisRepository>();
+
     
     builder.Services.AddControllers();
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
+
 
     var app = builder.Build();
 

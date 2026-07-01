@@ -33,7 +33,5 @@ namespace server.Models.Entities
         [Required]
         [MaxLength(1)]
         public char Section { get; set; }
-
-
     }
 }
