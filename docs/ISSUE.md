@@ -138,7 +138,7 @@ Create the Mapping of the Created DTOs completed from *Issue #102*
 Ensure that all DTOs are mapped to its respective Entities 
 
 
-### Issue #105 "Implement Repository & Service Layer"
+### Issue #106 "Implement Repository & Service Layer"
 Create the repository and service layer with its interfaces for the following Entities
 - [ ] ChatSession.cs
 - [ ] Faculty.cs
