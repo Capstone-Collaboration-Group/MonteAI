@@ -43,6 +43,7 @@
     "@monteai/types": "workspace:*",
     "@tailwindcss/vite": "^4.2.4",
     "electron-squirrel-startup": "^1.0.1",
+    "lodash": "^4.18.1",
     "tailwindcss": "^4.2.4"
   }
 }
