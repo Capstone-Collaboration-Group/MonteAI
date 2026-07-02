@@ -13,7 +13,7 @@ namespace server.Models.Entities
         public string UserId { get; set; } = string.Empty;
 
         [Required]
-        public string? Title { get; set; }
+        public string Title { get; set; } = string.Empty;
 
         public DateTime? CreatedAt { get; set; }
 
