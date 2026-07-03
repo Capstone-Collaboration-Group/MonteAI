@@ -20,5 +20,15 @@ namespace server.Models.Entities
 
         public DateTime? LastModified { get; set; }
 
+        public string? CreatedByAdminId{ get; set; }
+
+        public Admin? CreatedByAdmin { get; set; }
+
+        public string? CreatedByProgramHeadId { get; set; }
+        public ProgramHead? CreatedByProgramHead { get; set; }
+
+
+        
+
     }
 }
