@@ -829,7 +829,7 @@ https://api.monteai.edu.ph/api/v1
 #### Chat
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| POST | `/chat/sessions` | Create a new chat session | Student, Faculty, Admin |
+| POST | `/chat/sessions/create` | Create a new chat session | Student, Faculty, Admin |
 | GET | `/chat/sessions` | List user's chat sessions | Student, Faculty, Admin |
 | GET | `/chat/sessions/{id}` | Get session with messages | Student, Faculty, Admin |
 | POST | `/chat/sessions/{id}/messages` | Send message, stream response (SSE) | Student, Faculty, Admin |
