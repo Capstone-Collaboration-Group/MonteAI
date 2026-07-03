@@ -252,6 +252,26 @@ namespace server.Data
                         c => c.Aggregate(0, (a,v) => HashCode.Combine(a, v.GetHashCode())),
                         c => c.ToList()
                     ));
+                entity.Property(e => e.CreatedByAdminId)
+                    .HasMaxLength(128);
+
+                entity.Property(e => e.CreatedByProgramHeadId)
+                    .HasMaxLength(128);
+
+                entity.HasOne(e => e.CreatedByAdmin)
+                    .WithMany()
+                    .HasForeignKey(e => e.CreatedByAdminId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(e => e.CreatedByProgramHead)
+                    .WithMany()
+                    .HasForeignKey(e => e.CreatedByProgramHeadId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(t => t.HasCheckConstraint(
+                    "CK_Announcement_SingleAuthor",
+                    "([CreatedByAdminId] IS NOT NULL AND [CreatedByProgramHeadId] IS NULL) OR " +
+                    "([CreatedByAdminId] IS NULL AND [CreatedByProgramHeadId] IS NOT NULL)"
+                ));
             });
         }
     }
