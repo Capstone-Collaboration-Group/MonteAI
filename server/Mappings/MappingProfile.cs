@@ -50,8 +50,8 @@ namespace server.Mappings
 
             // ChatSession
             CreateMap<ChatSession, ChatSessionResponseDto>();
-            CreateMap<ChatSession, CreateChatSessionDto>();
-            CreateMap<ChatSession, UpdateChatSessionDto>();
+            CreateMap<CreateChatSessionDto, ChatSession>();
+            CreateMap<UpdateChatSessionDto, ChatSession>();
 
             //  PanelistSchedule 
             CreateMap<PanelistSchedule, PanelistScheduleResponseDto>();
