@@ -11,12 +11,12 @@ namespace server.Models.Entities
 
         [Required]
         public string UserId { get; set; } = string.Empty;
-
+// changed the public string? and inputted = string.Empty; for no conflict
         [Required]
-        public string? Title { get; set; }
+        public string Title { get; set; } = string.Empty;
+// removed the ? to not be nullable 
+        public DateTime CreatedAt { get; set; }
 
-        public DateTime? CreatedAt { get; set; }
-
-        public DateTime? LastChatDate { get; set; }
+        public DateTime LastChatDate { get; set; }
     }
 }
