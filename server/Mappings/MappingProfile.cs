@@ -1,5 +1,11 @@
 ﻿// Auto mapper for conversion of DTOs to Entities
 using AutoMapper;
+using server.Models.DTOs.Announcement;
+using server.Models.DTOs.ChatSession;
+using server.Models.DTOs.PanelistSchedule;
+using server.Models.DTOs.ResearchGroup;
+using server.Models.DTOs.Review;
+using server.Models.DTOs.Schedule;
 using server.Models.DTOs.Thesis;
 using server.Models.DTOs.User;
 using server.Models.Entities;
@@ -41,6 +47,57 @@ namespace server.Mappings
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
             CreateMap<UpdateUserDto, ProgramHead>()
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
+
+            // ChatSession
+            CreateMap<ChatSession, ChatSessionResponseDto>();
+            CreateMap<ChatSession, CreateChatSessionDto>();
+            CreateMap<ChatSession, UpdateChatSessionDto>();
+
+            //  PanelistSchedule 
+            CreateMap<PanelistSchedule, PanelistScheduleResponseDto>();
+            CreateMap<PanelistSchedule, CreatePanelistScheduleDto>();
+            CreateMap<PanelistSchedule, UpdatePanelistScheduleDto>();
+
+            // ResearchGroup
+            CreateMap<ResearchGroup, ResearchGroupResponseDto>();
+            CreateMap<ResearchGroup, CreateResearchGroupDto>();
+            CreateMap<ResearchGroup, UpdateResearchGroupDto>();
+
+            // Review
+            CreateMap<Review, ReviewResponseDto>();
+            CreateMap<Review, CreateReviewDto>();
+            CreateMap<Review, UpdateReviewDto>();
+
+            // Schedule
+            CreateMap<Schedule, ScheduleResponseDto>();
+            CreateMap<Schedule, CreateScheduleDto>();
+            CreateMap<Schedule, UpdateScheduleDto>();
+
+            // Announcement 
+            CreateMap<Announcement, AnnouncementResponseDto>()
+                   .ForMember(dest => dest.Author, opt => opt.MapFrom(src => ResolveAnnouncementAuthor(src)));
+            CreateMap<CreateAnnouncementDto, Announcement>();
+            CreateMap<UpdateAnnouncementDto, Announcement>();
+           
+
+        }
+        private static AnnouncementAuthorDto ResolveAnnouncementAuthor(Announcement src)
+        {
+            if (src.CreatedByAdmin != null)
+                return new AnnouncementAuthorDto
+                {
+                    Id = src.CreatedByAdmin.Id,
+                    FullName = $"{src.CreatedByAdmin.FirstName} {src.CreatedByAdmin.LastName}",
+                    Role = "Admin"
+                };
+            if (src.CreatedByProgramHead != null)
+                return new AnnouncementAuthorDto
+                {
+                    Id = src.CreatedByProgramHead.Id,
+                    FullName = $"{src.CreatedByProgramHead.FirstName} {src.CreatedByProgramHead.LastName}",
+                    Role = "ProgramHead"
+                };
+            return new AnnouncementAuthorDto { Id = string.Empty, FullName = "Unknown", Role = "Unknown" };
         }
 
     }
