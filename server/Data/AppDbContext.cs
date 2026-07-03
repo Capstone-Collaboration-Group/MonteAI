@@ -20,6 +20,8 @@ namespace server.Data
         public DbSet<PanelistSchedule> PanelistSchedules { get; set; }
         public DbSet<ChatSession> ChatSessions { get; set; }
 
+        public DbSet<Announcement> Announcements { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -223,6 +225,33 @@ namespace server.Data
                       .HasDefaultValueSql("GETUTCDATE()");
                 entity.Property(e => e.LastChatDate)
                       .HasDefaultValueSql("GETUTCDATE()");
+            });
+
+            modelBuilder.Entity<Announcement>(entity =>
+            {
+                entity.ToTable("Announcements");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id)
+                    .HasDefaultValueSql("NEWID()");
+                entity.Property(e => e.Subject)
+                    .HasMaxLength(256)
+                    .IsRequired();
+                entity.Property(e => e.Content)
+                    .IsRequired();
+                entity.Property(e => e.CreatedAt)
+                    .HasDefaultValueSql("GETUTCDATE()");
+
+                entity.Property(e => e.AttachmentUrls)
+                    .HasConversion(
+                        v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                        v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>()
+                        )
+                    .HasColumnType("nvarchar(max)")
+                    .Metadata.SetValueComparer(new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<string>>(
+                        (c1, c2) => c1!.SequenceEqual(c2!),
+                        c => c.Aggregate(0, (a,v) => HashCode.Combine(a, v.GetHashCode())),
+                        c => c.ToList()
+                    ));
             });
         }
     }
