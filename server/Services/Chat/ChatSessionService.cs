@@ -1,7 +1,8 @@
 using AutoMapper;
-using Microsoft.AspNetCore.Components.Web;
+using server.Models.DTOs.ChatMessage;
 using server.Models.DTOs.ChatSession;
 using server.Models.Entities;
+using server.Repositories;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
 
@@ -9,20 +10,22 @@ namespace server.Services.Chat
 {
     public class ChatSessionService : IChatSessionService
     {
-        private readonly IChatSessionRepository _repo;
+        private readonly IChatSessionRepository _chatSessionRepo;
+        private readonly IChatMessageRepository _chatMessageRepo;
         private readonly ILogger<ChatSessionService> _logger;
         private readonly IMapper _mapper;
 
-        public ChatSessionService(IChatSessionRepository repo, ILogger<ChatSessionService> logger, IMapper mapper)
+        public ChatSessionService(IChatSessionRepository repo, IChatMessageRepository chatMessageRepo, ILogger<ChatSessionService> logger, IMapper mapper)
         {
-            _repo = repo;
+            _chatSessionRepo = repo;
+            _chatMessageRepo = chatMessageRepo;
             _logger = logger;
             _mapper = mapper;
         }
 
         public async Task<IEnumerable<ChatSessionResponseDto>> GetAllAsync(string userId)
         {
-            var result = await _repo.GetAllChatSessionsAsync(userId);
+            var result = await _chatSessionRepo.GetAllChatSessionsAsync(userId);
 
             var dtos =  _mapper.Map<IEnumerable<ChatSessionResponseDto>>(result);
 
@@ -34,12 +37,16 @@ namespace server.Services.Chat
         // GetByIdAsync 
         public async Task<ChatSessionResponseDto?> GetByIdAsync(Guid id)
         {
-            var result = await _repo.GetChatSessionByIdAsync(id);
+            var session = await _chatSessionRepo.GetChatSessionByIdAsync(id);
 
-            var dto = _mapper.Map<ChatSessionResponseDto?>(result);
+            var dto = _mapper.Map<ChatSessionResponseDto?>(session);
 
+            var messages = await _chatMessageRepo.GetMessagesBySessionIdAsync(id);
+            if(dto != null)
+            {
+                dto.Messages = _mapper.Map<List<ChatMessageResponseDto>>(messages);
+            }
             _logger.LogInformation("Chat Session {id} has been successfully fetched", id);
-
             return dto;
         }
 
@@ -51,24 +58,25 @@ namespace server.Services.Chat
             chatSession.CreatedAt = DateTime.UtcNow;
             chatSession.LastChatDate = DateTime.UtcNow;
 
-            var result = await _repo.CreateChatSessionAsync(chatSession);
+            var result = await _chatSessionRepo.CreateChatSessionAsync(chatSession);
             _logger.LogInformation("ChatSession Created with result: {result}", result);
 
             return _mapper.Map<ChatSessionResponseDto>(chatSession);
         }
 
-        public async Task<bool> UpdateAsync(UpdateChatSessionDto updateChatSessionDto)
+        public async Task<bool> UpdateAsync(UpdateChatSessionDto updateChatSessionDto, Guid sessionId)
         {
             var chatSession = _mapper.Map<ChatSession>(updateChatSessionDto);
             chatSession.LastChatDate = DateTime.UtcNow;
-            var result = await _repo.UpdateChatSessionAsync(chatSession);
+            chatSession.Id = sessionId;
+            var result = await _chatSessionRepo.UpdateChatSessionAsync(chatSession);
 
             return result;
         }
 
         public async Task<bool> DeleteAsync(Guid id)
         {
-            var result = await _repo.DeleteChatSessionAsync(id);
+            var result = await _chatSessionRepo.DeleteChatSessionAsync(id);
             _logger.LogInformation("Chat Session With Id: {Id} Is deleted", id);
             return result;
         }
