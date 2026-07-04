@@ -27,7 +27,7 @@ namespace server.Controllers
             if (result == null) return NotFound("No Chat Sessions Found");
             _logger.LogInformation("Fetched {number}", result.Count());
 
-            return Ok(new { Message = $"Fetched successfully: {result}" });
+            return Ok(new { Message = "Fetched all chat Sessions", result});
         }
         [HttpGet("sessions/{id}")]
         public async Task<IActionResult> GetChatById([FromRoute] Guid id)
