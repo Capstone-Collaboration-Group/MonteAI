@@ -833,7 +833,7 @@ https://api.monteai.edu.ph/api/v1
 | GET | `/chat/sessions` | List user's chat sessions | Student, Faculty, Admin |
 | GET | `/chat/sessions/{id}` | Get session with messages | Student, Faculty, Admin |
 | POST | `/chat/sessions/{id}/messages` | Send message, stream response (SSE) | Student, Faculty, Admin |
-| DELETE | `/chat/sessions/{id}` | Delete a session | Owner |
+| DELETE | `/chat/sessions/{id}/delete` | Delete a session | Owner |
 
 #### User Management
 | Method | Endpoint | Description | Access |
