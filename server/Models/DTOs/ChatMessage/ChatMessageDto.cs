@@ -4,9 +4,7 @@ namespace server.Models.DTOs.ChatMessage
 {
     public class CreateChatMessageDto
     {
-        [Required]
-        public string SessionId { get; set; } = string.Empty;
-
+         
         [Required]
         public string Role { get; set; } = string.Empty;
 
@@ -26,6 +24,6 @@ namespace server.Models.DTOs.ChatMessage
 
         public string Content { get; set; } = string.Empty;
 
-        public DateTime? Timestamp { get; set; }
+        public DateTime Timestamp { get; set; }
     }
 }
