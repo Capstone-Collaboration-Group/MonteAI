@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using server.Models.DTOs.ChatMessage;
 
 namespace server.Models.DTOs.ChatSession
 {
@@ -30,5 +31,7 @@ namespace server.Models.DTOs.ChatSession
         public DateTime CreatedAt { get; set; }
 
         public DateTime LastChatDate { get; set; }
+
+        public List<ChatMessageResponseDto> Messages { get; set; } = new();
     }
 }
