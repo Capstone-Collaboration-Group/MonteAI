@@ -3,6 +3,14 @@ using server.Models.DTOs.ChatMessage;
 using server.Models.DTOs.ChatSession;
 using server.Services.Interfaces;
 
+/**
+ * Summary: 
+ * Api controller for Chat Messages
+ * Working on sending and receiving responses to the data layer
+ * Just needed to implement AI chat feature on the client (Expo) with 
+ * Gemma 4 as the LLM
+ */
+
 namespace server.Controllers
 {
     [ApiController]
