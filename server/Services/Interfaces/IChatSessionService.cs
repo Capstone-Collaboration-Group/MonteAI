@@ -11,7 +11,7 @@ namespace server.Services.Interfaces
         // CreateAsync
         Task<ChatSessionResponseDto> CreateAsync(CreateChatSessionDto chatSession);
         // UpdateAsync
-        Task<bool> UpdateAsync(UpdateChatSessionDto chatSession);
+        Task<bool> UpdateAsync(UpdateChatSessionDto chatSession, Guid sessionId);
 
         // DeleteAsync
         Task<bool> DeleteAsync(Guid id);
