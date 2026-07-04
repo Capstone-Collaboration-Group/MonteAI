@@ -1,6 +1,7 @@
 ﻿// Auto mapper for conversion of DTOs to Entities
 using AutoMapper;
 using server.Models.DTOs.Announcement;
+using server.Models.DTOs.ChatMessage;
 using server.Models.DTOs.ChatSession;
 using server.Models.DTOs.PanelistSchedule;
 using server.Models.DTOs.ResearchGroup;
@@ -52,6 +53,10 @@ namespace server.Mappings
             CreateMap<ChatSession, ChatSessionResponseDto>();
             CreateMap<CreateChatSessionDto, ChatSession>();
             CreateMap<UpdateChatSessionDto, ChatSession>();
+
+            // ChatMessage
+            CreateMap<ChatMessage, ChatMessageResponseDto>();
+            CreateMap<CreateChatMessageDto, ChatMessage>();
 
             //  PanelistSchedule 
             CreateMap<PanelistSchedule, PanelistScheduleResponseDto>();
