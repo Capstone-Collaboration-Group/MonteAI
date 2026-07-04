@@ -24,8 +24,6 @@ namespace server.Controllers
             if (string.IsNullOrEmpty(dto.FirebaseUid))
                 return BadRequest(new { Message = "Firebase UID is required." });
 
-            
-
             var result = dto.Role switch
             {
                 "Student" => await _studentService.RegisterAsync(dto, dto.FirebaseUid),
