@@ -7,6 +7,7 @@ using server.Models.DTOs.PanelistSchedule;
 using server.Models.DTOs.ResearchGroup;
 using server.Models.DTOs.Review;
 using server.Models.DTOs.Schedule;
+using server.Models.DTOs.Submission;
 using server.Models.DTOs.Thesis;
 using server.Models.DTOs.User;
 using server.Models.Entities;
@@ -19,9 +20,9 @@ namespace server.Mappings
         {
             //Thesis Mappings
             CreateMap<Thesis, ThesisResponseDto>();
-            CreateMap<Thesis, CreateThesisDto>();
-            CreateMap<Thesis, UpdateThesisDto>();
-            CreateMap<Thesis, UpdateThesisStatusDto>();
+            CreateMap<SubmitThesisDto, Thesis>();
+            CreateMap<UpdateThesisDto, Thesis>();
+            CreateMap<UpdateThesisStatusDto, Thesis>();
 
             //User Mappings
             CreateMap<Student, UserResponseDto>();
@@ -77,6 +78,13 @@ namespace server.Mappings
             CreateMap<Schedule, ScheduleResponseDto>();
             CreateMap<Schedule, CreateScheduleDto>();
             CreateMap<Schedule, UpdateScheduleDto>();
+
+            // Submission 
+            CreateMap<Submission, SubmissionResponseDto>()
+                .ForMember(dest => dest.StudentName, opt => opt.MapFrom(src =>
+                $"{src.Student.FirstName} {src.Student.MiddleInitial}. {src.Student.LastName}".Trim()));
+            CreateMap<CreateSubmissionDto, Submission>();
+            CreateMap<UpdateSubmissionDto, Submission>();
 
             // Announcement 
             CreateMap<Announcement, AnnouncementResponseDto>()
