@@ -859,7 +859,15 @@ https://api.monteai.edu.ph/api/v1
 | PATCH | `/students/{id}` | Update user credential | Student
 | DELETE | `/students{id}`| Delete user account | Admin, Student |
 
-
+#### Submission Management 
+| Method | Endpoint | Description | Access |
+|---------|----------|-------------|--------|
+| GET | `/submission` | List all submissions | Admin | 
+| GET | `/submission/{studentNumber}/{thesisId}` | List all Submissions | Student, Admin, Faculty, ProgramHead | 
+| GET | `/submission/{id}` | Get submission details | Admin, Student, Faculty, ProgramHead | 
+| POST | `/submission/create` | Create Submission | Student | 
+| PATCH | `/submission/update/{id}` | Update Submission detail (esp. Notes) | Student
+| DELETE | `/submission/delete/{id}`| Delete Submission entry | Admin, Student |
 
 #### Review Workflow
 | Method | Endpoint | Description | Access |
