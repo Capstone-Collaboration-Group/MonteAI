@@ -1,18 +1,19 @@
 ﻿using server.Models.DTOs.Thesis;
 
-
 namespace server.Services.Interfaces
 {
     public interface IThesisService
     {
         Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync();
 
-        //Task<Thesis?> GetThesisByIdAsync(Guid id);
+        Task<ThesisResponseDto?> GetByIdAsync(Guid id);
 
-        //Task<bool> UpdateDetailsAsync(Thesis thesis);
+        Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto);
 
-        //Task<bool> UpdateStatusAsync(Guid id, string status);
+        Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateThesisdto);
 
-        //Task<bool> DeleteThesisAsync(Guid id);
+        Task<bool> UpdateStatusAsync(Guid id, UpdateThesisStatusDto updateStatusDto);
+
+        Task<bool> DeleteAsync(Guid id);
     }
 }
