@@ -1,4 +1,5 @@
-﻿using server.Models.Entities;
+﻿using server.Models.DTOs.Thesis;
+using server.Models.Entities;
 
 namespace server.Repositories.Interfaces
 {
@@ -8,9 +9,11 @@ namespace server.Repositories.Interfaces
 
         Task<Thesis?> GetThesisByIdAsync(Guid id);
 
-        Task<bool> UpdateDetailsAsync(Thesis thesis);
+        Task<Thesis> SubmitAsync(Thesis thesis);
 
-        Task<bool> UpdateStatusAsync(Guid id, string status);
+        Task<bool> UpdateDetailsAsync(Guid id, Thesis thesis);
+
+        Task<bool> UpdateStatusAsync(Guid id, Thesis updateStatusDto);
 
         Task<bool> DeleteThesisAsync(Guid id);
 
