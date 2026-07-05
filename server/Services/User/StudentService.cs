@@ -1,9 +1,9 @@
 ﻿using server.Mappings;
-using server.Models.DTOs.User;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
 using AutoMapper;
 using server.Models.Entities;
+using server.Models.DTOs.User;
 
 namespace server.Services.User
 {
