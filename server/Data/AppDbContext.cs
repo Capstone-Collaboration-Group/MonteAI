@@ -81,11 +81,6 @@ namespace server.Data
                       .HasMaxLength(100);
                 entity.Property(e => e.Section)
                       .HasMaxLength(1);
-
-                entity.HasOne(e => e.ResearchGroup)
-                      .WithMany()
-                      .HasForeignKey(e => e.GroupId)
-                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<ResearchGroup>(entity =>
@@ -94,10 +89,36 @@ namespace server.Data
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id)
                       .HasDefaultValueSql("NEWID()");
+                entity.Property(e => e.GroupName)
+                      .HasMaxLength(100)
+                      .IsRequired();
+                entity.Property(e => e.ResearchTitle)
+                      .HasMaxLength(255)
+                      .IsRequired();
+                entity.Property(e => e.AdviserId)
+                      .HasMaxLength(128);
+                entity.Property(e => e.LeaderId)
+                      .HasMaxLength(128)
+                      .IsRequired();
                 entity.Property(e => e.CreatedAt)
                       .HasDefaultValueSql("GETUTCDATE()");
                 entity.Property(e => e.UpdatedAt)
                       .HasDefaultValueSql("GETUTCDATE()");
+
+                entity.HasMany(e => e.Students)
+                      .WithOne(s => s.ResearchGroup)
+                      .HasForeignKey(s => s.GroupId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(e => e.Adviser)
+                      .WithMany()
+                      .HasForeignKey(e => e.AdviserId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne<Student>()
+                      .WithMany()
+                      .HasForeignKey(e => e.LeaderId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<Thesis>(entity =>
