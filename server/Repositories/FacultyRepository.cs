@@ -25,7 +25,6 @@ namespace server.Repositories
         {
             var result = await _db.Faculties.FindAsync(faculty.Id);
             if (result != null) return false;
-
             await _db.Faculties.AddAsync(faculty);
 
             await _db.SaveChangesAsync();
@@ -37,7 +36,7 @@ namespace server.Repositories
         {
             var result = await _db.Faculties.FindAsync(faculty);
             if (result == null) return false;
-
+             
              _db.Faculties.Update(faculty);
             await _db.SaveChangesAsync();
 

@@ -1,9 +1,9 @@
 ﻿using server.Mappings;
-using server.Models.DTOs.User;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
 using AutoMapper;
 using server.Models.Entities;
+using server.Models.DTOs.User;
 
 namespace server.Services.User
 {
@@ -19,13 +19,6 @@ namespace server.Services.User
             _logger = logger;
             _mapper = mapper;
         }
-
-
-        //RegisterAsync
-        //GetByIdAsync
-        //GetAllAsync
-        //UpdateAsync
-        //DeactivateAsync
 
         public async Task<UserResponseDto> RegisterAsync(RegisterUserDto dto, string firebaseUid)
         {

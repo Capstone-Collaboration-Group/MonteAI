@@ -11,7 +11,6 @@ namespace server.Repositories.Interfaces
         Task<bool> CreateProgramHeadAsync(ProgramHead programHead);
 
         Task<bool> UpdateProgramHeadAsync(ProgramHead programHead);
-
         Task<bool> DeleteProgramHeadAsync(string id);
     }
 }

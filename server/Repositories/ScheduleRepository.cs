@@ -35,8 +35,13 @@ namespace server.Repositories
         {
             var result = await _db.Schedules.FindAsync(schedule.ScheduleId);
             if (result == null) return false;
-
-            _db.Schedules.Update(schedule);
+            result.GroupId = schedule.GroupId;
+            result.Date = schedule.Date;
+            result.StartTime = schedule.StartTime;
+            result.EndingTime = schedule.EndingTime;
+            result.RoomVenue = schedule.RoomVenue;
+            result.AdditionalInformation = schedule.AdditionalInformation;
+            
             await _db.SaveChangesAsync();
             return true;
         }

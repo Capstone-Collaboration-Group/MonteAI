@@ -18,12 +18,12 @@ namespace server.Models.DTOs.Review
     }
 
      public class UpdateReviewDto
-    {
+     {
         public string? Decision { get; set; }
 
         [MaxLength(1000)]
         public string? Comments { get; set; }
-    }
+     }
 
     public class ReviewResponseDto
     {

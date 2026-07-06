@@ -30,10 +30,16 @@ namespace server.Repositories
 
         public async Task<bool> UpdateChatSessionAsync(ChatSession chatSession)
         {
-            var result = await _db.ChatSessions.FindAsync(chatSession.Id);
-            if (result == null) return false;
+            Console.WriteLine(chatSession.Id);
+            Console.WriteLine(chatSession.Title);
+            var existing = await _db.ChatSessions.FindAsync(chatSession.Id);
+            
+            if (existing == null) return false;
+            Console.WriteLine(existing.ToString());
 
-            _db.ChatSessions.Update(chatSession);
+            existing.Title = chatSession.Title;
+            existing.LastChatDate = chatSession.LastChatDate;
+
             await _db.SaveChangesAsync();
             return true;
         }

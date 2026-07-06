@@ -95,6 +95,14 @@ namespace server.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
+                    b.Property<string>("CreatedByAdminId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CreatedByProgramHeadId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<DateTime?>("LastModified")
                         .HasColumnType("datetime2");
 
@@ -105,7 +113,14 @@ namespace server.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Announcements", (string)null);
+                    b.HasIndex("CreatedByAdminId");
+
+                    b.HasIndex("CreatedByProgramHeadId");
+
+                    b.ToTable("Announcements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Announcement_SingleAuthor", "([CreatedByAdminId] IS NOT NULL AND [CreatedByProgramHeadId] IS NULL) OR ([CreatedByAdminId] IS NULL AND [CreatedByProgramHeadId] IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("server.Models.Entities.ChatSession", b =>
@@ -115,12 +130,12 @@ namespace server.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWID()");
 
-                    b.Property<DateTime?>("CreatedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
-                    b.Property<DateTime?>("LastChatDate")
+                    b.Property<DateTime>("LastChatDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
@@ -276,10 +291,29 @@ namespace server.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWID()");
 
+                    b.Property<string>("AdviserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("GroupName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LeaderId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ResearchTitle")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -287,6 +321,10 @@ namespace server.Migrations
                         .HasDefaultValueSql("GETUTCDATE()");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AdviserId");
+
+                    b.HasIndex("LeaderId");
 
                     b.ToTable("ResearchGroups", (string)null);
                 });
@@ -544,6 +582,23 @@ namespace server.Migrations
                     b.ToTable("Theses", (string)null);
                 });
 
+            modelBuilder.Entity("server.Models.Entities.Announcement", b =>
+                {
+                    b.HasOne("server.Models.Entities.Admin", "CreatedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("CreatedByAdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("server.Models.Entities.ProgramHead", "CreatedByProgramHead")
+                        .WithMany()
+                        .HasForeignKey("CreatedByProgramHeadId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByAdmin");
+
+                    b.Navigation("CreatedByProgramHead");
+                });
+
             modelBuilder.Entity("server.Models.Entities.PanelistSchedule", b =>
                 {
                     b.HasOne("server.Models.Entities.Schedule", "Schedule")
@@ -553,6 +608,22 @@ namespace server.Migrations
                         .IsRequired();
 
                     b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("server.Models.Entities.ResearchGroup", b =>
+                {
+                    b.HasOne("server.Models.Entities.Faculty", "Adviser")
+                        .WithMany()
+                        .HasForeignKey("AdviserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("server.Models.Entities.Student", null)
+                        .WithMany()
+                        .HasForeignKey("LeaderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Adviser");
                 });
 
             modelBuilder.Entity("server.Models.Entities.Review", b =>
@@ -579,7 +650,7 @@ namespace server.Migrations
             modelBuilder.Entity("server.Models.Entities.Student", b =>
                 {
                     b.HasOne("server.Models.Entities.ResearchGroup", "ResearchGroup")
-                        .WithMany()
+                        .WithMany("Students")
                         .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
@@ -604,6 +675,11 @@ namespace server.Migrations
                     b.Navigation("Student");
 
                     b.Navigation("Thesis");
+                });
+
+            modelBuilder.Entity("server.Models.Entities.ResearchGroup", b =>
+                {
+                    b.Navigation("Students");
                 });
 
             modelBuilder.Entity("server.Models.Entities.Schedule", b =>
