@@ -5,10 +5,10 @@ using server.Repositories.Interfaces;
 
 namespace server.Repositories
 {
-    public class ResearchGroupRepository
+    public class ResearchGroupRepository 
     (
         AppDbContext _db
-    ) 
+    ) : IResearchGroupRepository
     {
         public async Task<IEnumerable<ResearchGroup>> GetAllResearchGroupsAsync()
             => await _db.ResearchGroups

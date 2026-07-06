@@ -94,10 +94,7 @@ try
     builder.Services.AddSingleton<IPineconeUpsertService, PineconeUpsertService>();
 
 
-        
-
-    //builder.Services.AddScoped<IThesisService, ThesisService>();
-    //builder.Services.AddScoped<IThesisRepository, ThesisRepository>();
+       
 
     
     builder.Services.AddControllers();
