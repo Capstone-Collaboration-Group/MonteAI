@@ -34,7 +34,7 @@ namespace server.Repositories
         // UpdateAdminAsync
         public async Task<bool> UpdateAdminAsync(Admin admin)
         {
-                      var result = await _db.Admins.FindAsync(admin.Id);
+            var result = await _db.Admins.FindAsync(admin.Id);
             if (result == null) return false;
             _db.Admins.Update(admin);
             await _db.SaveChangesAsync();

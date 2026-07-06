@@ -20,13 +20,6 @@ namespace server.Services.User
             _mapper = mapper;
         }
 
-
-        //RegisterAsync
-        //GetByIdAsync
-        //GetAllAsync
-        //UpdateAsync
-        //DeactivateAsync
-
         public async Task<UserResponseDto> RegisterAsync(RegisterUserDto dto, string firebaseUid)
         {
             var student = _mapper.Map<Student>(dto);
