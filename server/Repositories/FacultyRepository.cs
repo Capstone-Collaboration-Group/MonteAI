@@ -17,7 +17,7 @@ namespace server.Repositories
         // GetAllFacultyAsync 
         public async Task<IEnumerable<Faculty>> GetAllFacultyAsync() => await _db.Faculties.ToListAsync();
 
-        // GetFacultyByAdminAsync
+        // GetFacultyByIdAsync
         public async Task<Faculty?> GetFacultyByIdAsync(string id) => await _db.Faculties.FindAsync(id);
 
         // CreateFacultyAsync
@@ -34,10 +34,15 @@ namespace server.Repositories
         // UpdateFacultyAsync
         public async Task<bool> UpdateFacultyAsync(Faculty faculty)
         {
-            var result = await _db.Faculties.FindAsync(faculty);
+            var result = await _db.Faculties.FindAsync(faculty.Id);
             if (result == null) return false;
-             
-             _db.Faculties.Update(faculty);
+
+            result.FirstName = faculty.FirstName;
+            result.MiddleInitial = faculty.MiddleInitial;
+            result.LastName = faculty.LastName;
+            result.Email = faculty.Email;
+            result.Role = faculty.Role;
+            result.IsActive = faculty.IsActive;
             await _db.SaveChangesAsync();
 
             return true;
