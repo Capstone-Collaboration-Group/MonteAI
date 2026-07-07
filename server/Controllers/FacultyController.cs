@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using server.Models.DTOs.Faculty;
 using server.Models.DTOs.User;
+using server.Models.Entities;
 using server.Services.Interfaces;
     
 namespace server.Controllers 
@@ -36,11 +37,12 @@ namespace server.Controllers
         }
         // No Faculty Creation POST Method since it will be handled in the registration Authcontroller
 
-        [HttpPatch]
-        public async Task<IActionResult> UpdateFaculty([FromBody] UpdateFacultyDto dto)
+        [HttpPatch("update")]
+        public async Task<IActionResult> UpdateFaculty([FromBody] UpdateUserDto dto)
         {
             var result = await _service.UpdateAsync(dto);
-            if(result)
+            _logger.LogInformation("Performed Updating of Faculty: {Name} ", dto.FirstName);
+            if (result)
             {
                 _logger.LogInformation("Faculty Updated Successfully");
                 return Ok(new { Message = "Faculty Updated Successfully", result });
