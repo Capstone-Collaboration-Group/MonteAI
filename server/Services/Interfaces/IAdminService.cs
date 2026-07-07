@@ -1,16 +1,17 @@
 using server.Models.DTOs.Admin;
+using server.Models.DTOs.User;
 
 namespace server.Services.Interfaces
 {
     public interface IAdminService
     {
-        Task<IEnumerable<AdminResponseDto>> GetAllAsync();
+        Task<IEnumerable<UserResponseDto>> GetAllAsync();
 
-        Task<AdminResponseDto> GetByIdAsync(string id);
+        Task<UserResponseDto> GetByIdAsync(string id);
 
-        Task<bool> CreateAsync(CreateAdminDto admin);
+        Task<bool> CreateAsync(RegisterUserDto admin);
 
-        Task<bool> UpdateAsync(UpdateAdminDto admin);
+        Task<bool> UpdateAsync(UpdateUserDto admin);
 
         Task<bool> DeleteAsync(string id);
 
