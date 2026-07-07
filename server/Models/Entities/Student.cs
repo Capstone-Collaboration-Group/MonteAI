@@ -17,7 +17,7 @@ namespace server.Models.Entities
 
         [Required]
         [MaxLength(50)]
-        public string? Position { get; set; }
+        public string Position { get; set; } = string.Empty;
 
         [Required]
         [MaxLength(100)]

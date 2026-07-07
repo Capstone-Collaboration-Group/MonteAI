@@ -34,7 +34,9 @@ namespace server.Repositories
             var result = await _db.Reviews.FindAsync(review.Id);
             if (result == null) return false;
 
-            _db.Reviews.Update(review);
+            result.Decision = review.Decision;
+            result.Comments = review.Comments;
+
             await _db.SaveChangesAsync();
             return true;
         }

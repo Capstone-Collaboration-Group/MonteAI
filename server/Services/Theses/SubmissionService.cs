@@ -5,7 +5,7 @@ using server.Models.Entities;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
 
-namespace server.Services.Thesis
+namespace server.Services.Theses
 {
     public class SubmissionService : ISubmissionService
     {

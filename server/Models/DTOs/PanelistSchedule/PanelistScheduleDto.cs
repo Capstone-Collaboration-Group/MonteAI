@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using server.Models.Entities;
 
 namespace server.Models.DTOs.PanelistSchedule
@@ -19,7 +20,7 @@ namespace server.Models.DTOs.PanelistSchedule
     public class UpdatePanelistScheduleDto
     {
         [MaxLength(20)]
-        public string? PanelistType { get; set; }
+        public string PanelistType { get; set; } = string.Empty;
     }
 
     public class PanelistScheduleResponseDto

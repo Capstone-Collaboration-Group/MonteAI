@@ -6,13 +6,13 @@ namespace server.Repositories.Interfaces
     {
         Task<IEnumerable<PanelistSchedule>> GetAllPanelistSchedulesAsync();
 
-        Task<PanelistSchedule?> GetPanelistScheduleByIdAsync(Guid id);
+        Task<PanelistSchedule?> GetPanelistScheduleByIdAsync(Guid scheduleId, string panelistId);
 
         Task<bool> CreatePanelistScheduleAsync(PanelistSchedule panelistSchedule);
 
         Task<bool> UpdatePanelistScheduleAsync(PanelistSchedule panelistSchedule);
 
-        Task<bool> DeletePanelistScheduleAsync(Guid id);
+        Task<bool> DeletePanelistScheduleAsync(Guid scheduleId, string panelistId);
 
     }
 }

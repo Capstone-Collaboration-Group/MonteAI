@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using server.Data;
 using server.Models.Entities;
+using server.Repositories.Interfaces;
 
 namespace server.Repositories
 {
-    public class AdminRepository
+    public class AdminRepository : IAdminRepository
     {
         private readonly AppDbContext _db;
 

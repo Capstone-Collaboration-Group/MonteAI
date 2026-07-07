@@ -39,7 +39,14 @@ namespace server.Repositories
             var result = await _db.ProgramHeads.FindAsync(programHead.Id);
             if (result == null) return false;
 
-            _db.ProgramHeads.Update(programHead);
+            result.Email = programHead.Email;
+            result.FirstName = programHead.FirstName;
+            result.MiddleInitial = programHead.MiddleInitial;
+            result.LastName = programHead.LastName;
+            result.Suffix = programHead.Suffix;
+            result.Institute = programHead.Institute;
+            result.ProgramHandled = programHead.ProgramHandled;
+            result.IsActive = programHead.IsActive;
             await _db.SaveChangesAsync();
 
             return true;

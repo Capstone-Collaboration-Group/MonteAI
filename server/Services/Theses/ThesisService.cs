@@ -6,7 +6,7 @@ using server.Repositories;
 using server.Repositories.Interfaces;
 
 
-namespace server.Services
+namespace server.Services.Theses
 {
     public class ThesisService : IThesisService
     {

@@ -17,8 +17,8 @@ namespace server.Repositories
         public async Task<IEnumerable<PanelistSchedule>> GetAllPanelistSchedulesAsync()
               => await _db.PanelistSchedules.ToListAsync();
 
-        public async Task<PanelistSchedule?> GetPanelistScheduleByIdAsync(Guid id)
-            => await _db.PanelistSchedules.FindAsync(id);
+        public async Task<PanelistSchedule?> GetPanelistScheduleByIdAsync(Guid scheduleId, string panelistId)
+            => await _db.PanelistSchedules.FindAsync(scheduleId, panelistId);
 
         public async Task<bool> CreatePanelistScheduleAsync(PanelistSchedule panelistSchedule)
         {
@@ -31,17 +31,18 @@ namespace server.Repositories
         }
         public async Task<bool> UpdatePanelistScheduleAsync(PanelistSchedule panelistSchedule)
         {
-            var result = await _db.PanelistSchedules.FindAsync(panelistSchedule.ScheduleId);
+            var result = await _db.PanelistSchedules.FindAsync(panelistSchedule.ScheduleId, panelistSchedule.PanelistId);
             if (result == null) return false;
+            result.PanelistType = panelistSchedule.PanelistType;
 
             _db.PanelistSchedules.Update(panelistSchedule);
             await _db.SaveChangesAsync();
             return true;
         }
 
-        public async Task<bool> DeletePanelistScheduleAsync(Guid id)
+        public async Task<bool> DeletePanelistScheduleAsync(Guid scheduleId, string panelistId)
         {
-            var result = await _db.PanelistSchedules.FindAsync(id);
+            var result = await _db.PanelistSchedules.FindAsync(scheduleId, panelistId);
             if (result == null) return false;
 
             _db.PanelistSchedules.Remove(result);
