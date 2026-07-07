@@ -1,5 +1,6 @@
 using AutoMapper;
 using server.Models.DTOs.Faculty;
+using server.Models.DTOs.User;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
@@ -19,26 +20,28 @@ namespace server.Services.User
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<FacultyResponseDto>> GetAllAsync()
+        public async Task<IEnumerable<UserResponseDto>> GetAllAsync()
         {
             var result = await _repo.GetAllFacultyAsync();
-            var dto = _mapper.Map<IEnumerable<FacultyResponseDto>>(result);
+            var dto = _mapper.Map<IEnumerable<UserResponseDto>>(result);
             _logger.LogInformation("Fetched {count} faculties", dto.Count());
 
             return dto;
         }
 
-        public async Task<FacultyResponseDto?> GetByIdAsync(string id )
+        public async Task<UserResponseDto?> GetByIdAsync(string id)
         {
+            
             var result = await _repo.GetFacultyByIdAsync(id);
-            var dto = _mapper.Map<FacultyResponseDto>(result);
+            _logger.LogInformation("result is {result}", result);
+            var dto = _mapper.Map<UserResponseDto>(result);
 
-            _logger.LogInformation("Fetched Faculty with Id: {id}", dto.Id);
+            
 
             return dto;
         }
 
-        public async Task<bool> CreateAsync(CreateFacultyDto createDto)
+        public async Task<bool> CreateAsync(RegisterUserDto createDto)
         {
             var faculty = _mapper.Map<Faculty>(createDto);
             faculty.CreatedAt = DateTime.UtcNow;
@@ -47,19 +50,19 @@ namespace server.Services.User
             _logger.LogInformation("Created Faculty with Id: {Id}", faculty.Id);
             return result;
         }
-        public async Task<bool> UpdateAsync(UpdateFacultyDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateUserDto updateDto)
         {
             var faculty = _mapper.Map<Faculty>(updateDto);
             faculty.UpdatedAt = DateTime.UtcNow;
             var result = await _repo.UpdateFacultyAsync(faculty);
-            _logger.LogInformation("Performed Updating of Faculty: {Name} ", faculty.FirstName);
+            
 
             return result;
         }
         public async Task<bool> DeleteAsync(string id)
         {
             var result = await _repo.DeleteFacultyAsync(id);
-            _logger.LogInformation("Performing Deletion on Faculty: {Id}", id);
+            
             if (result) _logger.LogWarning("Faculty with Id: {id} deleted successfully", id);
             return result;
         }
