@@ -16,7 +16,7 @@ namespace server.Controllers
         ILogger<FacultyController> _logger
     ) : ControllerBase 
     {
-        [HttpGet("faculties")]
+        [HttpGet]
         public async Task<IActionResult> GetAllFaculties()
         {
             var result = await _service.GetAllAsync();
@@ -25,7 +25,7 @@ namespace server.Controllers
             _logger.LogInformation("Fetched {count} Faculties", result.Count());
             return Ok(result);
         }
-        [HttpGet("faculties/{id}")]
+        [HttpGet("{id}")]
         public async Task<IActionResult> GetFacultyById(string id)
         {
             var result = await _service.GetByIdAsync(id);
@@ -49,7 +49,7 @@ namespace server.Controllers
             }
             return BadRequest(new {Message = "Faculty Update Not Successful", result});
         }
-        [HttpDelete("faculties/delete{id}")]
+        [HttpDelete("delete{id}")]
         public async Task<IActionResult> DeleteFaculty(string id)
         {
             var result = await _service.DeleteAsync(id);
