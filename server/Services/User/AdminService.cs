@@ -1,5 +1,7 @@
 using AutoMapper;
+using Microsoft.AspNetCore.Http.HttpResults;
 using server.Models.DTOs.Admin;
+using server.Models.DTOs.User;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
@@ -19,32 +21,31 @@ namespace server.Services.User
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<AdminResponseDto>> GetAllAsync()
+        public async Task<IEnumerable<UserResponseDto>> GetAllAsync()
         {
             var result = await _repo.GetAllAdminsAsync();
             
-            var dto = _mapper.Map<IEnumerable<AdminResponseDto>>(result);
-            _logger.LogInformation("Fetched All {count} Admins", dto.Count());
+            var dto = _mapper.Map<IEnumerable<UserResponseDto>>(result);
 
             return dto;
         }
 
-        public async Task<AdminResponseDto> GetByIdAsync(string id)
+        public async Task<UserResponseDto> GetByIdAsync(string id)
         {
             var result = await _repo.GetAdminByIdAsync(id);
-            var dto = _mapper.Map<AdminResponseDto>(result);
+            var dto = _mapper.Map<UserResponseDto>(result);
 
-            _logger.LogInformation("Fetched Admin with Id: {id}", dto.Id);
+           
             return dto;
         }
-        public async Task<bool> CreateAsync(CreateAdminDto createDto)
+        public async Task<bool> CreateAsync(RegisterUserDto createDto)
         {
             var admin = _mapper.Map<Admin>(createDto);
             var result = await _repo.CreateAdminAsync(admin);
             return result;
         }
 
-        public async Task<bool> UpdateAsync(UpdateAdminDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateUserDto updateDto)
         {
             var admin = _mapper.Map<Admin>(updateDto);
             var result = await _repo.UpdateAdminAsync(admin);
