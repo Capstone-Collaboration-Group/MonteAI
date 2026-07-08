@@ -21,12 +21,12 @@ namespace server.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> RegisterUser([FromBody] RegisterUserDto dto)
         {
-            if (string.IsNullOrEmpty(dto.FirebaseUid))
+            if (string.IsNullOrEmpty(dto.Id))
                 return BadRequest(new { Message = "Firebase UID is required." });
 
             var result = dto.Role switch
             {
-                "Student" => await _studentService.RegisterAsync(dto, dto.FirebaseUid),
+                "Student" => await _studentService.RegisterAsync(dto, dto.Id),
 
                 // ADD OTHER REGISTERASYNC SERVICES HERE SOON
                 _ => null
@@ -34,9 +34,9 @@ namespace server.Controllers
             if (result == null)
                 return BadRequest(new { Message = $"Unknown Role {dto.Role}" });
 
-            _logger.LogInformation("User registered: {Id} as {Role}", dto.FirebaseUid, dto.Role);
+            _logger.LogInformation("User registered: {Id} as {Role}", dto.Id, dto.Role);
 
-            return CreatedAtAction(nameof(RegisterUser), new { id = dto.FirebaseUid }, result);
+            return CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, result);
 
         }
 
