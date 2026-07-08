@@ -37,10 +37,10 @@ namespace server.Controllers
         }
         // No Faculty Creation POST Method since it will be handled in the registration Authcontroller
 
-        [HttpPatch("update")]
-        public async Task<IActionResult> UpdateFaculty([FromBody] UpdateUserDto dto)
+        [HttpPatch("update/{id}")]
+        public async Task<IActionResult> UpdateFaculty([FromBody] UpdateUserDto dto, string id)
         {
-            var result = await _service.UpdateAsync(dto);
+            var result = await _service.UpdateAsync(dto, id);
             _logger.LogInformation("Performed Updating of Faculty: {Name} ", dto.FirstName);
             if (result)
             {

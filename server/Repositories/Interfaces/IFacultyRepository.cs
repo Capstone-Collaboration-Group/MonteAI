@@ -10,7 +10,7 @@ namespace server.Repositories.Interfaces
 
         Task<bool> CreateFacultyAsync(Faculty faculty);
 
-        Task<bool> UpdateFacultyAsync(Faculty faculty);
+        Task<bool> UpdateFacultyAsync(Faculty faculty, string id);
 
         Task<bool> DeleteFacultyAsync(string id);
     }

@@ -32,9 +32,9 @@ namespace server.Repositories
         }
 
         // UpdateFacultyAsync
-        public async Task<bool> UpdateFacultyAsync(Faculty faculty)
+        public async Task<bool> UpdateFacultyAsync(Faculty faculty, string id)
         {
-            var result = await _db.Faculties.FindAsync(faculty.Id);
+            var result = await _db.Faculties.FindAsync(id);
             if (result == null) return false;
 
             result.FirstName = faculty.FirstName;

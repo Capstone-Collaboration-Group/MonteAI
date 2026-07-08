@@ -1,16 +1,17 @@
 using server.Models.DTOs.ProgramHead;
+using server.Models.DTOs.User;
 
 namespace server.Services.Interfaces
 {
     public interface IProgramHeadService
     {
-        Task<IEnumerable<ProgramHeadResponseDto>> GetAllAsync();
+        Task<IEnumerable<UserResponseDto>> GetAllAsync();
 
-        Task<ProgramHeadResponseDto?> GetByIdAsync(string id);
+        Task<UserResponseDto?> GetByIdAsync(string id);
 
-        Task<bool> CreateAsync(CreateProgramHeadDto createDto);
+        Task<bool> CreateAsync(RegisterUserDto createDto);
 
-        Task<bool> UpdateAsync(UpdateProgramHeadDto updateDto);
+        Task<bool> UpdateAsync(UpdateProgramHeadDto updateDto, string id);
         Task<bool> DeleteAsync(string id);
 
 

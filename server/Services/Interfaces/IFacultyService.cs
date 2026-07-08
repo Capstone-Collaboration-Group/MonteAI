@@ -8,7 +8,7 @@ namespace server.Services.Interfaces
         Task<IEnumerable<UserResponseDto>> GetAllAsync();
         Task<UserResponseDto?> GetByIdAsync(string id);
         Task<bool> CreateAsync(RegisterUserDto createDto);
-        Task<bool> UpdateAsync(UpdateUserDto updateDto);
+        Task<bool> UpdateAsync(UpdateUserDto updateDto,string id);
         Task<bool> DeleteAsync(string id);
 
     }

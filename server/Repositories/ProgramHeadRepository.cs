@@ -18,11 +18,12 @@ namespace server.Repositories
         public async Task<IEnumerable<ProgramHead>> GetAllProgramHeadsAsync() => await _db.ProgramHeads.ToListAsync();
 
         // GetProgramHeadByIdAsync
-        public async Task<ProgramHead?> GetProgramHeadByIdAsync(string id) => await _db.ProgramHeads.FindAsync();
+        public async Task<ProgramHead?> GetProgramHeadByIdAsync(string id) => await _db.ProgramHeads.FindAsync(id);
 
         // CreateProgramHeadAsync
         public async Task<bool> CreateProgramHeadAsync(ProgramHead programHead)
         {
+            Console.WriteLine($"Id is {programHead.Id}");
             var result = await _db.ProgramHeads.FindAsync(programHead.Id);
             if (result != null) return false;
 
@@ -32,11 +33,11 @@ namespace server.Repositories
             return true;
 
         }
-        
+
         // UpdateProgramHeadAsync
-        public async Task<bool> UpdateProgramHeadAsync(ProgramHead programHead)
+        public async Task<bool> UpdateProgramHeadAsync(ProgramHead programHead, string id)
         {
-            var result = await _db.ProgramHeads.FindAsync(programHead.Id);
+            var result = await _db.ProgramHeads.FindAsync(id);
             if (result == null) return false;
 
             result.Email = programHead.Email;
