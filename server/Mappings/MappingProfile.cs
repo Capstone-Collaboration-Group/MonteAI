@@ -4,6 +4,7 @@ using server.Models.DTOs.Announcement;
 using server.Models.DTOs.ChatMessage;
 using server.Models.DTOs.ChatSession;
 using server.Models.DTOs.PanelistSchedule;
+using server.Models.DTOs.ProgramHead;
 using server.Models.DTOs.ResearchGroup;
 using server.Models.DTOs.Review;
 using server.Models.DTOs.Schedule;
@@ -49,6 +50,9 @@ namespace server.Mappings
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
             CreateMap<UpdateUserDto, ProgramHead>()
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
+
+            CreateMap<UpdateProgramHeadDto, ProgramHead>();
+            
 
             // ChatSession
             CreateMap<ChatSession, ChatSessionResponseDto>();
