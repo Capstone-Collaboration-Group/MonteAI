@@ -9,13 +9,11 @@ namespace server.Services.Schedules
     public class ScheduleService: IScheduleService
     {
         private readonly IScheduleRepository _repo;
-        private readonly ILogger<ScheduleService> _logger;
         private readonly IMapper _mapper;
 
-        public ScheduleService(IScheduleRepository repo, ILogger<ScheduleService> logger, IMapper mapper)
+        public ScheduleService(IScheduleRepository repo, IMapper mapper)
         {
             _repo = repo;
-            _logger = logger;
             _mapper = mapper;
         }
 
@@ -52,10 +50,10 @@ namespace server.Services.Schedules
 
             return result;
         }
-        public async Task<bool> UpdateAsync(UpdateScheduleDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateScheduleDto updateDto, Guid id)
         {
             var updateSchedule = _mapper.Map<Schedule>(updateDto);
-
+            updateSchedule.ScheduleId = id;
             var result = await _repo.UpdateScheduleAsync(updateSchedule);
 
             return result;

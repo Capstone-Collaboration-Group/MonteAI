@@ -11,7 +11,7 @@ namespace server.Services.Interfaces
 
         Task<bool> CreateAsync(CreateScheduleDto createDto);
 
-        Task<bool> UpdateAsync(UpdateScheduleDto updateDto);
+        Task<bool> UpdateAsync(UpdateScheduleDto updateDto, Guid id);
 
         Task<bool> DeleteAsync(Guid id);
 

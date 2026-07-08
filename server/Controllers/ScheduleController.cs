@@ -1,68 +1,72 @@
-﻿using Google.Cloud.Firestore;
+﻿
 using Microsoft.AspNetCore.Mvc;
-using server.Data;
+
+using server.Models.DTOs.Schedule;
 using server.Models.Entities;
+using server.Services.Interfaces;
 
 namespace server.Controllers
 {
     [ApiController]
     [Route("api/v1/[controller]")]
-    public class ScheduleController : ControllerBase
+    public class ScheduleController
+    (
+        IScheduleService _service,
+        ILogger<ScheduleController> _logger
+    ): ControllerBase
     {
-
-        private readonly AppDbContext _context;
-        private readonly ILogger<ScheduleController> _logger;
-        private readonly FirestoreDb _firestoreDb;
-
-
-        public ScheduleController(AppDbContext context, ILogger<ScheduleController> logger, FirestoreDb firestoreDb)
+        [HttpGet]
+        public async Task<IActionResult> GetAllSchedules()
         {
-            _context = context;
-            _logger = logger;
-            _firestoreDb = firestoreDb;
+            var result = await _service.GetAllAsync();
+            if (result is null) return BadRequest(new { Message = "Bad Request... Please try again later" });
+
+            return Ok(result);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetScheduleById(Guid id)
+        {
+            var result = await _service.GetByIdAsync(id);
+            if (result is null) return NotFound(new { Message = "Schedule is not Found" });
+
+            _logger.LogInformation("Fetched Scheduel with Id: {id}", id);
+            return Ok(result);
         }
         [HttpPost("create")]
-        public async Task<IActionResult> CreateSchedule()
+        public async Task<IActionResult> CreateSchedule([FromBody] CreateScheduleDto dto)
         {
-            var collecton = _firestoreDb.Collection("schedules");
-
-            Schedule schedule = new Schedule()
+            var result = await _service.CreateAsync(dto);
+            if(result)
             {
-                Date = new DateOnly(),
-                GroupId = Guid.NewGuid(),
-                ResearchGroup = new ResearchGroup() { Id = Guid.NewGuid() },
-                StartTime = new TimeOnly(),
-                EndingTime = new TimeOnly(),
-                Panelists = new List<PanelistSchedule>(),
-                RoomVenue = "Comlab 1",
-                ScheduledBy = "Admin",
-                ScheduleId = Guid.NewGuid(),
-                AdditionalInformation = "Test schedule"
-            };
-            var docData = new Dictionary<string, object>
-            {
-                {"date", schedule.Date.ToString()},
-                {"group_id",  schedule.GroupId.ToString() },
-                { "research_group", schedule.ResearchGroup.ToString() },
-                { "start_time", schedule.StartTime.ToString() },
-                { "ending_time", schedule.EndingTime.ToString()}
-            };
-
-            var docRef = await collecton.AddAsync(docData);
-
-            if(docRef == null)
-            {
-                _logger.LogCritical("document insertion is not successul! try again");
+                _logger.LogInformation("Schedule Created Successfully");
+                return Ok(new { Message = "Schedule Created Successfully", result });
             }
-
-            await _context.Schedules.AddAsync(schedule);
-            await _context.SaveChangesAsync();
-
-
-            _logger.LogInformation($"Schedule {schedule} has been successfully saved");
-            return Ok(schedule);
-
-
+            return BadRequest(new { Message = "Bad Request or There is a Schedule for that timeslot... Try again later... ", result });
         }
+        [HttpPatch("update/{id}")]
+        public async Task<IActionResult> UpdateSchedule([FromBody] UpdateScheduleDto dto, Guid id)
+        {
+            var result = await _service.UpdateAsync(dto, id);
+            if(result)
+            {
+                _logger.LogInformation("Performed Schedule Update on Id: {id}", id);
+                return Ok(new { Message = "Schedule Update Successful " });
+            }
+            return BadRequest(new { Message = "Bad Request... Please try again later" });
+        }
+        [HttpPatch("delete/{id}")]
+        public async Task<IActionResult> DeleteSchedule(Guid id)
+        {
+            var result = await _service.DeleteAsync( id);
+            if (result)
+            {
+                _logger.LogInformation("Performed Schedule Deletion  on Id: {id}", id);
+                return Ok(new { Message = "Schedule Deletion Successful " });
+            }
+            return BadRequest(new { Message = "Bad Request... Please try again later" });
+        }
+
+
     }
 }
