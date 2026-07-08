@@ -10,7 +10,7 @@ namespace server.Services.Interfaces
 
         Task<bool> CreateAsync(CreatePanelistScheduleDto createDto);
 
-        Task<bool> UpdateAsync(UpdatePanelistScheduleDto updateDto);
+        Task<bool> UpdateAsync(UpdatePanelistScheduleDto updateDto, Guid scheduleId, string panelistId);
 
         Task<bool> DeleteAsync(Guid scheduleId, string panelistId);
 

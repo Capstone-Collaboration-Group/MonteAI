@@ -6,7 +6,7 @@ using server.Models.Entities;
 namespace server.Controllers
 {
     [ApiController]
-    [Route("api[controller]")]
+    [Route("api/v1/[controller]")]
     public class ScheduleController : ControllerBase
     {
 
@@ -21,7 +21,7 @@ namespace server.Controllers
             _logger = logger;
             _firestoreDb = firestoreDb;
         }
-        [HttpGet]
+        [HttpPost("create")]
         public async Task<IActionResult> CreateSchedule()
         {
             var collecton = _firestoreDb.Collection("schedules");

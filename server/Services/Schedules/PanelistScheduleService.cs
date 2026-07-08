@@ -36,9 +36,12 @@ namespace server.Services.Schedules
 
         }
 
-        public async Task<bool> UpdateAsync(UpdatePanelistScheduleDto updateDto)
+        public async Task<bool> UpdateAsync(UpdatePanelistScheduleDto updateDto, Guid scheduleId, string panelistId)
         {
+
             var updatePanelistSchedule = _mapper.Map<PanelistSchedule>(updateDto);
+            updatePanelistSchedule.ScheduleId = scheduleId;
+            updatePanelistSchedule.PanelistId = panelistId;
 
             var result = await _repo.UpdatePanelistScheduleAsync(updatePanelistSchedule);
 

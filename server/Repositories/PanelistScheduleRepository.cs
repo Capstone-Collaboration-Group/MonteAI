@@ -22,7 +22,7 @@ namespace server.Repositories
 
         public async Task<bool> CreatePanelistScheduleAsync(PanelistSchedule panelistSchedule)
         {
-            var existing = await _db.PanelistSchedules.FindAsync(panelistSchedule.ScheduleId);
+            var existing = await _db.PanelistSchedules.FindAsync(panelistSchedule.ScheduleId, panelistSchedule.PanelistId);
             if (existing != null) return false;
 
             await _db.PanelistSchedules.AddAsync(panelistSchedule);
