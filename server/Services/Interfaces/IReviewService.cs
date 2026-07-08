@@ -8,7 +8,7 @@ namespace server.Services.Interfaces
         Task<ReviewResponseDto?> GetByIdAsync(Guid id);
         Task<bool> CreateAsync(CreateReviewDto createDto);
 
-        Task<bool> UpdateAsync(UpdateReviewDto updateDto);
+        Task<bool> UpdateAsync(UpdateReviewDto updateDto, Guid id);
 
         Task<bool> DeleteAsync(Guid id);
     }
