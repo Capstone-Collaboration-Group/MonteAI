@@ -63,10 +63,10 @@ namespace server.Mappings
             CreateMap<ChatMessage, ChatMessageResponseDto>();
             CreateMap<CreateChatMessageDto, ChatMessage>();
 
-            //  PanelistSchedule 
+            //  PanelistSchedule  
             CreateMap<PanelistSchedule, PanelistScheduleResponseDto>();
-            CreateMap<PanelistSchedule, CreatePanelistScheduleDto>();
-            CreateMap<PanelistSchedule, UpdatePanelistScheduleDto>();
+            CreateMap<CreatePanelistScheduleDto, PanelistSchedule>();
+            CreateMap<UpdatePanelistScheduleDto, PanelistSchedule>();
 
             // ResearchGroup
             CreateMap<ResearchGroup, ResearchGroupResponseDto>();
