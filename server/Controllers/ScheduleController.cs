@@ -53,9 +53,9 @@ namespace server.Controllers
                 _logger.LogInformation("Performed Schedule Update on Id: {id}", id);
                 return Ok(new { Message = "Schedule Update Successful " });
             }
-            return BadRequest(new { Message = "Bad Request... Please try again later" });
+            return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot" });
         }
-        [HttpPatch("delete/{id}")]
+        [HttpDelete("delete/{id}")]
         public async Task<IActionResult> DeleteSchedule(Guid id)
         {
             var result = await _service.DeleteAsync( id);

@@ -44,6 +44,7 @@ namespace server.Services.Schedules
         }
         public async Task<bool> CreateAsync(CreateScheduleDto createDto)
         {
+            
             var createSchedule = _mapper.Map<Schedule>(createDto);
 
             var result = await _repo.CreateScheduleAsync(createSchedule);
@@ -52,7 +53,9 @@ namespace server.Services.Schedules
         }
         public async Task<bool> UpdateAsync(UpdateScheduleDto updateDto, Guid id)
         {
-            var updateSchedule = _mapper.Map<Schedule>(updateDto);
+            var existing = await _repo.GetScheduleByIdAsync(id);
+            if (existing == null) return false;
+            var updateSchedule = _mapper.Map(updateDto, existing);
             updateSchedule.ScheduleId = id;
             var result = await _repo.UpdateScheduleAsync(updateSchedule);
 

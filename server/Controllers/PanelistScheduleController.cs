@@ -1,6 +1,5 @@
 ﻿using System;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using server.Models.DTOs.PanelistSchedule;
 using server.Models.DTOs.User;
 using server.Services.Interfaces;
@@ -55,7 +54,7 @@ namespace server.Controllers
             }
             return BadRequest(new { Message = "Bad Request... Please Try again later" });
         }
-        [HttpDelete("delete/{id}")]
+        [HttpDelete("delete/{scheduleId}&{panelistId}")]
         public async Task<IActionResult> DeletePanelistSchedule(Guid scheduleId, string panelistId)
         {
             var result = await _service.DeleteAsync(scheduleId, panelistId);

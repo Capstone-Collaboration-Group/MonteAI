@@ -20,11 +20,15 @@ namespace server.Repositories
         public async Task<Schedule?> GetScheduleByGroupIdAsync(Guid groupId)
             => await _db.Schedules.
                 Where(s => s.GroupId == groupId)
-                .FirstAsync();
+                .FirstOrDefaultAsync();
         public async Task<bool> CreateScheduleAsync(Schedule schedule)
         {
-            var result = await _db.Schedules.FindAsync(schedule.ScheduleId);
-            if (result != null) return false;
+            var hasConflict = await _db.Schedules
+                .AnyAsync(s => s.Date == schedule.Date &&
+                       s.RoomVenue == schedule.RoomVenue &&
+                       s.StartTime < schedule.EndingTime &&
+                       s.EndingTime > schedule.StartTime);
+            if (hasConflict) return false;
 
             await _db.Schedules.AddAsync(schedule);
             await _db.SaveChangesAsync();
@@ -33,14 +37,15 @@ namespace server.Repositories
 
         public async Task<bool> UpdateScheduleAsync(Schedule schedule)
         {
-            var result = await _db.Schedules.FindAsync(schedule.ScheduleId);
-            if (result == null) return false;
-            result.GroupId = schedule.GroupId;
-            result.Date = schedule.Date;
-            result.StartTime = schedule.StartTime;
-            result.EndingTime = schedule.EndingTime;
-            result.RoomVenue = schedule.RoomVenue;
-            result.AdditionalInformation = schedule.AdditionalInformation;
+           // No assigns since it was already updated from the mapper.
+
+            var hasConflict = await _db.Schedules
+                    .AnyAsync(s => s.ScheduleId != schedule.ScheduleId &&
+                              s.Date == schedule.Date &&
+                              s.RoomVenue == schedule.RoomVenue &&
+                              s.StartTime < schedule.EndingTime &&
+                              s.EndingTime > schedule.StartTime);
+            if (hasConflict) return false;
             
             await _db.SaveChangesAsync();
             return true;

@@ -66,7 +66,8 @@ namespace server.Mappings
             //  PanelistSchedule  
             CreateMap<PanelistSchedule, PanelistScheduleResponseDto>();
             CreateMap<CreatePanelistScheduleDto, PanelistSchedule>();
-            CreateMap<UpdatePanelistScheduleDto, PanelistSchedule>();
+            CreateMap<UpdatePanelistScheduleDto, PanelistSchedule>()
+                .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
 
             // ResearchGroup
             CreateMap<ResearchGroup, ResearchGroupResponseDto>();
@@ -81,7 +82,8 @@ namespace server.Mappings
             // Schedule
             CreateMap<Schedule, ScheduleResponseDto>();
             CreateMap<CreateScheduleDto, Schedule>();
-            CreateMap<UpdateScheduleDto, Schedule>();
+            CreateMap<UpdateScheduleDto, Schedule>()
+                .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
 
             // Submission 
             CreateMap<Submission, SubmissionResponseDto>()

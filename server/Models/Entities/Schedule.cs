@@ -1,10 +1,12 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace server.Models.Entities
 {
     public class Schedule
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public Guid ScheduleId { get; set; }
 
         public string ScheduledBy { get; set; } = string.Empty;
@@ -20,7 +22,7 @@ namespace server.Models.Entities
         public TimeOnly EndingTime { get; set; }
 
         [Required]
-        public string? RoomVenue { get; set; } 
+        public string RoomVenue { get; set; } = string.Empty;
 
         public string? AdditionalInformation { get; set; }
 

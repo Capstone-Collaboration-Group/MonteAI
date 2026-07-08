@@ -31,11 +31,7 @@ namespace server.Repositories
         }
         public async Task<bool> UpdatePanelistScheduleAsync(PanelistSchedule panelistSchedule)
         {
-            var result = await _db.PanelistSchedules.FindAsync(panelistSchedule.ScheduleId, panelistSchedule.PanelistId);
-            if (result == null) return false;
-            result.PanelistType = panelistSchedule.PanelistType;
-
-            _db.PanelistSchedules.Update(panelistSchedule);
+            // No Updates since the mapper already assigns the tracked entity with the values from the DTO.
             await _db.SaveChangesAsync();
             return true;
         }

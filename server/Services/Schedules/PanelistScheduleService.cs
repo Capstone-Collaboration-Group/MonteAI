@@ -38,10 +38,11 @@ namespace server.Services.Schedules
 
         public async Task<bool> UpdateAsync(UpdatePanelistScheduleDto updateDto, Guid scheduleId, string panelistId)
         {
+            // When Mapped, it already assigns the tracked entity and with the updated values from the Dto
+            var existing = await _repo.GetPanelistScheduleByIdAsync(scheduleId, panelistId);
+            if (existing == null) return false;
 
-            var updatePanelistSchedule = _mapper.Map<PanelistSchedule>(updateDto);
-            updatePanelistSchedule.ScheduleId = scheduleId;
-            updatePanelistSchedule.PanelistId = panelistId;
+            var updatePanelistSchedule = _mapper.Map(updateDto, existing);
 
             var result = await _repo.UpdatePanelistScheduleAsync(updatePanelistSchedule);
 
