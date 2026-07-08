@@ -65,7 +65,8 @@ namespace server.Mappings
 
             //  PanelistSchedule  
             CreateMap<PanelistSchedule, PanelistScheduleResponseDto>();
-            CreateMap<CreatePanelistScheduleDto, PanelistSchedule>();
+            CreateMap<CreatePanelistScheduleDto, PanelistSchedule>(); // Will be deprecated soon
+            CreateMap<CreatePanelistEntryDto, PanelistSchedule>();
             CreateMap<UpdatePanelistScheduleDto, PanelistSchedule>()
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
 
@@ -81,8 +82,11 @@ namespace server.Mappings
 
             // Schedule
             CreateMap<Schedule, ScheduleResponseDto>();
-            CreateMap<CreateScheduleDto, Schedule>();
+            CreateMap<CreateScheduleDto, Schedule>()
+                .ForMember(dest => dest.Panelists, opt => opt.Ignore());
+
             CreateMap<UpdateScheduleDto, Schedule>()
+                .ForMember(dest => dest.Panelists, opt => opt.Ignore())
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
 
             // Submission 
