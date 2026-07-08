@@ -31,7 +31,7 @@ namespace server.Repositories
         }
         public async Task<bool> UpdatePanelistScheduleAsync(PanelistSchedule panelistSchedule)
         {
-            // No Updates since the mapper already assigns the tracked entity with the values from the DTO.
+            // No Updates since the mapper already assigns the tracked entity with the values 
             await _db.SaveChangesAsync();
             return true;
         }

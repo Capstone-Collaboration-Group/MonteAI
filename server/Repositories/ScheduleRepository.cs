@@ -13,13 +13,18 @@ namespace server.Repositories
         {
             _db = db;
         }
-        public async Task<IEnumerable<Schedule>> GetAllSchedulesAsync() => await _db.Schedules.ToListAsync();
+        //Might want to include Panelists in this query soon
+        public async Task<IEnumerable<Schedule>> GetAllSchedulesAsync() 
+            => await _db.Schedules.ToListAsync();
 
-        public async Task<Schedule?> GetScheduleByIdAsync(Guid id) => await _db.Schedules.FindAsync(id);
+        public async Task<Schedule?> GetScheduleByIdAsync(Guid id)
+            => await _db.Schedules
+                .Include(s => s.Panelists)
+                .FirstOrDefaultAsync(s => s.ScheduleId == id);
 
         public async Task<Schedule?> GetScheduleByGroupIdAsync(Guid groupId)
-            => await _db.Schedules.
-                Where(s => s.GroupId == groupId)
+            => await _db.Schedules
+                .Where(s => s.GroupId == groupId)
                 .FirstOrDefaultAsync();
         public async Task<bool> CreateScheduleAsync(Schedule schedule)
         {

@@ -46,7 +46,9 @@ namespace server.Services.Schedules
         {
             
             var createSchedule = _mapper.Map<Schedule>(createDto);
-
+            createSchedule.Panelists = createDto.Panelists
+                .Select(p => _mapper.Map<PanelistSchedule>(p))
+                .ToList();
             var result = await _repo.CreateScheduleAsync(createSchedule);
 
             return result;
@@ -55,9 +57,38 @@ namespace server.Services.Schedules
         {
             var existing = await _repo.GetScheduleByIdAsync(id);
             if (existing == null) return false;
-            var updateSchedule = _mapper.Map(updateDto, existing);
-            updateSchedule.ScheduleId = id;
-            var result = await _repo.UpdateScheduleAsync(updateSchedule);
+
+            _mapper.Map(updateDto, existing);
+            
+            if(updateDto.Panelists != null)
+            {
+                var incomingIds = updateDto.Panelists.Select(p => p.PanelistId).ToHashSet();
+
+                var toRemove = existing.Panelists
+                    .Where(p => !incomingIds.Contains(p.PanelistId))
+                    .ToList();
+                foreach (var p in toRemove)
+                    existing.Panelists.Remove(p);
+
+                var existingIds = existing.Panelists.Select(p => p.PanelistId).ToHashSet();
+                foreach (var incoming in updateDto.Panelists.Where(p => !existingIds.Contains(p.PanelistId)))
+                {
+                    existing.Panelists.Add(new PanelistSchedule
+                    {
+                        ScheduleId = existing.ScheduleId,
+                        PanelistId = incoming.PanelistId,
+                        PanelistType = incoming.PanelistType
+                    });
+                }
+                foreach (var kept in existing.Panelists.Where(p => incomingIds.Contains(p.PanelistId)))
+                {
+                    var match = updateDto.Panelists.First(p => p.PanelistId == kept.PanelistId);
+                    kept.PanelistType = match.PanelistType;
+                }
+
+            } 
+           
+            var result = await _repo.UpdateScheduleAsync(existing);
 
             return result;
         }
