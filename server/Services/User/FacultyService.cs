@@ -50,11 +50,11 @@ namespace server.Services.User
             _logger.LogInformation("Created Faculty with Id: {Id}", faculty.Id);
             return result;
         }
-        public async Task<bool> UpdateAsync(UpdateUserDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateUserDto updateDto, string id)
         {
             var faculty = _mapper.Map<Faculty>(updateDto);
             faculty.UpdatedAt = DateTime.UtcNow;
-            var result = await _repo.UpdateFacultyAsync(faculty);
+            var result = await _repo.UpdateFacultyAsync(faculty, id);
             
 
             return result;
