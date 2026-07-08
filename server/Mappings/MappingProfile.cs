@@ -70,8 +70,8 @@ namespace server.Mappings
 
             // ResearchGroup
             CreateMap<ResearchGroup, ResearchGroupResponseDto>();
-            CreateMap<ResearchGroup, CreateResearchGroupDto>();
-            CreateMap<ResearchGroup, UpdateResearchGroupDto>();
+            CreateMap<CreateResearchGroupDto, ResearchGroup>();
+            CreateMap<UpdateResearchGroupDto, ResearchGroup>();
 
             // Review
             CreateMap<Review, ReviewResponseDto>();
@@ -80,8 +80,8 @@ namespace server.Mappings
 
             // Schedule
             CreateMap<Schedule, ScheduleResponseDto>();
-            CreateMap<Schedule, CreateScheduleDto>();
-            CreateMap<Schedule, UpdateScheduleDto>();
+            CreateMap<CreateScheduleDto, Schedule>();
+            CreateMap<UpdateScheduleDto, Schedule>();
 
             // Submission 
             CreateMap<Submission, SubmissionResponseDto>()
