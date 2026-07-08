@@ -49,7 +49,7 @@ namespace server.Controllers
             }
             return BadRequest(new {Message = "Faculty Update Not Successful", result});
         }
-        [HttpDelete("delete{id}")]
+        [HttpDelete("delete/{id}")]
         public async Task<IActionResult> DeleteFaculty(string id)
         {
             var result = await _service.DeleteAsync(id);
