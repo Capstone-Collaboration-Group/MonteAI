@@ -26,9 +26,5 @@ namespace server.Models.Entities
 
         public string? CreatedByProgramHeadId { get; set; }
         public ProgramHead? CreatedByProgramHead { get; set; }
-
-
-        
-
     }
 }
