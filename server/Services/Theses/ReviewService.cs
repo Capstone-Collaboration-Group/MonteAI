@@ -42,9 +42,10 @@ namespace server.Services.Theses
 
             return result;
         }
-        public async Task<bool> UpdateAsync(UpdateReviewDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateReviewDto updateDto, Guid id)
         {
             var updateReview = _mapper.Map<Review>(updateDto);
+            updateReview.Id = id;
             var result = await _repo.UpdateReviewAsync(updateReview);
 
             return result;

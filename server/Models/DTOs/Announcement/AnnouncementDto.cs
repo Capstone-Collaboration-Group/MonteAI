@@ -29,8 +29,6 @@ namespace server.Models.DTOs.Announcement
         public string FullName { get; set; } = string.Empty;
 
         public string Role { get; set; } = string.Empty;
-
-        
     }
     public class CreateAnnouncementDto
     {
@@ -53,7 +51,7 @@ namespace server.Models.DTOs.Announcement
         [Required]
         public string Content { get; set; } = string.Empty;
 
-        public List<string> AttachementUrls { get; set; } = new(); 
+        public List<string> AttachmentUrls { get; set; } = new(); 
 
         public DateTime? LastModified { get; set; }
     }

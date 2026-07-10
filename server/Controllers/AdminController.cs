@@ -23,7 +23,7 @@ namespace server.Controllers
             _logger.LogInformation("Fetched {count} Admins", result.Count());
             return Ok(result);
         }
-        [HttpGet("admin/{id}")]
+        [HttpGet("{id}")]
         public async Task<IActionResult> GetAdminById(string id)
         {
             var result = await _service.GetByIdAsync(id);
@@ -32,7 +32,7 @@ namespace server.Controllers
             _logger.LogInformation("Fetched Admin Admin: {Id}", id);
             return Ok(result);
         }
-        [HttpPatch("admin/update/{id}")]
+        [HttpPatch("update/{id}")]
         public async Task<IActionResult> UpdateAdmin(UpdateUserDto dto)
         {
             var result = await _service.UpdateAsync(dto);

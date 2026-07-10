@@ -15,10 +15,15 @@ namespace server.Repositories
         }
         public async Task<IEnumerable<Announcement>> GetAllAnnouncementsAsync()
             => await _db.Announcements
+                .Include(a => a.CreatedByAdmin)
+                .Include(b => b.CreatedByProgramHead)
                 .OrderByDescending(a => a.CreatedAt)
                 .ToListAsync();
         public async Task<Announcement?> GetAnnouncementByIdAsync(Guid id)
-            => await _db.Announcements.FindAsync(id);
+            => await _db.Announcements
+                .Include(a => a.CreatedByAdmin)
+                .Include(b => b.CreatedByProgramHead)
+                .FirstOrDefaultAsync(a => a.Id == id);
 
         public async Task<bool> CreateAnnouncementAsync(Announcement announcement)
         {

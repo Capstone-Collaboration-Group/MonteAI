@@ -77,8 +77,8 @@ namespace server.Mappings
 
             // Review
             CreateMap<Review, ReviewResponseDto>();
-            CreateMap<Review, CreateReviewDto>();
-            CreateMap<Review, UpdateReviewDto>();
+            CreateMap<CreateReviewDto, Review>();
+            CreateMap<UpdateReviewDto, Review>();
 
             // Schedule
             CreateMap<Schedule, ScheduleResponseDto>();
