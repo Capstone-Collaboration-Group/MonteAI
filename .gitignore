@@ -521,8 +521,8 @@ Thumbs.db
 .vscode/
 .idea/
 
-!packages/
-!packages/**
+# !packages/
+# !packages/**
 
 
 # appsettings.Development.json

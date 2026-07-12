@@ -9,6 +9,13 @@
     "sourceMap": true,
     "outDir": "dist",
     "moduleResolution": "bundler",
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@monteai/ui/*": ["../../packages/ui/src/*"]
+    }
   }
 }
