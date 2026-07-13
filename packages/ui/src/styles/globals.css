@@ -1,0 +1,79 @@
+/* packages/ui/src/styles/globals.css */
+@import "tailwindcss";
+
+:root {
+  --primary: #005d41;
+  --primary-container: #0d7856;
+  --on-primary: #ffffff;
+  --on-primary-container: #a1fdd2;
+  --secondary: #006e00;
+  --secondary-container: #8bf875;
+  --on-secondary: #ffffff;
+  --surface: #fcf9f8;
+  --surface-container: #f0eded;
+  --surface-container-low: #f6f3f2;
+  --surface-container-high: #eae7e7;
+  --on-surface: #1b1b1c;
+  --on-surface-variant: #3e4943;
+  --outline: #6e7a73;
+  --outline-variant: #bec9c1;
+  --error: #ba1a1a;
+  --on-error: #ffffff;
+  --error-container: #ffdad6;
+  --status-approved: #0D7856;
+  --status-pending: #FFFF00;
+  --status-critical: #FF0000;
+  --status-defense: #008000;
+}
+
+.dark {
+  --primary: #7dd8b0;
+  --primary-container: #005139;
+  --on-primary: #002115;
+  --on-primary-container: #a1fdd2;
+  --secondary: #72de5e;
+  --secondary-container: #005300;
+  --on-secondary: #002200;
+  --surface: #151718;
+  --surface-container: #1f2122;
+  --surface-container-low: #1a1c1d;
+  --surface-container-high: #26282a;
+  --on-surface: #ECEDEE;
+  --on-surface-variant: #bec9c1;
+  --outline: #889089;
+  --outline-variant: #3e4943;
+  --error: #ffb4ab;
+  --on-error: #690005;
+  --error-container: #93000a;
+  --status-approved: #5CC29A;
+  --status-pending: #FFFF66;
+  --status-critical: #FF6B6B;
+  --status-defense: #4CAF50;
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary: var(--on-primary);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-secondary: var(--secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary: var(--on-secondary);
+  --color-surface: var(--surface);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+  --color-error: var(--error);
+  --color-on-error: var(--on-error);
+  --color-error-container: var(--error-container);
+  --color-status-approved: var(--status-approved);
+  --color-status-pending: var(--status-pending);
+  --color-status-critical: var(--status-critical);
+  --color-status-defense: var(--status-defense);
+}
+
+@source "../../../../apps/web/src/**/*.{ts,tsx}";
