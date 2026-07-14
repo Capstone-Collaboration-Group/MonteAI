@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using server.Models.DTOs.User;
 using server.Services.Interfaces;
@@ -8,6 +9,7 @@ namespace server.Controllers
 { 
     [ApiController]
     [Route("api/v1/[controller]")]
+    [EnableRateLimiting("HealthCheckLimit")]
     public class AdminController
     (
         IAdminService _service,
