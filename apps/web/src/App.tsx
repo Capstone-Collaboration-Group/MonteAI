@@ -1,16 +1,8 @@
-
 import "./App.css";
-import { Button, Card, Toaster} from "@monteai/ui";
+import Home from "./pages/Home";
 
 function App() {
-  return (
- <div>
-      <Toaster />
-      <Card>
-        <Button onClick={() => alert("clicked")}>Save</Button>
-      </Card>
-    </div>
-  )
+  return <Home />;
 }
 
 export default App;

@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import "@monteai/ui/styles/globals.css";
-@source "../../../packages/ui/src/**/*.{ts,tsx}";
 
 @layer base {
   :root {
