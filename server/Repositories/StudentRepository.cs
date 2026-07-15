@@ -39,12 +39,6 @@ namespace server.Repositories
             await _db.SaveChangesAsync();
         }
 
-        //public async Task DeactivateAsync(string id, bool isActive)
-        //    => await _db.Students
-        //        .Where(s => s.Id == id)
-        //        .ExecuteUpdateAsync(s => s
-        //            .SetProperty(u => u.IsActive, false)
-        //            .SetProperty(u => u.UpdatedAt, DateTime.UtcNow));
-
+       
     }
 }

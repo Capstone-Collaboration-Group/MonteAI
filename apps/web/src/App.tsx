@@ -1,18 +1,16 @@
 
-import './App.css'
+import "./App.css";
+import { Button, Card, Toaster} from "@monteai/ui";
 
 function App() {
-
   return (
-    <>
-    
-  <div className="flex min-h-screen items-center justify-center bg-slate-200">
-    <h1 className="text-4xl font-bold text-blue-600 bg-blue-300 p-4">
-      Web App
-    </h1>
-</div>
-    </> 
+ <div>
+      <Toaster />
+      <Card>
+        <Button onClick={() => alert("clicked")}>Save</Button>
+      </Card>
+    </div>
   )
 }
 
-export default App
+export default App;

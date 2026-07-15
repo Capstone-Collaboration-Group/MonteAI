@@ -6,7 +6,7 @@ namespace server.Models.DTOs.User
     {
         // ── Shared (User base) ────────────────────────────
         [Required]
-        public string FirebaseUid { get; set; } = null!;
+        public string Id { get; set; } = null!;
 
         [Required]
         [EmailAddress]

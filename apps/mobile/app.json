@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "MonteSkolar",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,11 +9,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.monteskolar.mobile"
     },
     "android": {
+      "package": "com.monteskolar.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#fcf9f8",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -30,10 +32,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/cdm-logo.png",
+          "imageWidth": 128,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#fcf9f8",
           "dark": {
             "backgroundColor": "#000000"
           }
@@ -43,6 +45,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1b3237cc-6154-4b74-8517-7a53140c1d21"
+      }
     }
   }
 }

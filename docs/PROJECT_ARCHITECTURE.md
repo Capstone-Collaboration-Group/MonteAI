@@ -829,11 +829,11 @@ https://api.monteai.edu.ph/api/v1
 #### Chat
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| POST | `/chat/sessions` | Create a new chat session | Student, Faculty, Admin |
+| POST | `/chat/sessions/create` | Create a new chat session | Student, Faculty, Admin |
 | GET | `/chat/sessions` | List user's chat sessions | Student, Faculty, Admin |
 | GET | `/chat/sessions/{id}` | Get session with messages | Student, Faculty, Admin |
 | POST | `/chat/sessions/{id}/messages` | Send message, stream response (SSE) | Student, Faculty, Admin |
-| DELETE | `/chat/sessions/{id}` | Delete a session | Owner |
+| DELETE | `/chat/sessions/{id}/delete` | Delete a session | Owner |
 
 #### User Management
 | Method | Endpoint | Description | Access |
@@ -859,7 +859,15 @@ https://api.monteai.edu.ph/api/v1
 | PATCH | `/students/{id}` | Update user credential | Student
 | DELETE | `/students{id}`| Delete user account | Admin, Student |
 
-
+#### Submission Management 
+| Method | Endpoint | Description | Access |
+|---------|----------|-------------|--------|
+| GET | `/submission` | List all submissions | Admin | 
+| GET | `/submission/{studentNumber}/{thesisId}` | List all Submissions | Student, Admin, Faculty, ProgramHead | 
+| GET | `/submission/{id}` | Get submission details | Admin, Student, Faculty, ProgramHead | 
+| POST | `/submission/create` | Create Submission | Student | 
+| PATCH | `/submission/update/{id}` | Update Submission detail (esp. Notes) | Student
+| DELETE | `/submission/delete/{id}`| Delete Submission entry | Admin, Student |
 
 #### Review Workflow
 | Method | Endpoint | Description | Access |

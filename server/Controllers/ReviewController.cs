@@ -1,68 +1,72 @@
-﻿using Google.Cloud.Firestore;
+﻿using System;
 using Microsoft.AspNetCore.Mvc;
-using server.Data;
-using server.Models.Entities;
-
-namespace server.Controllers
-{
+using Microsoft.Extensions.Logging;
+using server.Models.DTOs.Review;
+using server.Models.DTOs.User;
+using server.Services.Interfaces;
+    
+namespace server.Controllers 
+{ 
     [ApiController]
-    [Route("api[controller]")]
-    public class ScheduleController : ControllerBase
+    [Route("api/v1/[controller]")]
+    public class ReviewController
+    (
+        IReviewService _service,
+        ILogger<ReviewController> _logger
+    ): ControllerBase 
     {
 
-        private readonly AppDbContext _context;
-        private readonly ILogger<ScheduleController> _logger;
-        private readonly FirestoreDb _firestoreDb;
-
-
-        public ScheduleController(AppDbContext context, ILogger<ScheduleController> logger, FirestoreDb firestoreDb)
-        {
-            _context = context;
-            _logger = logger;
-            _firestoreDb = firestoreDb;
-        }
         [HttpGet]
-        public async Task<IActionResult> CreateSchedule()
+        public async Task<IActionResult> GetAllReviews()
         {
-            var collecton = _firestoreDb.Collection("schedules");
+            var result = await _service.GetAllAsync();
+            if (result is null) return BadRequest(new { Messge = "Bad Request... Please Try again Later" });
 
-            Schedule schedule = new Schedule()
-            {
-                Date = new DateOnly(),
-                GroupId = Guid.NewGuid(),
-                ResearchGroup = new ResearchGroup() { Id = Guid.NewGuid() },
-                StartTime = new TimeOnly(),
-                EndingTime = new TimeOnly(),
-                Panelists = new List<PanelistSchedule>(),
-                RoomVenue = "Comlab 1",
-                ScheduledBy = "Admin",
-                ScheduleId = Guid.NewGuid(),
-                AdditionalInformation = "Test schedule"
-            };
-            var docData = new Dictionary<string, object>
-            {
-                {"date", schedule.Date.ToString()},
-                {"group_id",  schedule.GroupId.ToString() },
-                { "research_group", schedule.ResearchGroup.ToString() },
-                { "start_time", schedule.StartTime.ToString() },
-                { "ending_time", schedule.EndingTime.ToString()}
-            };
-
-            var docRef = await collecton.AddAsync(docData);
-
-            if(docRef == null)
-            {
-                _logger.LogCritical("document insertion is not successul! try again");
-            }
-
-            await _context.Schedules.AddAsync(schedule);
-            await _context.SaveChangesAsync();
-
-
-            _logger.LogInformation($"Schedule {schedule} has been successfully saved");
-            return Ok(schedule);
-
-
+            _logger.LogInformation("Fetched {count} Reviews. ", result.Count());
+            return Ok(result);
         }
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetReviewById(Guid id)
+        {
+            var result = await _service.GetByIdAsync(id);
+            if (result is null) return NotFound(new { Message = "Review not found." });
+
+            _logger.LogInformation("Fetched Review Id: {id}", id);
+            return Ok(result);
+        }
+        [HttpPost("create")]
+        public async Task<IActionResult> CreateReview([FromBody] CreateReviewDto dto)
+        {
+            var result = await _service.CreateAsync(dto);
+            if(result)
+            {
+                _logger.LogInformation("Created A Review");
+                return Ok(new { Message = "Review Created Successfully!" });
+            }
+            return BadRequest(new { Message = "Bad Request... Please Try again later..." });
+        }
+        [HttpPatch("update/{id}")]
+        public async Task<IActionResult> UpdateReview([FromBody] UpdateReviewDto dto, Guid id)
+        {
+            var result = await _service.UpdateAsync(dto, id);
+            if (result)
+            {
+                _logger.LogInformation("Updated A Review");
+                return Ok(new { Message = "Review Updated Successfully!" });
+            }
+            return BadRequest(new { Message = "Bad Request... Please Try again later..." });
+        }
+        [HttpDelete("delete/{id}")]
+        public async Task<IActionResult> DeleteReview(Guid id)
+        {
+            var result = await _service.DeleteAsync(id);
+            if (result)
+            {
+                _logger.LogInformation("Deleted A Review");
+                return Ok(new { Message = "Review Deleted Successfully!" });
+            }
+            return BadRequest(new { Message = "Bad Request... Please Try again later..." });
+        }
+
     }
 }

@@ -2,7 +2,7 @@
 
 namespace server.Models.DTOs.Thesis
 {
-    public class CreateThesisDto
+    public class SubmitThesisDto
     {
         [Required]
         [MaxLength(255)]

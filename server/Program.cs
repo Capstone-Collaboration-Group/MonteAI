@@ -14,6 +14,8 @@ using server.Repositories.Interfaces;
 using server.Services;
 using server.Services.Interfaces;
 using server.Services.AI;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Mvc;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
@@ -70,6 +72,18 @@ try
                     errorNumbersToAdd: null);
             }));
 
+    // Rate  Limiting
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.AddFixedWindowLimiter("HealthCheckLimit", opt =>
+        {
+            opt.PermitLimit = 5 ;
+            opt.Window = TimeSpan.FromMinutes(1);
+            opt.QueueLimit = 0;
+        });
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    });
+
     // AutoMapper Configuration
     builder.Services.AddAutoMapper(config =>
     {
@@ -94,16 +108,28 @@ try
     builder.Services.AddSingleton<IPineconeUpsertService, PineconeUpsertService>();
 
 
-        
-
-    //builder.Services.AddScoped<IThesisService, ThesisService>();
-    //builder.Services.AddScoped<IThesisRepository, ThesisRepository>();
+       
 
     
     builder.Services.AddControllers();
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
+
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("MonteSkolarPolicy", policy =>
+        {
+            policy.WithOrigins(
+                "https://localhost:8080",
+                "https://locahost:5173",
+                "https://monteskolar.pnm.edu.ph"
+                )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+        });
+    });
 
 
     var app = builder.Build();
@@ -119,10 +145,22 @@ try
     app.UseSerilogRequestLogging();
 
     app.UseHttpsRedirection();
-
+    app.UseCors("MonteSkolarPolicy");
     app.UseAuthorization();
+    app.UseRateLimiter();
 
     app.MapControllers();
+
+    app.MapGet("/health", ([FromHeader(Name = "X-Ping-Secret")] string? header, IConfiguration configuration) =>
+    {
+        var secret = configuration["PING_SECRET"];
+        //var header = request.Headers["X-Ping-Secret"].FirstOrDefault();
+
+        if (header != secret) return Results.Unauthorized();
+
+        return Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow });
+    }).RequireRateLimiting("HealthCheckLimit");
+
 
     app.Run();
 

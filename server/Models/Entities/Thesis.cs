@@ -1,10 +1,12 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace server.Models.Entities
 {
     public class Thesis 
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public Guid Id { get; set; }
 
         [Required]
@@ -33,8 +35,6 @@ namespace server.Models.Entities
         public DateTime? ApprovedAt { get; set; }
         public DateTime? RejectedAt { get; set; }
         public DateTime? IndexedAt { get; set; }
-
-
         public DateTime UpdatedAt { get; set; }
 
 
