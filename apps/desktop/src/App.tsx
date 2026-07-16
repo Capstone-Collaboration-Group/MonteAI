@@ -1,5 +1,5 @@
 // apps/desktop/src/App.tsx (or wherever your renderer root component is)
-import { Button, Card, Toaster, Sidebar, ChatPreview, NotFound} from "@monteai/ui";
+import { Toaster, Sidebar, NotFound} from "@monteai/ui";
 import { HashRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
 import { LayoutDashboard, FileText, Users, Settings } from "lucide-react";
 import Dashboard from "./renderer/pages/Dashboard";

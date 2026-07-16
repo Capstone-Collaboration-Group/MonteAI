@@ -9,11 +9,21 @@
     "dev:mobile": "pnpm --filter mobile start",
     "dev:desktop": "pnpm --filter desktop start",
     "build:web": "pnpm --filter web build",
-    "build:desktop": "pnpm --filter desktop make"
-    
+    "build:desktop": "pnpm --filter desktop make",
+    "lint": "eslint . && pnpm --filter desktop lint && pnpm --filter mobile lint"
   },
+  "type": "module",
+
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.33.2"
+  "packageManager": "pnpm@10.33.2",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.7.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.7.0",
+    "typescript-eslint": "^8.64.0"
+  }
 }
