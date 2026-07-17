@@ -97,14 +97,13 @@ function SidebarToggle({ onToggle, className = "", ...props }: SidebarToggleProp
 function SidebarNewChatButton({ className = "", children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      className={`flex w-full items-center justify-center gap-2 rounded-full bg-primary-container px-4 py-2.5 text-sm font-medium text-on-primary-container transition-opacity hover:opacity-90 ${className}`}
+      className={`flex w-full items-center gap-2 rounded-md bg-surface px-3 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container ${className}`}
       {...props}
     >
       {children}
     </button>
   );
 }
-
 function SidebarSectionLabel({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   const { collapsed } = useSidebarContext();
   if (collapsed) return null;
