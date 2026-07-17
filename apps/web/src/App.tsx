@@ -5,6 +5,7 @@ import AppLayout from "./components/layouts/AppLayout";
 import LandingPage from "./pages/LandingPage";
 import { NotFound} from "@monteai/ui";
 import Home from "./pages/Home";
+import Chat from "./pages/Chat";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ const App = () => (
         {/* Authenticated — sidebar layout */}
         <Route element={<AppLayout />}>
           <Route path="/home" element={<Home />} />
-          <Route path="/chat" element={<div>Chat page</div>} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/thesis" element={<div>Thesis page</div>} />
         </Route>
 
