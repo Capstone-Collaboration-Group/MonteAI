@@ -10,6 +10,4 @@ export const recentChats = [
   { id: "3", title: "Summarize thesis defense guidelines" },
   { id: "3", title: "Summarize thesis defense guidelines" },
   { id: "3", title: "Summarize thesis defense guidelines" },
-
-
 ];
