@@ -9,9 +9,8 @@ import Animated, {
     withRepeat,
     withSequence,
     Easing,
-    runOnJS,
 } from 'react-native-reanimated';
-import { useTheme } from '@react-navigation/native';
+// import { useTheme } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const LOGO_SIZE = 128;

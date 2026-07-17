@@ -3,7 +3,9 @@ export interface CreateChatMessageDto {
   content: string;
 }
 
-export interface UpdateChatMessageDto {}
+export interface UpdateChatMessageDto {
+  content?: string;
+}
 
 export interface ChatMessageResponseDto {
   id: string;
