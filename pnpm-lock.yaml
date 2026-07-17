@@ -275,12 +275,21 @@ importers:
 
   packages/api:
     dependencies:
+      '@monteai/types':
+        specifier: workspace:*
+        version: link:../types
       axios:
         specifier: ^1.17.0
         version: 1.18.1
 
   packages/hooks:
     dependencies:
+      '@monteai/api':
+        specifier: workspace:*
+        version: link:../api
+      '@monteai/types':
+        specifier: workspace:*
+        version: link:../types
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
