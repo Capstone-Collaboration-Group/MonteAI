@@ -3,9 +3,11 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { Sidebar } from "@monteai/ui";
 import { MessageSquare, Search, MessageCircle, Plus } from "lucide-react";
 import { recentChats } from "../../lib/mock-data";
-import CdmLogo from "../../assets/cdm-logo.png"
+import CdmLogo from "../../assets/cdm-logo.png";
 
 function AppSidebar() {
+  const navigate = useNavigate();
+
   return (
     <Sidebar>
       <Sidebar.Header className="gap-2.5">
@@ -15,16 +17,18 @@ function AppSidebar() {
           className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
         />
         <div>
-          <p className="text-[15px] font-medium leading-tight">MonteAI</p>
+          <p className="text-[15px] font-medium leading-tight text-on-surface">MonteAI</p>
           <p className="text-[11px] leading-tight text-on-surface-variant">Your AI research assistant</p>
         </div>
       </Sidebar.Header>
 
-      <Sidebar.NewChatButton>
-        <Plus className="h-4 w-4" /> New chat
-      </Sidebar.NewChatButton>
+      <div className="px-2 pb-2">
+        <Sidebar.NewChatButton onClick={() => navigate("/home")}>
+          <Plus className="h-4 w-4" /> New chat
+        </Sidebar.NewChatButton>
+      </div>
 
-      <Sidebar.Nav>
+      <Sidebar.Nav className="gap-0.5">
         <NavLink to="/chat">
           {({ isActive }) => (
             <Sidebar.Item icon={<MessageSquare className="h-4 w-4" />} label="AI Chat" active={isActive} />
@@ -43,13 +47,20 @@ function AppSidebar() {
           <Sidebar.Item key={chat.id} icon={<MessageCircle className="h-4 w-4" />} label={chat.title} />
         ))}
       </Sidebar.Nav>
+
+      <Sidebar.Footer className="flex items-center gap-2.5 px-1">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-xs font-semibold text-on-primary-container">
+          C
+        </div>
+        <span className="truncate text-xs text-on-surface-variant">cha@cdm.edu.ph</span>
+      </Sidebar.Footer>
     </Sidebar>
   );
 }
 
 export default function AppLayout() {
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-surface">
       <AppSidebar />
       <main className="flex-1 overflow-y-auto">
         <Outlet />
