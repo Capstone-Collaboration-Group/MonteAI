@@ -3,7 +3,7 @@ import { QueryClientProvider, queryClient} from "@monteai/hooks";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { MessageSquare, Search, MessageCircle, Plus } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import Home from "./pages/Home";
+import LandingPage from "./pages/LandingPage";
 import { NotFound} from "@monteai/ui";
 import { recentChats } from "./lib/mock-data"
 import CdmLogo  from "./assets/cdm-logo.png"
@@ -63,7 +63,7 @@ const App = () => (
         <AppSidebar />
         <main className="flex-1 overflow-y-auto">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<LandingPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
