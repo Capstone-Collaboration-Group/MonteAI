@@ -3,7 +3,11 @@ const navItems = [
   { label: "About Us", active: false, href: "#about" },
 ];
 
-export default function Navbar() {
+type NavbarProps = {
+  onLoginClick: () => void;
+};
+
+export default function Navbar({ onLoginClick }: NavbarProps) {
   return (
     <header className="sticky top-0 z-50 w-full bg-[#f1f1f1]/95 backdrop-blur-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-5 lg:px-10">
@@ -34,11 +38,13 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           <button
             type="button"
+            onClick={onLoginClick}
             className="flex min-w-[100px] cursor-pointer items-center justify-center rounded-full border border-[#006400] bg-white px-5 py-3 text-sm font-semibold text-[#1f1f1f] shadow-sm transition hover:bg-[#e8f6e8] hover:text-[#004000] hover:shadow-md"
             aria-label="Login"
           >
             Login
           </button>
+
           <button
             type="button"
             className="flex min-w-[120px] cursor-pointer items-center justify-center rounded-full bg-[#006400] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1a5c1a] hover:shadow-md"
