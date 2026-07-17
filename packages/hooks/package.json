@@ -13,6 +13,9 @@
   "license": "ISC",
   "packageManager": "pnpm@10.33.2",
   "dependencies": {
+    "@tanstack/react-query": "^5.101.2",
+    "@monteai/api": "workspace:*",
+    "@monteai/types": "workspace:*",
     "firebase": "^12.16.0"
   },
   "devDependencies": {

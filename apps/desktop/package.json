@@ -10,7 +10,7 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "eslint --ext .ts,.tsx ."
+    "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false eslint --ext .ts,.tsx ."
   },
   "keywords": [],
   "author": {
@@ -33,6 +33,7 @@
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "cross-env": "^10.1.0",
     "electron": "41.4.0",
     "eslint": "^8.57.1",
     "eslint-import-resolver-typescript": "^4.4.4",
