@@ -1,4 +1,3 @@
-// packages/api/src/client.ts
 import axios, { type AxiosInstance } from "axios";
 
 export interface ApiClientConfig {
