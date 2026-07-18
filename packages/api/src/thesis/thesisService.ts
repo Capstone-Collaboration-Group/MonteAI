@@ -37,7 +37,7 @@ export class LiveThesisService implements ThesisService {
     }
     // async submitThesis
     async submitThesis(dto: SubmitThesisDto): Promise<ThesisResponseDto> { 
-        const { data } =  await this.client.post<ThesisResponseDto>(`/thesis/submit`);
+        const { data } =  await this.client.post<ThesisResponseDto>(`/thesis/submit`, dto);
         return data;
     }
     // async ingestThesis(No Embedding currently implemented)
