@@ -5,6 +5,7 @@ import {
     type UpdateThesisDto,
     ThesisResponseListDto,
 } from "@monteai/types";
+import { handle404 } from "@monteai/utils"
 
 import type { ThesisService } from "./types";
 
@@ -16,11 +17,8 @@ export class LiveThesisService implements ThesisService {
         try { 
             const { data } = await this.client.get<ThesisResponseDto>(`/thesis/${thesisId}`);
             return data;
-        } catch (err: unknown) { 
-            if(isAxiosError(err) && err.response?.status === 404) {
-                return null
-            }
-            throw err;
+        } catch (err) { 
+            return handle404(err, null);
         }
     }
     // async getTheses
@@ -28,11 +26,8 @@ export class LiveThesisService implements ThesisService {
         try { 
             const { data } = await this.client.get<ThesisResponseListDto>(`/thesis`);
             return data;
-        } catch (err:unknown) { 
-            if(isAxiosError(err) && err.response?.status === 404) { 
-                return [];
-            }
-            throw err;
+        } catch (err) { 
+            return handle404(err, []);
         }
     }
     // async submitThesis
@@ -47,11 +42,8 @@ export class LiveThesisService implements ThesisService {
         try { 
             const { data } = await this.client.patch<boolean>(`/thesis/update/details/${thesisId}`);
             return data;
-        } catch (err: unknown) { 
-            if(isAxiosError(err) && err.response?.status === 404) { 
-                return false;
-            } 
-            throw err;
+        } catch (err) { 
+            return handle404(err, false);
         }
     }
     // async updateThesisStatus
@@ -59,23 +51,19 @@ export class LiveThesisService implements ThesisService {
         try { 
             const { data } = await this.client.patch<boolean>(`/thesis/update/status/${thesisId}`);
             return data;
-        } catch (err: unknown) { 
-            if (isAxiosError(err) && err.response?.status === 404) { 
-                return false;
+        } catch (err) { 
+            return handle404(err, false);
             }
-            throw err;
+
         }
-    }
+    
     // async deleteThesis 
     async deleteThesis(thesisId: string): Promise<boolean> {
         try { 
             const { data } = await this.client.delete<boolean>(`/thesis/delete/${thesisId}`);
             return data;
-        } catch (err: unknown) { 
-            if (isAxiosError(err) && err.response?.status === 404) { 
-                return false;
-            }
-            throw err;
+        } catch (err) { 
+            return handle404(err, false);
         }
     }
 }
