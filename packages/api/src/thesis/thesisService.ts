@@ -24,7 +24,7 @@ export class LiveThesisService implements ThesisService {
         }
     }
     // async getTheses
-    async getTheses(): Promise<ThesisResponseListDto | []> { 
+    async getTheses(): Promise<ThesisResponseDto[] | []> { 
         try { 
             const { data } = await this.client.get<ThesisResponseListDto>(`/thesis`);
             return data;
