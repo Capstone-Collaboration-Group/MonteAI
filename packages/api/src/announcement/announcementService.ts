@@ -1,9 +1,10 @@
-import { isAxiosError, type AxiosInstance } from "axios";
+import { type AxiosInstance } from "axios";
 import { 
     type AnnouncementResponseDto,
     type CreateAnnouncementDto,
     type UpdateAnnouncementDto
 } from "@monteai/types";
+import { handle404 } from "@monteai/utils";
 
 import { AnnouncementService } from "./types";
 
@@ -14,11 +15,8 @@ export class LiveAnnouncementService implements AnnouncementService {
         try { 
             const { data } = await this.client.get<AnnouncementResponseDto[]>(`/announcement`);
             return data;
-        } catch (err: unknown) { 
-            if (isAxiosError(err) && err.response?.status === 404) { 
-                return [];
-            }
-            throw err;
+        } catch (err) { 
+           return handle404(err, []);
         }
     }
 
@@ -26,11 +24,8 @@ export class LiveAnnouncementService implements AnnouncementService {
         try { 
             const { data } = await this.client.get<AnnouncementResponseDto>(`/announcement/${announcementId}`);
             return data;
-        } catch (err: unknown) { 
-            if (isAxiosError(err) && err.response?.status === 404) { 
-                return null;
-            }
-            throw err;
+        } catch (err) { 
+            return handle404(err, null);
         }
     }
     async createAnnouncement(dto: CreateAnnouncementDto): Promise<AnnouncementResponseDto> { 
@@ -41,23 +36,17 @@ export class LiveAnnouncementService implements AnnouncementService {
         try { 
             const { data } = await this.client.patch<boolean>(`/announcement/update/${announcementId}`, dto);
             return data;
-        } catch (err: unknown) { 
-            if (isAxiosError(err) && err.response?.status === 404) { 
-                return false;
-            }
-            throw err;
+        } catch (err) { 
+            return handle404(err, false);
         }
     }
     async deleteAnnouncement(announcementId: string): Promise<boolean> { 
         try { 
             const { data } = await this.client.delete<boolean>(`/announcement/delete/${announcementId}`);
             return data;
-        } catch (err: unknown) { 
-            if(isAxiosError(err) && err.response?.status === 404) { 
-                return false;
-            }
-            throw err;
+        } catch (err) { 
+            return handle404(err, false);
         }
-        
     }
+    
 }
