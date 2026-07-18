@@ -14,3 +14,5 @@ export interface ChatMessageResponseDto {
   content: string;
   timestamp: string;
 }
+
+export type ChatMessageResponseListDto = ChatMessageResponseDto[];

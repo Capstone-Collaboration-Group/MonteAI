@@ -18,3 +18,5 @@ export interface ReviewResponseDto {
   comments?: string;
   reviewedAt?: string;
 }
+
+export type ReviewResponseListDto = ReviewResponseDto[];

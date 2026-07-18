@@ -30,3 +30,5 @@ export interface ThesisResponseDto {
   indexedAt?: string;
   updatedAt: string;
 }
+
+export type ThesisResponseListDto = ThesisResponseDto[];

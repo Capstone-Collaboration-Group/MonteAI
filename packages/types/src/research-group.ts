@@ -21,3 +21,5 @@ export interface ResearchGroupResponseDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export type ResearchGroupResponseListDto = ResearchGroupResponseDto[];

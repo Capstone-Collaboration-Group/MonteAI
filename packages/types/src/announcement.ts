@@ -28,3 +28,5 @@ export interface AnnouncementResponseDto {
   lastModified?: string;
   author: AnnouncementAuthorDto;
 }
+
+export type AnnouncementResponseListDto = AnnouncementResponseDto[];
