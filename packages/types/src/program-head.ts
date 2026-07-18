@@ -34,3 +34,5 @@ export interface ProgramHeadResponseDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export type ProgramHeadResponseListDto = ProgramHeadResponseDto[];

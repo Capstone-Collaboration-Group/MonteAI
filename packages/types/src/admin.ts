@@ -32,3 +32,5 @@ export interface AdminResponseDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export type AdminResponseListDto = AdminResponseDto[];

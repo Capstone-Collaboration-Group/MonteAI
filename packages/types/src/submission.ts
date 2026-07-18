@@ -17,3 +17,5 @@ export interface SubmissionResponseDto {
   thesisTitle?: string;
   studentName?: string;
 }
+
+export type SubmissionResponseListDto = SubmissionResponseDto[];

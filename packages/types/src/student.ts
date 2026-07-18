@@ -51,3 +51,5 @@ export interface StudentResponseDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export type StudentResponseListDto = StudentResponseDto[];

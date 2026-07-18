@@ -17,3 +17,5 @@ export interface ChatSessionResponseDto {
   lastChatDate: string;
   messages: ChatMessageResponseDto[];
 }
+
+export type ChatSessionResponseListDto = ChatSessionResponseDto[];
