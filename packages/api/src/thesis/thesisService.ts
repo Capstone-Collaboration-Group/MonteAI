@@ -1,4 +1,4 @@
-import { isAxiosError, type AxiosInstance } from "axios";
+import { type AxiosInstance } from "axios";
 import { 
     type ThesisResponseDto,
     type SubmitThesisDto,
