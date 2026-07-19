@@ -4,33 +4,48 @@ import type {
   ChatSessionResponseDto,
   CreateChatSessionDto,
   CreateChatMessageDto,
+  UpdateChatSessionDto,
   ChatMessageResponseDto,
 } from "@monteai/types";
 import type { ChatService } from "./types";
 
-export function createLiveChatService(client: AxiosInstance): ChatService {
-  return {
-    async createSession(dto: CreateChatSessionDto) {
-      const { data } = await client.post<ChatSessionResponseDto>("/api/chatsessions", dto);
-      return data;
-    },
+export class LiveChatService implements ChatService {
+  constructor(private readonly client: AxiosInstance) {}
 
-    async getSession(sessionId: string) {
-      try {
-        const { data } = await client.get<ChatSessionResponseDto>(`/api/chatsessions/${sessionId}`);
-        return data;
-      } catch (err: unknown) {
-        if (isAxiosError(err) && err.response?.status === 404) return null;
-        throw err;
+  async createSession(dto: CreateChatSessionDto): Promise<ChatSessionResponseDto> {
+    const { data } = await this.client.post<ChatSessionResponseDto>("/chat/sessions", dto);
+    return data;
+  }
+
+  async getSession(sessionId: string): Promise<ChatSessionResponseDto | null> {
+    try {
+      const { data } = await this.client.get<ChatSessionResponseDto>(`/chatsessions/${sessionId}`);
+      return data;
+    } catch (err: unknown) {
+      if (isAxiosError(err) && err.response?.status === 404) {
+        return null;
       }
-    },
+      throw err;
+    }
+  }
 
-    async sendMessage(sessionId: string, dto: CreateChatMessageDto) {
-      const { data } = await client.post<ChatMessageResponseDto>(
-        `/api/chatsessions/${sessionId}/messages`,
-        dto
-      );
+  async updateChatSession(sessionId: string, dto: UpdateChatSessionDto): Promise<boolean> { 
+    try { 
+      const { data } = await this.client.patch<boolean>(`/chat/session/${sessionId}`, dto);
       return data;
-    },
-  };
+    } catch (err: unknown) { 
+      if (isAxiosError(err) && err.response?.status === 404) {
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  async sendMessage(sessionId: string, dto: CreateChatMessageDto): Promise<ChatMessageResponseDto> {
+    const { data } = await this.client.post<ChatMessageResponseDto>(
+      `/chatsessions/${sessionId}/messages`,
+      dto
+    );
+    return data;
+  }
 }
