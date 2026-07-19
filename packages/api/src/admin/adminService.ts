@@ -34,7 +34,7 @@ export class LiveAdminService implements AdminService {
 
     async updateAdmin(adminId: string, dto: UpdateAdminDto): Promise<boolean> { 
         try { 
-            const { data } = await this.client.patch<boolean>(`/admin/update/${adminId}`);
+            const { data } = await this.client.patch<boolean>(`/admin/update/${adminId}`, dto);
             return data;
         } catch (err: unknown) { 
             if(isAxiosError(err) && err.response?.status === 404) { 

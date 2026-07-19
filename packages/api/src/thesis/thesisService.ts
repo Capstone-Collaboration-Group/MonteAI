@@ -1,4 +1,4 @@
-import { isAxiosError, type AxiosInstance } from "axios";
+import { type AxiosInstance } from "axios";
 import { 
     type ThesisResponseDto,
     type SubmitThesisDto,
@@ -40,7 +40,7 @@ export class LiveThesisService implements ThesisService {
     // async updateThesis
     async updateThesis(thesisId: string, dto: UpdateThesisDto): Promise<boolean> { 
         try { 
-            const { data } = await this.client.patch<boolean>(`/thesis/update/details/${thesisId}`);
+            const { data } = await this.client.patch<boolean>(`/thesis/update/details/${thesisId}`, dto);
             return data;
         } catch (err) { 
             return handle404(err, false);
@@ -49,7 +49,7 @@ export class LiveThesisService implements ThesisService {
     // async updateThesisStatus
     async updateThesisStatus(thesisId: string, status: string): Promise<boolean> {
         try { 
-            const { data } = await this.client.patch<boolean>(`/thesis/update/status/${thesisId}`);
+            const { data } = await this.client.patch<boolean>(`/thesis/update/status/${thesisId}`, { params: { status }});
             return data;
         } catch (err) { 
             return handle404(err, false);

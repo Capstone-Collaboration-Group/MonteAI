@@ -45,7 +45,5 @@ namespace server.Controllers
         {
             return Ok("Logged in Successfully!");
         }
-
-        
     }
 }
