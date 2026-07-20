@@ -40,5 +40,10 @@ namespace server.Services.User
         }
         public async Task<bool> DeleteAsync(Guid groupId)
             => await _repo.DeleteResearchGroupAsync(groupId);
+
+        public Task<bool> UpdateAsync(Guid id, UpdateResearchGroupDto updateDto)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
