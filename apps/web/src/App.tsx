@@ -6,6 +6,7 @@ import LandingPage from "./pages/LandingPage";
 import { NotFound} from "@monteai/ui";
 import Home from "./pages/Home";
 import Chat from "./pages/Chat";
+import About from "./pages/About";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ const App = () => (
       <Routes>
         {/* Public — no sidebar */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/about" element={<About />} />
 
         {/* Authenticated — sidebar layout */}
         <Route element={<AppLayout />}>
