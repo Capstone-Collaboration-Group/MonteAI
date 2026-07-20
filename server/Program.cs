@@ -5,6 +5,7 @@ using Google.Cloud.Firestore;
 using Google.Cloud.Firestore.V1;
 using Google.Cloud.Storage.V1;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -64,7 +65,16 @@ try
     .AddAuthentication(FirebaseAuthMiddleware.SchemeName)
     .AddScheme<FirebaseAuthOptions, FirebaseAuthMiddleware>(FirebaseAuthMiddleware.SchemeName, _ => { });
 
-    builder.Services.AddAuthorization();
+    builder.Services.AddAuthorization(options =>
+    {
+        options.DefaultPolicy = new AuthorizationPolicyBuilder(FirebaseAuthMiddleware.SchemeName)
+            .RequireAuthenticatedUser()
+            .RequireClaim(ClaimTypes.Role)
+            .Build();
+
+        options.AddPolicy("FirebaseAuthenticated", policy =>
+            policy.RequireAuthenticatedUser());
+    });
      
     builder.Services.Configure<PineconeConfig>(
             builder.Configuration.GetSection(PineconeConfig.SectionName)
@@ -130,6 +140,8 @@ try
         options.AddPolicy("MonteSkolarPolicy", policy =>
         {
             policy.WithOrigins(
+                "http://localhost:8080",
+                "http://localhost:5173",
                 "https://localhost:8080",
                 "https://localhost:5173",
                 "https://monteskolar.pnm.edu.ph"
@@ -156,7 +168,7 @@ try
         });
     }
 
-
+    app.UseRouting();
     app.UseSerilogRequestLogging();
 
     app.UseHttpsRedirection();
@@ -167,12 +179,12 @@ try
 
     app.MapControllers();
     
-    app.MapGet("/api/users/me", (ClaimsPrincipal user) =>
-{
-    var uid = user.FindFirstValue("user_id") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
-    var email = user.FindFirstValue("email");
-    return Results.Ok(new { uid, email });
-}).RequireAuthorization();
+//    app.MapGet("/api/v1/Auth/me", (ClaimsPrincipal user) =>
+//{
+//    var uid = user.FindFirstValue("user_id") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+//    var email = user.FindFirstValue("email");
+//    return Results.Ok(new { uid, email });
+//}).RequireAuthorization();
 
     app.MapGet("/health", ([FromHeader(Name = "X-Ping-Secret")] string? header, IConfiguration configuration) =>
     {
