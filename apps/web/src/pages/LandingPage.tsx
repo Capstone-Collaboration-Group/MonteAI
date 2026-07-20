@@ -4,13 +4,13 @@ import Features from "../components/Features";
 import ChatPreview from "../components/ChatPreview";
 import Footer from "../components/Footer";
 import { useState } from "react";
-import Modal from "../components/auth/Modal";
-import LeftPanel from "../components/auth/LeftPanel";
-import VerticalDivider from "../components/auth/VerticalDivider";
-import LoginForm from "../components/auth/LoginForm";
+import { useNavigate } from "react-router-dom";
+import { auth } from "../lib/firebase";
+import Login  from "./Login";
 
 export default function LandingPage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <main className="w-full bg-linear-to-b from-green-50 to-white">
@@ -25,13 +25,14 @@ export default function LandingPage() {
       <Footer />
 
       {isLoginOpen && (
-        <Modal onClose={() => setIsLoginOpen(false)}>
-          <div className="flex items-center justify-center">
-            <LeftPanel />
-            <VerticalDivider />
-            <LoginForm />
-          </div>
-        </Modal>
+        <Login
+          auth={auth}
+          onClose={() => setIsLoginOpen(false)}
+          onSuccess={() => {
+            setIsLoginOpen(false);
+            navigate("/home");
+          }}
+        />
       )}
     </main>
   );
