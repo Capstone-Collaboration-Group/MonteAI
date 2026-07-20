@@ -1,21 +1,25 @@
-﻿using FirebaseAdmin;
+﻿using System.Security.Claims;
+using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
 using Google.Cloud.Firestore.V1;
 using Google.Cloud.Storage.V1;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.Tokens.Experimental;
 using Newtonsoft.Json.Serialization;
 using Serilog;
 using Serilog.Events;
 using server.Configuration;
 using server.Data;
-using server.Repositories;
-using server.Repositories.Interfaces;
-using server.Services;
-using server.Services.Interfaces;
+using server.Middleware;
 using server.Services.AI;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.Mvc;
+using server.Services.Interfaces;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
@@ -56,7 +60,12 @@ try
 
     builder.Services.AddSingleton(_ => StorageClient.Create(credential));
 
-    //Pinecone configuration
+    builder.Services
+    .AddAuthentication(FirebaseAuthMiddleware.SchemeName)
+    .AddScheme<FirebaseAuthOptions, FirebaseAuthMiddleware>(FirebaseAuthMiddleware.SchemeName, _ => { });
+
+    builder.Services.AddAuthorization();
+     
     builder.Services.Configure<PineconeConfig>(
             builder.Configuration.GetSection(PineconeConfig.SectionName)
             );
@@ -122,7 +131,7 @@ try
         {
             policy.WithOrigins(
                 "https://localhost:8080",
-                "https://locahost:5173",
+                "https://localhost:5173",
                 "https://monteskolar.pnm.edu.ph"
                 )
             .AllowAnyHeader()
@@ -152,10 +161,18 @@ try
 
     app.UseHttpsRedirection();
     app.UseCors("MonteSkolarPolicy");
+    app.UseAuthentication();
     app.UseAuthorization();
     app.UseRateLimiter();
 
     app.MapControllers();
+    
+    app.MapGet("/api/users/me", (ClaimsPrincipal user) =>
+{
+    var uid = user.FindFirstValue("user_id") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+    var email = user.FindFirstValue("email");
+    return Results.Ok(new { uid, email });
+}).RequireAuthorization();
 
     app.MapGet("/health", ([FromHeader(Name = "X-Ping-Secret")] string? header, IConfiguration configuration) =>
     {
