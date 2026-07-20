@@ -7,7 +7,7 @@ namespace server.Services.Interfaces
         Task<IEnumerable<ResearchGroupResponseDto>> GetAllAsync();
         Task<ResearchGroupResponseDto?> GetByIdAsync(Guid groupId);
         Task<bool> CreateAsync(CreateResearchGroupDto createDto);
-        Task<bool> UpdateAsync(UpdateResearchGroupDto updateDto);
+        Task<bool> UpdateAsync(Guid id, UpdateResearchGroupDto updateDto);
         Task<bool> DeleteAsync(Guid groupId);
 
     }
