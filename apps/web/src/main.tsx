@@ -1,13 +1,15 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createApiClient } from "@monteai/api";
+import { AuthProvider } from "@monteai/hooks";
 import './index.css'
 import App from './App.tsx'
+import { auth } from './lib/firebase';
+import './lib/firebaseServices.ts';
 
-
-export const api = createApiClient(import.meta.env.VITE_API_BASE_URL)
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-       <App />
+    <AuthProvider auth={auth}>
+      <App />
+    </AuthProvider>
   </StrictMode>,
 )
