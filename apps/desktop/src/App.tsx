@@ -1,7 +1,7 @@
 // apps/desktop/src/App.tsx (or wherever your renderer root component is)
 import { Toaster, Sidebar, NotFound} from "@monteai/ui";
 import { HashRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FileText, Users, Settings } from "lucide-react";
+import { LayoutDashboard, FileText, Users, Settings, Calendar } from "lucide-react";
 import Dashboard from "./renderer/pages/Dashboard";
 import Faculty from "./renderer/pages/Faculty";
 import Schedule from "./renderer/pages/Schedule";
@@ -47,6 +47,11 @@ function AppSidebar() {
             <Sidebar.Item icon={<Users className="h-4 w-4" />} label="Faculty" active={isActive} />
           )}
         </NavLink>
+        <NavLink to="/schedule">
+          {({ isActive }) => (
+            <Sidebar.Item icon={<Calendar className="h-4 w-4" />} label="Schedule" active={isActive} />
+          )}
+        </NavLink>
       </Sidebar.Nav>
 
       <Sidebar.Footer>
@@ -68,9 +73,9 @@ const App = () => (
       <main className="flex-1 overflow-y-auto">
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/Theses" element={<Theses />} />
-          <Route path="/Faculty" element={<Faculty />} />
-          <Route path="/Schedule" element={<Schedule />} />
+          <Route path="/theses" element={<Theses />} />
+          <Route path="/faculty" element={<Faculty />} />
+          <Route path="/schedule" element={<Schedule />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
