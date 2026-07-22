@@ -15,3 +15,4 @@ export * from "./submission";
 export * from "./theme";
 export * from "./thesis";
 export * from "./user";
+export * from "./auth";

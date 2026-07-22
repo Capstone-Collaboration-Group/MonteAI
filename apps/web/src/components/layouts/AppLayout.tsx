@@ -1,12 +1,31 @@
 // layouts/AppLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { Sidebar } from "@monteai/ui";
-import { MessageSquare, Search, MessageCircle, Plus } from "lucide-react";
+import { MessageSquare, Search, MessageCircle, Plus, LogOut } from "lucide-react"; // Imported LogOut
 import { recentChats } from "../../lib/mock-data";
 import CdmLogo from "../../assets/cdm-logo.png";
 
+// Import your global hooks and initialized services
+import { useUserProfile, queryClient } from "@monteai/hooks";
+import { profileService } from "../../lib/firebaseServices";
+import { auth } from "../../lib/firebase";
+
 function AppSidebar() {
   const navigate = useNavigate();
+  
+  // 1. Fetch the dynamic user profile
+  const { profile, isLoading } = useUserProfile(profileService);
+
+  // 2. Handle secure sign out
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      queryClient.clear(); // Wipe the TanStack query cache to prevent data leaks
+      navigate("/"); // Send them back to the landing page
+    } catch (error) {
+      console.error("Failed to sign out", error);
+    }
+  };
 
   return (
     <Sidebar>
@@ -48,11 +67,25 @@ function AppSidebar() {
         ))}
       </Sidebar.Nav>
 
-      <Sidebar.Footer className="flex items-center gap-2.5 px-1">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-xs font-semibold text-on-primary-container">
-          C
+      {/* 3. Make the Footer dynamic and add the logout trigger */}
+      <Sidebar.Footer className="flex items-center justify-between gap-2.5 px-1">
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-xs font-semibold uppercase text-on-primary-container">
+            {/* Extract the first letter of the email dynamically */}
+            {isLoading ? "..." : (profile?.email?.[0] || "U")}
+          </div>
+          <span className="truncate text-xs text-on-surface-variant">
+            {isLoading ? "Loading..." : profile?.email}
+          </span>
         </div>
-        <span className="truncate text-xs text-on-surface-variant">cha@cdm.edu.ph</span>
+        
+        <button 
+          onClick={handleLogout}
+          className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+          aria-label="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
       </Sidebar.Footer>
     </Sidebar>
   );
