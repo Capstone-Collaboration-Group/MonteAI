@@ -76,4 +76,16 @@
   --color-status-defense: var(--status-defense);
 }
 
+.schedule-grid {
+  display: grid;
+  grid-template-columns: 80px repeat(5, 1fr); 
+  width: 100%;
+}
+
+.time-row {
+  height: 60px; 
+}
+
 @source "../../../../apps/web/src/**/*.{ts,tsx}";
+
+@source "../../../../apps/desktop/src/**/*.{ts,tsx}";

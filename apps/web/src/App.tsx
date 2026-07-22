@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import { auth } from "./lib/firebase";
 import About from "./pages/About";
+import Schedule from "./pages/Schedule";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/home" element={<Home />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/thesis" element={<div>Thesis page</div>} />
+            <Route path="/schedule" element={<Schedule />} />
           </Route>
         </Route>
 

@@ -38,5 +38,3 @@ export interface ScheduleResponseDto {
   additionalInformation?: string;
   panelists: PanelistScheduleResponseDto[];
 }
-
-export type ScheduleResponseListDto = ScheduleResponseDto[];

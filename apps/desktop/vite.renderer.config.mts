@@ -16,6 +16,6 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    exclude: ["@monteai/ui"],
+    exclude: ["@monteai/ui", "@monteai/api"],
   },
 });
