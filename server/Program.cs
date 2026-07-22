@@ -9,11 +9,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Protocols;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.IdentityModel.Tokens.Experimental;
-using Newtonsoft.Json.Serialization;
 using Serilog;
 using Serilog.Events;
 using server.Configuration;
@@ -67,7 +62,7 @@ try
 
     builder.Services.AddAuthorization(options =>
     {
-        options.DefaultPolicy = new AuthorizationPolicyBuilder(FirebaseAuthMiddleware.SchemeName)
+        options.DefaultPolicy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .RequireClaim(ClaimTypes.Role)
             .Build();
@@ -172,8 +167,9 @@ try
     app.UseSerilogRequestLogging();
 
     app.UseHttpsRedirection();
-    app.UseCors("MonteSkolarPolicy");
+    app.UseCors("MonteSkolarPolicy"); 
     app.UseAuthentication();
+    app.UseRoleAuthorization();
     app.UseAuthorization();
     app.UseRateLimiter();
 

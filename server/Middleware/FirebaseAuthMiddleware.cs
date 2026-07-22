@@ -14,7 +14,7 @@ public class FirebaseAuthMiddleware : AuthenticationHandler<FirebaseAuthOptions>
 
     public FirebaseAuthMiddleware(
         IOptionsMonitor<FirebaseAuthOptions> options,
-        ILoggerFactory logger,
+        ILoggerFactory logger, 
         UrlEncoder encoder)
         : base(options, logger, encoder) { }
 
