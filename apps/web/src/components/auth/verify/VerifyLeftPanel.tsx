@@ -1,9 +1,10 @@
-import cdmLogo from "../../assets/cdm-logo.png";
+import cdmLogo from "../../../assets/auth/cdm-logo.png";
 
-export default function LeftPanel() {
+export default function VerifyLeftPanel() {
   return (
-    <section className="flex w-full max-w-[420px] flex-col items-start justify-center px-6 py-6">
-      {/* CDM Logo */}
+    <section className="flex w-full max-w-105 flex-col items-start justify-center px-6 py-6">
+      {/* Logo */}
+
       <img
         src={cdmLogo}
         alt="Colegio de Montalban Logo"
@@ -11,22 +12,26 @@ export default function LeftPanel() {
       />
 
       {/* Title */}
+
       <h1 className="mt-8 text-5xl font-extrabold text-[#111111]">
         MonteSkolar
       </h1>
 
       {/* Subtitle */}
+
       <h2 className="mt-2 text-2xl font-bold text-[#111111]">
-        Online Thesis Library
+        Verify Your Email
       </h2>
 
       {/* Red Line */}
+
       <div className="mt-4 h-1 w-36 rounded-full bg-[#D62828]" />
 
-      {/* Hero Description */}
+      {/* Description */}
+
       <p className="mt-6 text-lg leading-8 text-[#444444]">
-        Your AI-Powered platform for discovering, organizing, and accessing
-        quality thesis anytime, anywhere.
+        To keep your account secure, please verify your email address before
+        continuing to MonteSkolar.
       </p>
     </section>
   );

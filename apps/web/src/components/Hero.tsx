@@ -1,17 +1,20 @@
 export default function Hero() {
   return (
-    <section aria-labelledby="hero-heading" className="flex flex-col items-center justify-center px-4 py-20 text-center sm:px-6 lg:py-28">
+    <section
+      aria-labelledby="hero-heading"
+      className="flex flex-col items-center justify-center px-4 py-20 text-center sm:px-6 lg:py-28"
+    >
       <h1
         id="hero-heading"
-        className="max-w-5xl whitespace-nowrap [font-family:'Inter-ExtraBold',Helvetica] text-[2.1rem] font-extrabold leading-tight tracking-[-0.96px] text-[#1b1b1c] sm:text-[2.8rem] lg:text-[3.5rem]"
+        className="max-w-5xl whitespace-nowrap font-['Inter-ExtraBold',Helvetica] text-[2.1rem] font-extrabold leading-tight tracking-[-0.96px] text-[#1b1b1c] sm:text-[2.8rem] lg:text-[3.5rem]"
       >
         <span>Your AI-Powered </span>
         <span className="text-[#006400]">Thesis Library</span>
       </h1>
-      <p className="mt-6 max-w-3xl [font-family:'Inter-Regular',Helvetica] text-lg leading-7 text-[#3f4a3a]">
-        Simplify your thesis research journey. Search for published CDM
-        studies, get AI-powered answers, and access your institution&#39;s
-        research repository anytime, anywhere, all in one platform.
+      <p className="mt-6 max-w-3xl font-['Inter-Regular',Helvetica] text-lg leading-7 text-[#3f4a3a]">
+        Simplify your thesis research journey. Search for published CDM studies,
+        get AI-powered answers, and access your institution&#39;s research
+        repository anytime, anywhere, all in one platform.
       </p>
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <button

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- Outer Warning Circle -->
+  <circle cx="12" cy="12" r="10" stroke="#E63946" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Exclamation Mark Body -->
+  <path d="M12 7V13" stroke="#E63946" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Exclamation Mark Dot -->
+  <circle cx="12" cy="17" r="1" fill="#E63946"/>
+</svg>

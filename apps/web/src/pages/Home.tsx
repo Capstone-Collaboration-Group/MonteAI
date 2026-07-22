@@ -12,11 +12,13 @@ const suggestions = [
   },
   {
     tag: "Suggested",
-    title: "Justifications for weighted mean and standard deviation in IT studies",
+    title:
+      "Justifications for weighted mean and standard deviation in IT studies",
   },
   {
     tag: "Suggested",
-    title: "Compare frequency count, percentage distribution, and weighted mean usage in IT surveys",
+    title:
+      "Compare frequency count, percentage distribution, and weighted mean usage in IT surveys",
   },
 ];
 
@@ -43,7 +45,7 @@ export default function Home() {
 
         <form
           onSubmit={handleSubmit}
-          className="overflow-hidden rounded-[32px] border border-outline-variant bg-surface shadow-lg"
+          className="overflow-hidden rounded-4xl border border-outline-variant bg-surface shadow-lg"
         >
           {/* Top bar */}
           <div className="flex items-center justify-between bg-primary px-6 py-4">
@@ -58,7 +60,7 @@ export default function Home() {
           </div>
 
           {/* Prompt area */}
-          <div className="min-h-[160px] px-6 py-6">
+          <div className="min-h-40 px-6 py-6">
             <textarea
               autoFocus
               value={prompt}
@@ -81,7 +83,10 @@ export default function Home() {
               type="button"
               className="flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface px-3 py-1.5 text-xs font-medium text-on-surface-variant"
             >
-              Source <span className="font-semibold text-on-surface">Thesis repository</span>
+              Source{" "}
+              <span className="font-semibold text-on-surface">
+                Thesis repository
+              </span>
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
             <button
@@ -107,7 +112,9 @@ export default function Home() {
                 {s.tag}
               </span>
               <p className="text-sm text-on-surface">{s.title}</p>
-              {s.meta && <p className="mt-2 text-xs text-on-surface-variant">{s.meta}</p>}
+              {s.meta && (
+                <p className="mt-2 text-xs text-on-surface-variant">{s.meta}</p>
+              )}
             </Card>
           ))}
         </div>

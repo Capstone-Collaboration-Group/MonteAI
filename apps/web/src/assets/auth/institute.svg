@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#006400" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Main building facade -->
+  <path d="M4 22V9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13" />
+  
+  <!-- Triangular roof/pediment -->
+  <path d="M2 7l9.11-4.55a2 2 0 0 1 1.78 0L22 7" />
+  
+  <!-- Pillars / Pillars effect -->
+  <line x1="8" y1="11" x2="8" y2="16" />
+  <line x1="12" y1="11" x2="12" y2="16" />
+  <line x1="16" y1="11" x2="16" y2="16" />
+  
+  <!-- Modern entryway / Door -->
+  <path d="M10 22v-3a2 2 0 0 1 4 0v3" />
+  <line x1="2" y1="22" x2="22" y2="22" />
+</svg>

@@ -1,15 +1,47 @@
 import type { ReactNode } from "react";
-import closeIcon from "../../assets/close.svg";
+import closeIcon from "../../../assets/close.svg";
 
 type ModalProps = {
   children: ReactNode;
   onClose: () => void;
+
+  maxWidth?: string;
 };
 
-export default function Modal({ children, onClose }: ModalProps) {
+export default function Modal({
+  children,
+  onClose,
+  maxWidth = "max-w-6xl",
+}: ModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
-      <div className="relative w-full max-w-6xl rounded-[32px] border-[3px] border-[#9BC39B] bg-white shadow-2xl">
+    <div
+      className="
+    fixed
+    inset-0
+    z-50
+    flex
+    items-center
+    justify-center
+    bg-black/40
+    backdrop-blur-sm
+    p-6
+    animate-fadeIn
+  "
+    >
+      <div
+        className={`
+          relative
+          w-full
+          ${maxWidth}
+          rounded-4xl
+          border-[3px]
+          border-[#9BC39B]
+          bg-white
+          shadow-2xl
+          animate-modal
+        `}
+      >
+        {" "}
         {/* Close Button */}
         <button
           type="button"
@@ -19,7 +51,6 @@ export default function Modal({ children, onClose }: ModalProps) {
         >
           <img src={closeIcon} alt="Close" className="h-5 w-5" />
         </button>
-
         {/* Modal Content */}
         <div className="p-12">{children}</div>
       </div>

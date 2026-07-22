@@ -1,18 +1,18 @@
 import { Toaster } from "@monteai/ui";
-import { QueryClientProvider, queryClient} from "@monteai/hooks";
+import { QueryClientProvider, queryClient } from "@monteai/hooks";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import AppLayout from "./components/layouts/AppLayout";
 import LandingPage from "./pages/LandingPage";
-import { NotFound} from "@monteai/ui";
+import { NotFound } from "@monteai/ui";
 import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import About from "./pages/About";
+import Register from "./pages/Register";
 
 function NotFoundPage() {
   const navigate = useNavigate();
   return <NotFound onGoHome={() => navigate("/")} />;
 }
-
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -22,7 +22,7 @@ const App = () => (
         {/* Public — no sidebar */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<About />} />
-
+        <Route path="/register" element={<Register />} />
         {/* Authenticated — sidebar layout */}
         <Route element={<AppLayout />}>
           <Route path="/home" element={<Home />} />
@@ -35,6 +35,5 @@ const App = () => (
     </BrowserRouter>
   </QueryClientProvider>
 );
-
 
 export default App;

@@ -1,22 +1,33 @@
 import { useState } from "react";
-import eyeOpen from "../../assets/eye-open.svg";
-import eyeClosed from "../../assets/eye-closed.svg";
 
-type PasswordInputProps = {
+import eyeOpen from "../../../assets/eye-open.svg";
+import eyeClosed from "../../../assets/eye-closed.svg";
+
+type RegisterPasswordProps = {
   label: string;
   name: string;
   placeholder: string;
   value: string;
+
+  compareWith?: string;
+
+  error?: string;
+
+  disabled?: boolean;
+
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
-export default function PasswordInput({
+export default function RegisterPassword({
   label,
   name,
   placeholder,
   value,
+  compareWith,
+  error,
+  disabled = false,
   onChange,
-}: PasswordInputProps) {
+}: RegisterPasswordProps) {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -26,21 +37,22 @@ export default function PasswordInput({
         {label}
       </label>
 
-      {/* Input Wrapper */}
+      {/* Input */}
       <div className="relative">
         <input
           id={name}
           name={name}
+          disabled={disabled}
           type={showPassword ? "text" : "password"}
           placeholder={placeholder}
           value={value}
           onChange={onChange}
-          className="
+          autoComplete="new-password"
+          className={`
             h-12
             w-full
             rounded-xl
             border
-            border-[#D9D9D9]
             bg-white
             px-4
             pr-12
@@ -50,10 +62,12 @@ export default function PasswordInput({
             transition-all
             duration-200
             placeholder:text-[#9CA3AF]
-            focus:border-[#006400]
-            focus:ring-2
-            focus:ring-[#006400]/20
-          "
+            ${
+              error
+                ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                : "border-[#D9D9D9] focus:border-[#006400] focus:ring-2 focus:ring-[#006400]/20"
+            }
+          `}
         />
 
         {/* Eye Button */}
@@ -71,6 +85,8 @@ export default function PasswordInput({
             transition
             duration-200
             hover:bg-gray-100
+            active:scale-95
+            cursor-pointer
           "
         >
           <img
@@ -80,6 +96,9 @@ export default function PasswordInput({
           />
         </button>
       </div>
+
+      {/* Error */}
+      {error && <span className="text-xs text-red-500">{error}</span>}
     </div>
   );
 }
