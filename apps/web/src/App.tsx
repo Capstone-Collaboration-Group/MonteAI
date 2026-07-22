@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import { auth } from "./lib/firebase";
+import About from "./pages/About";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ const App = () => (
       <Routes>
         {/* Public — no sidebar */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/about" element={<About />} />
 
         {/* Authenticated — sidebar layout, gated by Firebase auth state */}
         <Route element={<ProtectedRoute />}>
