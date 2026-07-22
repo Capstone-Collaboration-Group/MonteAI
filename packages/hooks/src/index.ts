@@ -3,3 +3,4 @@ export * from "./queryClient";
 export * from "./AuthProvider";
 export * from "./authContext";
 export * from "./useUserProfile";
+export * from "./schedule/useSchedule";
