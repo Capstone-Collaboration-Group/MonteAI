@@ -13,6 +13,6 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 
-if (import.meta.env.DEV) {
-  (window as any).auth = auth; // dev-only convenience for console debugging — remove before shipping
-}
+// if (import.meta.env.DEV) {
+//   (window as any).auth = auth; // dev-only convenience for console debugging — remove before shipping
+// }
