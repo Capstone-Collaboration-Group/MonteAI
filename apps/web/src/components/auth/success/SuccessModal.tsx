@@ -20,13 +20,17 @@ You can now login using your Student Number and Password.`,
   onContinue,
 }: SuccessModalProps) {
   return (
-    <Modal onClose={onContinue} maxWidth="max-w-md">
-      <div className="mx-auto flex max-w-md flex-col items-center">
-        <img src={successImage} alt="Success" className="h-44 w-44" />
+    <Modal onClose={onContinue} maxWidth="max-w-sm sm:max-w-md">
+      <div className="mx-auto flex max-w-sm sm:max-w-md flex-col items-center">
+        <img
+          src={successImage}
+          alt="Success"
+          className="h-28 w-28 sm:h-36 sm:w-36 md:h-44 md:w-44"
+        />
 
-        <h1 className="mt-8 text-3xl font-bold">{title}</h1>
+        <h1 className="mt-4 text-2xl font-bold sm:text-3xl md:mt-8">{title}</h1>
 
-        <p className="mt-4 whitespace-pre-line text-center text-gray-500 leading-7">
+        <p className="mt-3 whitespace-pre-line text-center text-sm text-gray-500 leading-6 sm:mt-4 sm:text-base sm:leading-7">
           {description}
         </p>
 
@@ -34,7 +38,7 @@ You can now login using your Student Number and Password.`,
           type="button"
           onClick={onContinue}
           className="
-          mt-10
+          mt-6 sm:mt-10
           h-12
           w-full
           rounded-xl

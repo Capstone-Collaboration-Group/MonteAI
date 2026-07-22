@@ -32,6 +32,8 @@ export default function Modal({
         className={`
           relative
           w-full
+          max-h-[85vh]
+          overflow-y-auto
           ${maxWidth}
           rounded-4xl
           border-[3px]
@@ -52,7 +54,7 @@ export default function Modal({
           <img src={closeIcon} alt="Close" className="h-5 w-5" />
         </button>
         {/* Modal Content */}
-        <div className="p-12">{children}</div>
+        <div className="p-5 sm:p-6 lg:p-12">{children}</div>
       </div>
     </div>
   );

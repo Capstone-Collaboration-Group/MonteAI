@@ -71,7 +71,9 @@ export default function LoginForm({
 
   return (
     <section className="flex w-full max-w-md flex-col">
-      <h2 className="text-4xl font-bold text-[#1B1B1C]">Welcome Back</h2>
+      <h2 className="text-3xl font-bold text-[#1B1B1C] lg:text-4xl">
+        Welcome Back
+      </h2>
 
       <p className="mt-2 text-base text-gray-500">
         Sign in to continue to MonteSkolar.

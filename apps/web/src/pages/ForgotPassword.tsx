@@ -12,10 +12,12 @@ import Login from "./Login";
 
 type ForgotPasswordPageProps = {
   onClose: () => void;
+  onRegister?: () => void;
 };
 
 export default function ForgotPasswordPage({
   onClose,
+  onRegister,
 }: ForgotPasswordPageProps) {
   const [showVerify, setShowVerify] = useState(false);
 
@@ -32,7 +34,7 @@ export default function ForgotPasswordPage({
       {showLogin && (
         <Login
           onClose={onClose}
-          onRegister={() => {}}
+          onRegister={onRegister ?? onClose}
           onForgotPassword={() => setShowLogin(false)}
         />
       )}
@@ -50,7 +52,7 @@ export default function ForgotPasswordPage({
 
       {showReset && (
         <Modal onClose={() => setShowReset(false)}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-center justify-between gap-10 lg:flex-row">
             <LeftPanel />
 
             <VerticalDivider />
@@ -77,7 +79,7 @@ export default function ForgotPasswordPage({
 
       {!showLogin && (
         <Modal onClose={onClose}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-center justify-between gap-10 lg:flex-row">
             <LeftPanel />
 
             <VerticalDivider />

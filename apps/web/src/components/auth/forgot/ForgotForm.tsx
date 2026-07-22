@@ -61,7 +61,7 @@ export default function ForgotForm({ onNext, onBack }: ForgotFormProps) {
   };
 
   return (
-    <section className="flex w-full max-w-130 flex-col">
+    <section className="flex w-full max-w-md flex-col">
       <h2 className="text-4xl font-bold text-[#1B1B1C]">Forgot Password</h2>
 
       <p className="mt-2 text-gray-500">

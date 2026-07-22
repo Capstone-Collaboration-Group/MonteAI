@@ -72,13 +72,16 @@ export default function OTPInput({ value, onChange }: OTPInputProps) {
           onKeyDown={(e) => handleKeyDown(index, e)}
           onChange={(e) => handleChange(index, e)}
           className="
-          h-14
-          w-14
+          h-12
+          w-12
+          sm:h-14
+          sm:w-14
           rounded-xl
           border
           border-[#D9D9D9]
           text-center
-          text-2xl
+          text-xl
+          sm:text-2xl
           font-bold
           outline-none
           transition

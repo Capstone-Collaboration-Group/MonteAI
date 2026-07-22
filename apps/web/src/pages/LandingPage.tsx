@@ -56,7 +56,10 @@ export default function LandingPage() {
       {/* ---------------- FORGOT PASSWORD ---------------- */}
 
       {activeModal === "forgot" && (
-        <ForgotPasswordPage onClose={() => setActiveModal(null)} />
+        <ForgotPasswordPage
+          onClose={() => setActiveModal(null)}
+          onRegister={() => setActiveModal("register")}
+        />
       )}
     </main>
   );

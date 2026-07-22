@@ -147,19 +147,21 @@ export default function RegisterForm({
   return (
     <form
       onSubmit={handleRegister}
-      className="animate-[fadeIn_.35s_ease] flex flex-col gap-6"
+      className="animate-[fadeIn_.35s_ease] flex flex-col gap-5"
     >
       {/* Heading */}
       <div>
-        <h2 className="text-4xl font-bold text-[#1B1B1C]">Create Account</h2>
+        <h2 className="text-2xl font-bold text-[#111111] lg:text-3xl">
+          Create Account
+        </h2>
 
-        <p className="mt-2 text-base text-gray-500">
+        <p className="mt-1.5 text-sm text-[#666666]">
           Fill in your information below.
         </p>
       </div>
 
       {/* Form Grid */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* First Name */}
         <RegisterInput
           label="First Name"
@@ -199,17 +201,21 @@ export default function RegisterForm({
         />
 
         {/* Email */}
-        <RegisterInput
-          label="Email"
-          name="email"
-          placeholder="example@gmail.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
-        />
+        <div className="flex flex-col">
+          <RegisterInput
+            label="Email"
+            name="email"
+            placeholder="example@gmail.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
+          />
 
-        {email && !emailValid && (
-          <p className="text-red-500 text-xs mt-1">...</p>
-        )}
+          <div className="min-h-[0px]">
+            {email && !emailValid && (
+              <p className="text-red-500 text-xs mt-1">...</p>
+            )}
+          </div>
+        </div>
 
         {/* Year */}
         <RegisterDropdown

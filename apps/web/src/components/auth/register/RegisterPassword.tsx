@@ -31,9 +31,9 @@ export default function RegisterPassword({
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <div className="flex w-full flex-col gap-1.5">
       {/* Label */}
-      <label htmlFor={name} className="text-sm font-semibold text-[#1B1B1C]">
+      <label htmlFor={name} className="text-sm font-semibold text-[#111111]">
         {label}
       </label>
 
@@ -49,24 +49,27 @@ export default function RegisterPassword({
           onChange={onChange}
           autoComplete="new-password"
           className={`
-            h-12
+            h-11
             w-full
-            rounded-xl
+            rounded-[10px]
             border
             bg-white
-            px-4
-            pr-12
-            text-base
-            text-[#1B1B1C]
+            px-3.5
+            pr-11
+            text-sm
+            text-[#111111]
+            placeholder:text-[#9CA3AF]
             outline-none
             transition-all
             duration-200
-            placeholder:text-[#9CA3AF]
             ${
               error
-                ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200"
-                : "border-[#D9D9D9] focus:border-[#006400] focus:ring-2 focus:ring-[#006400]/20"
+                ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                : "border-[#D9D9D9] focus:border-[#006400] focus:ring-2 focus:ring-[#006400]/15"
             }
+            disabled:bg-gray-50
+            disabled:cursor-not-allowed
+            disabled:opacity-60
           `}
         />
 
@@ -77,11 +80,14 @@ export default function RegisterPassword({
           onClick={() => setShowPassword((prev) => !prev)}
           className="
             absolute
-            right-3
+            right-2.5
             top-1/2
             -translate-y-1/2
+            flex
+            items-center
+            justify-center
             rounded-md
-            p-1
+            p-1.5
             transition
             duration-200
             hover:bg-gray-100
@@ -92,7 +98,7 @@ export default function RegisterPassword({
           <img
             src={showPassword ? eyeClosed : eyeOpen}
             alt={showPassword ? "Hide password" : "Show password"}
-            className="h-5 w-5"
+            className="h-4 w-4"
           />
         </button>
       </div>

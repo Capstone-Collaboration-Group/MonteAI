@@ -39,12 +39,12 @@ export default function Register({ onClose, onLogin }: RegisterProps) {
         />
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-center justify-between gap-10 lg:flex-row">
         <RegisterLeftPanel />
 
         <VerticalDivider />
 
-        <div className="w-130">
+        <div className="w-full max-w-md">
           <RegisterForm
             onSuccess={() => {
               setShowVerify(true);

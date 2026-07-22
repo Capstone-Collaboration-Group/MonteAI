@@ -27,8 +27,8 @@ export default function RegisterInput({
   disabled = false,
 }: RegisterInputProps) {
   return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={name} className="font-semibold">
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={name} className="text-sm font-semibold text-[#111111]">
         {label}
       </label>
 
@@ -37,7 +37,7 @@ export default function RegisterInput({
           <img
             src={icon}
             alt=""
-            className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2"
+            className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
           />
         )}
 
@@ -48,18 +48,26 @@ export default function RegisterInput({
           onChange={onChange}
           disabled={disabled}
           className={`
-            h-12
+            h-11
             w-full
-            rounded-lg
+            rounded-[10px]
             border
-            border-[#BDBDBD]
-            ${icon ? "pl-12" : "px-4"}
-            pr-4
+            border-[#D9D9D9]
+            bg-white
+            ${icon ? "pl-10" : "px-3.5"}
+            pr-3.5
+            text-sm
+            text-[#111111]
+            placeholder:text-[#9CA3AF]
             outline-none
-            transition
+            transition-all
+            duration-200
             focus:border-[#006400]
             focus:ring-2
-            focus:ring-[#006400]/20
+            focus:ring-[#006400]/15
+            disabled:bg-gray-50
+            disabled:cursor-not-allowed
+            disabled:opacity-60
           `}
         />
       </div>

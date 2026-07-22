@@ -1,3 +1,3 @@
 export default function VerticalDivider() {
-  return <div className="mx-10 hidden h-125 w-px bg-[#D9D9D9] lg:block" />;
+  return <div className="mx-6 hidden h-140 w-px bg-gray-300 lg:block" />;
 }

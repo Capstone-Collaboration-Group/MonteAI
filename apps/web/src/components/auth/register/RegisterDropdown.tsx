@@ -46,68 +46,92 @@ export default function RegisterDropdown({
   const selected = options.find((item) => item.value === value)?.label || "";
 
   return (
-    <div className="flex flex-col gap-2" ref={dropdownRef}>
-      <label className="text-sm font-semibold text-[#1B1B1C]">{label}</label>
+    <div className="relative flex flex-col gap-1.5" ref={dropdownRef}>
+      <label className="text-sm font-semibold text-[#111111]">{label}</label>
 
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className="
           flex
-          h-12
+          h-11
+          w-full
           items-center
           justify-between
-          rounded-xl
+          rounded-[10px]
           border
           border-[#D9D9D9]
           bg-white
-          px-4
+          px-3.5
           transition-all
           duration-200
-          hover:border-[#006400]
+          hover:border-[#006400]/50
+          focus:border-[#006400]
+          focus:ring-2
+          focus:ring-[#006400]/15
+          outline-none
         "
       >
-        <span className={`${value ? "text-[#1B1B1C]" : "text-gray-400"}`}>
+        <span
+          className={`truncate text-sm ${value ? "text-[#111111]" : "text-[#9CA3AF]"}`}
+        >
           {value ? selected : placeholder}
         </span>
 
         <img
           src={open ? chevronUp : chevronDown}
-          className="h-5 w-5 transition duration-200"
+          className="h-4 w-4 transition-transform duration-200"
         />
       </button>
 
+      {/* Dropdown menu — absolute positioned with smooth drop animation */}
       <div
         className={`
-          overflow-hidden
+          absolute
+          left-0
+          right-0
+          top-full
+          z-20
+          mt-1.5
           transition-all
           duration-300
-          ${open ? "max-h-72 opacity-100" : "max-h-0 opacity-0"}
+          ease-in-out
+          origin-top
+          ${open ? "scale-y-100 opacity-100" : "scale-y-90 opacity-0 pointer-events-none"}
         `}
       >
-        <div className="mt-2 rounded-xl border border-[#D9D9D9] bg-white shadow-lg">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-              className="
-                flex
-                w-full
-                px-4
-                py-3
-                text-left
-                text-sm
-                transition
-                hover:bg-[#F3FFF3]
-              "
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="rounded-[10px] border border-[#D9D9D9] bg-white shadow-lg shadow-black/5">
+          {options.length === 0 ? (
+            <div className="px-3.5 py-3 text-sm text-[#9CA3AF]">
+              No options available
+            </div>
+          ) : (
+            <div className="max-h-48 overflow-y-auto">
+              {options.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  className={`
+                    flex
+                    w-full
+                    px-3.5
+                    py-2.5
+                    text-left
+                    text-sm
+                    transition
+                    hover:bg-[#F0FFF0]
+                    ${value === option.value ? "bg-[#F0FFF0] text-[#006400] font-semibold" : "text-[#111111]"}
+                  `}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

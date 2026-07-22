@@ -56,8 +56,8 @@ export default function ForgotPassword({
   };
 
   return (
-    <section className="w-full max-w-md">
-      <h1 className="text-4xl font-bold">Forgot Password</h1>
+    <section className="flex w-full max-w-md flex-col">
+      <h1 className="text-3xl font-bold lg:text-4xl">Forgot Password</h1>
 
       <p className="mt-2 text-gray-500">
         Enter your email to receive a verification code.

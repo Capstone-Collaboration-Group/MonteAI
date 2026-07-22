@@ -70,37 +70,41 @@ export default function VerifyModal({
   };
 
   return (
-    <Modal onClose={onBack} maxWidth="max-w-md">
-      <div className="mx-auto flex w-full max-w-md flex-col items-center">
+    <Modal onClose={onBack} maxWidth="max-w-sm sm:max-w-md">
+      <div className="mx-auto flex w-full max-w-sm sm:max-w-md flex-col items-center">
         {/* Illustration */}
         <img
           src={verifyImage}
           alt="Verify Email"
-          className="mb-6 h-32 w-32 object-contain"
+          className="mb-4 h-24 w-24 object-contain sm:h-32 sm:w-32"
         />
 
         {/* Title */}
-        <h2 className="text-3xl font-bold text-[#1B1B1C]">Verify Email</h2>
+        <h2 className="text-2xl font-bold text-[#1B1B1C] sm:text-3xl">
+          Verify Email
+        </h2>
 
         {/* Description */}
-        <p className="mt-3 text-center text-gray-500 leading-7">
+        <p className="mt-2 text-center text-sm text-gray-500 leading-6 sm:mt-3 sm:text-base sm:leading-7">
           We've sent a verification code to
         </p>
 
         <p className="font-semibold text-[#006400]">{email}</p>
 
         {/* OTP */}
-        <div className="mt-8">
+        <div className="mt-6 sm:mt-8">
           <OTPInput value={otp} onChange={setOtp} />
         </div>
 
         {/* Error */}
         {error && (
-          <p className="mt-4 text-center text-sm text-red-500">{error}</p>
+          <p className="mt-3 text-center text-sm text-red-500 sm:mt-4">
+            {error}
+          </p>
         )}
 
         {/* Countdown */}
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           <Countdown seconds={timeLeft} />
         </div>
 
@@ -110,7 +114,7 @@ export default function VerifyModal({
           disabled={timeLeft > 0}
           onClick={resendCode}
           className="
-            mt-3
+            mt-2
             font-semibold
             text-[#006400]
             transition
