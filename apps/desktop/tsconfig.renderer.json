@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "module": "ESNext",
+    "types": ["vite/client"],
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@monteai/ui/*": ["../../packages/ui/src/*"]
+    }
+  },
+  "include": [
+    "src/renderer.tsx",
+    "src/App.tsx",
+    "src/renderer/**/*",
+    "src/declarations.d.ts"
+  ]
+}

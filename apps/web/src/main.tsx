@@ -4,7 +4,6 @@ import './index.css'
 import App from './App.tsx'
 import './lib/firebaseServices.ts';
 import { createApiClient } from "@monteai/api";
-import "./index.css";
 
 
 export const api = createApiClient({
