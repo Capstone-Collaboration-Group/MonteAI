@@ -10,6 +10,7 @@ import Chat from "./pages/Chat";
 import { auth } from "./lib/firebase";
 import About from "./pages/About";
 import Schedule from "./pages/Schedule";
+import Register from "./pages/Register";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ const App = () => (
         {/* Public — no sidebar */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<About />} />
+        <Route path="/register" element={<Register />} />
 
         {/* Authenticated — sidebar layout, gated by Firebase auth state */}
         <Route element={<ProtectedRoute />}>

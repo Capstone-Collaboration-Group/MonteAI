@@ -5,3 +5,4 @@ export * from "./src/auth/firebaseTokenAccessors";
 export * from "./src/auth/profileService";
 export * from "./src/auth/tokenStorage";
 export * from "./src/schedule";  
+export * from "./src/auth/authService";

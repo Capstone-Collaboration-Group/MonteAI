@@ -52,12 +52,12 @@ export default function Navbar({ onLoginClick }: NavbarProps) {
             Login
           </button>
 
-          <button
-            type="button"
+          <Link
+            to="/register"
             className="flex min-w-[120px] items-center justify-center rounded-full bg-[#006400] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1a5c1a]"
           >
             Register
-          </button>
+          </Link>
         </div>
       </div>
     </header>

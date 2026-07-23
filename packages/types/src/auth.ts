@@ -30,3 +30,28 @@ export type RefreshRequestDto = {
     refreshToken: string;
 };
 
+
+// packages/types/src/auth.ts — additions
+export interface RegisterFormDto {
+  studentNumber: string;
+  fullName: string;
+  email: string;
+  institute: string;
+  program: string;
+  year: string;
+  password: string;
+}
+
+export interface VerifyOTPDto {
+  email: string;
+  otp: string;
+}
+
+export interface ForgotPasswordDto {
+  email: string;
+}
+
+export interface ResetPasswordDto {
+  email: string;
+  password: string;
+}

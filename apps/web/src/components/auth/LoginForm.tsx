@@ -35,11 +35,11 @@ export default function LoginForm({ auth, onSuccess }: LoginFormProps) {
   };
 
   return (
-    <section className="flex w-full max-w-md flex-col">
+    <section className="flex w-full flex-1 max-w-md flex-col lg:max-w-none">
       <h2 className="text-4xl font-bold text-[#1B1B1C]">Welcome Back</h2>
       <p className="mt-2 text-base text-gray-500">Sign in to continue to MonteSkolar.</p>
 
-      <form onSubmit={handleLogin} className="mt-10 flex flex-col gap-6">
+      <form onSubmit={handleLogin} className="mt-6 flex w-full flex-col gap-6 sm:mt-10">
         <TextInput label="Email" name="email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <PasswordInput label="Password" name="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <p className="text-sm text-red-600">{error}</p>}
