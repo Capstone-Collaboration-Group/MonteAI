@@ -29,7 +29,7 @@ function parseTimeToMins(timeStr: string): number {
   return hours * 60 + minutes;
 }
 
-const rooms = ["Room 302", "AVR Laboratory", "Conference Room", "Room 105", "Faculty Lounge"];
+const rooms = ["Computer Laboratory 1", "Computer Laboratory 2", "Computer Laboratory 3", "Computer Laboratory 4", "AVR"];
 
 const groupNames = [
   "Group 302", "Group Balaguer", "Group 101", "Group AVR", "Group Reyes",
