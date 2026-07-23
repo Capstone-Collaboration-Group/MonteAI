@@ -21,35 +21,35 @@ function getInitials(name: string) {
 export function DefenseCard({ schedule, isActive, onClick, col, totalCols }: DefenseCardProps) {
   const startHour = parseInt(schedule.startTime.split(":")[0]);
   const startMin = parseInt(schedule.startTime.split(":")[1]);
-  const topOffset = (startHour - 8) * 60 + startMin;
+  const GAP_PX = 4;
+  const topOffset = (startHour - 8) * 60 + startMin + 2;
 
   const endHour = parseInt(schedule.endingTime.split(":")[0]);
   const endMin = parseInt(schedule.endingTime.split(":")[1]);
-  const duration = (endHour - startHour) * 60 + (endMin - startMin);
+  const duration = (endHour - startHour) * 60 + (endMin - startMin) - 2;
 
   const widthPct = 100 / totalCols;
   const leftPct = col * widthPct;
+  const gapPx = 4;
 
   return (
     <div
-      className={`absolute rounded-lg p-2 cursor-pointer transition-all shadow-md overflow-hidden ${
+      className={`absolute rounded-sm p-3 cursor-pointer transition-all shadow-sm overflow-hidden ${
         isActive
-          ? "bg-status-approved text-white ring-4 ring-primary-container z-20 shadow-xl"
-          : "bg-primary text-white border-l-4 border-secondary-fixed"
+          ? "bg-status-approved/70 text-white ring-2 ring-primary-container/40 z-20 shadow-lg"
+          : "bg-primary/50 text-slate-900 ring-0 border border-white/15 shadow-sm"
       }`}
       style={{
         top: `${topOffset}px`,
-        height: `${Math.max(50, duration)}px`,
-        left: `${leftPct}%`,
-        width: `calc(${widthPct}% - 4px)`,
+        height: `${Math.max(48, duration)}px`,
+        left: `calc(${leftPct}% + ${gapPx}px)`,
+        width: `calc(${widthPct}% - ${gapPx * 2}px)`,
       }}
       onClick={onClick}
     >
       <div className={isActive ? "flex justify-between items-start mb-1" : "mb-1"}>
-        <span className="text-label-sm font-label-sm opacity-90 truncate">
-          {schedule.startTime} - {schedule.endingTime}
-        </span>
-        {isActive && <span className="material-symbols-outlined text-sm">push_pin</span>}
+        
+        {isActive && <span className="material-symbols-outlined text-sm text-slate-700">push_pin</span>}
       </div>
       <p className={`font-bold ${isActive ? "text-md" : "text-sm"} truncate`}>
         {schedule.researchGroup?.groupName || "Untitled"}
