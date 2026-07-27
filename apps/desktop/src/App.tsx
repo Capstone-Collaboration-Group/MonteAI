@@ -4,9 +4,10 @@ import { HashRouter, Routes, Route, NavLink, useNavigate } from "react-router-do
 import { LayoutDashboard, FileText, Users, Settings, Calendar, LogOut, Info, Megaphone} from "lucide-react";
 import Dashboard from "./renderer/pages/Dashboard";
 import Faculty from "./renderer/pages/Faculty";
-import Schedule from "./renderer/pages/Schedule";
 import Theses from "./renderer/pages/Theses";
+import Announcements from "./renderer/pages/Announcements";
 import { queryClient, QueryClientProvider } from "@monteai/hooks";
+import Schedule from "./renderer/pages/Schedule";
 function NotFoundPage() {
   const navigate = useNavigate();
   return <NotFound onGoHome={() => navigate("/")} />;
@@ -94,6 +95,7 @@ const App = () => (
         <main className="flex-1 overflow-y-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/announcements" element={<Announcements />} />
             <Route path="/theses" element={<Theses />} />
             <Route path="/faculty" element={<Faculty />} />
             <Route path="/schedule" element={<Schedule />} />
