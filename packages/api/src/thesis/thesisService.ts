@@ -3,7 +3,6 @@ import {
     type ThesisResponseDto,
     type SubmitThesisDto,
     type UpdateThesisDto,
-    ThesisResponseListDto,
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils"
 
@@ -24,7 +23,7 @@ export class LiveThesisService implements ThesisService {
     // async getTheses
     async getTheses(): Promise<ThesisResponseDto[] | []> { 
         try { 
-            const { data } = await this.client.get<ThesisResponseListDto>(`/thesis`);
+            const { data } = await this.client.get<ThesisResponseDto[]>(`/thesis`);
             return data;
         } catch (err) { 
             return handle404(err, []);
@@ -49,7 +48,7 @@ export class LiveThesisService implements ThesisService {
     // async updateThesisStatus
     async updateThesisStatus(thesisId: string, status: string): Promise<boolean> {
         try { 
-            const { data } = await this.client.patch<boolean>(`/thesis/update/status/${thesisId}`, { params: { status }});
+            const { data } = await this.client.patch<boolean>(`/thesis/update/status/${thesisId}`, status);
             return data;
         } catch (err) { 
             return handle404(err, false);
