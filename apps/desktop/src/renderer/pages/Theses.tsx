@@ -1,7 +1,8 @@
+import { ThesisCatalogPage } from "@monteai/ui/pages"
+import { thesisService } from "../lib/thesisService"
+
 export default function Theses() { 
     return (
-        <div>
-            Theses here
-        </div>
+        <ThesisCatalogPage thesisService={thesisService}/>
     )
-}
+} 
