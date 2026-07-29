@@ -13,6 +13,8 @@
 
 	  <PackageReference Include="AutoMapper" Version="16.1.1" />
 
+	  <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
+
 	  <PackageReference Include="FirebaseAdmin" Version="3.5.0" />
 
 	  <PackageReference Include="Google.Cloud.Firestore" Version="4.2.0" />
@@ -26,7 +28,8 @@
 	  </PackageReference>
 
 	  <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
-    <PackageReference Include="Pinecone.NET" Version="3.0.0" />
+
+	  <PackageReference Include="Pinecone.Client" Version="4.0.2" />
     <PackageReference Include="Scrutor" Version="5.0.1" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
