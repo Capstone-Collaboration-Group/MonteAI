@@ -20,3 +20,4 @@ export * from "./components/Drawer";
 export * from "./components/Tooltip";
 
 export * from "./pages";
+export * from "./components/common/PageHeader";

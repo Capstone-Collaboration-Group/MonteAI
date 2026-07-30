@@ -3,6 +3,7 @@ import { useState } from "react";
 import { formatDate } from "@monteai/utils";
 import { AnnouncementView, AnnouncementDetail } from "./AnnouncementView";
 import { PostAnnouncementPanel } from "./PostAnnouncementPanel";
+import { PageHeader } from "@monteai/ui";
 
 const initialAnnouncements: AnnouncementDetail[] = [
   {
@@ -138,26 +139,25 @@ export default function Announcements() {
   return (
     <div className="min-h-screen bg-surface-container-low/60 p-6 lg:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <header className="flex flex-col gap-4 rounded-2xl border border-outline-variant/60 bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-primary">Announcements management</p>
-            <h2 className="text-2xl font-semibold text-on-surface">Overview</h2>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="w-full sm:w-80">
-              <Input
-                placeholder="Search by subject, category, or author"
-                value={search}
-                onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
-                className="rounded-full border-outline-variant bg-surface-container-low"
-              />
-            </div>
-            <Button variant="secondary" className="rounded-full" onClick={handleNewAnnouncement}>
-              + New announcement
-            </Button>
-          </div>
-        </header>
+        <PageHeader
+          eyebrow="Announcements management"
+          title="Overview"
+          actions={
+            <>
+              <div className="w-full sm:w-80">
+                <Input
+                  placeholder="Search by subject, category, or author"
+                  value={search}
+                  onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
+                  className="rounded-full border-outline-variant bg-surface-container-low"
+                />
+              </div>
+              <Button variant="secondary" className="rounded-full" onClick={handleNewAnnouncement}>
+                + New announcement
+              </Button>
+            </>
+          }
+        />
 
         <Card className="overflow-hidden p-0">
           <div className="flex flex-col gap-4 border-b border-outline-variant/60 p-6 sm:flex-row sm:items-center sm:justify-between">
@@ -184,11 +184,10 @@ export default function Announcements() {
                         setPriorityFilter(option);
                         setIsFilterOpen(false);
                       }}
-                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                        priorityFilter === option
+                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors ${priorityFilter === option
                           ? "bg-primary/10 text-primary"
                           : "hover:bg-surface-container-high"
-                      }`}
+                        }`}
                     >
                       <span>{option}</span>
                       {priorityFilter === option && <span className="text-xs font-semibold">Selected</span>}

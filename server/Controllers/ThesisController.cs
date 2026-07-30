@@ -67,7 +67,7 @@ namespace server.Controllers
             _logger.LogInformation("Thesis Details with Id: {id} updated successfully", id);
             return Ok(new { Message = "Thesis Details Updated Successfully" });
         }
-        [HttpPut("update/status/{id}")]
+        [HttpPatch("update/status/{id}")]
         public async Task<IActionResult> UpdateThesisStatus([FromBody] UpdateThesisStatusDto dto, Guid id)
         {
             var result = await _service.UpdateStatusAsync(id, dto);
