@@ -6,3 +6,4 @@ export * from "./src/auth/profileService";
 export * from "./src/auth/tokenStorage";
 export * from "./src/schedule";  
 export * from "./src/auth/authService";
+export * from "./src/thesis";

@@ -7,6 +7,8 @@
   "scripts": {
     "dev:web": "pnpm --filter web dev",
     "dev:mobile": "pnpm --filter mobile start",
+    "dev:android": "pnpm --filter mobile exec expo start --dev-client",
+    "dev:devclient": "pnpm --filter mobile exec expo run:android",
     "dev:desktop": "pnpm --filter desktop start",
     "build:web": "pnpm --filter web build",
     "build:desktop": "pnpm --filter desktop make",

@@ -29,6 +29,48 @@ export interface ThesisResponseDto {
   rejectedAt?: string;
   indexedAt?: string;
   updatedAt: string;
+
+  authors: string[];
+  institute?: string;
+}
+
+
+
+export interface ThesisCatalogCounts { 
+  active: number;
+  archived: number;
 }
 
 export type ThesisResponseListDto = ThesisResponseDto[];
+
+
+export type ThesisStatus = "pending" | "approved" | "rejected" | "revision";
+
+export interface ThesisSummary { 
+  id: string;
+  title: string;
+  authors: string[];
+  status: ThesisStatus
+  submittedDate: string;
+  excerpt?: string;
+  institute: string;
+}
+
+export interface SubmissionHealthStatus { 
+  approvalRate: number;
+  yearLabel: string;
+  note?: string;
+}
+
+
+export function toThesisSummary(dto: ThesisResponseDto): ThesisSummary { 
+  return { 
+    id: dto.id,
+    title: dto.title ?? "Untitled",
+    authors: dto.authors,
+    institute: dto.institute ?? "-",
+    status: (dto.status?.toLowerCase() ?? "pending") as ThesisStatus,
+    submittedDate: dto.submittedAt ?? dto.updatedAt,
+    excerpt: dto.abstract,
+  };
+}
