@@ -44,13 +44,12 @@ export default function Navbar({ onLoginClick }: NavbarProps) {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onLoginClick}
+          <Link
+            to="/login"
             className="flex min-w-[100px] items-center justify-center rounded-full border border-[#006400] bg-white px-5 py-3 text-sm font-semibold text-[#1f1f1f] shadow-sm transition hover:bg-[#e8f6e8]"
           >
             Login
-          </button>
+          </Link>
 
           <Link
             to="/register"
