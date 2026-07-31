@@ -1,8 +1,5 @@
-using System;
-using Mapster;
 using Microsoft.AspNetCore.Mvc;
 using server.Models.DTOs.Thesis;
-using server.Services;
 using server.Services.Interfaces;
 
 /**SUMMARY
@@ -10,7 +7,6 @@ using server.Services.Interfaces;
  * Will not directly call the data layer
  * Ensures the flow controller -> Service -> Repository -> Data Layer(SQL/Vector DB)
  **/
-
 namespace server.Controllers
 {
     [ApiController]
@@ -52,10 +48,11 @@ namespace server.Controllers
 
         // Need to implement the pinecone ingestion of thesis after approval.
         [HttpPost("ingest")]
-        public async Task<IActionResult> IngestThesis()
+        public async Task<IActionResult> IngestThesis([FromBody] IngestThesisDto dto)
         {
+            var result = await _service.IngestAsync(dto);
             _logger.LogInformation("Haaaa");
-            return Ok(new { Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
+            return Ok(new { result, Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
         }
         [HttpPut("update/details/{id}")]
         public async Task<IActionResult> UpdateThesisDetails([FromBody] UpdateThesisDto dto, Guid id)
