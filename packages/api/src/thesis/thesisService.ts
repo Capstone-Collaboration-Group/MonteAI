@@ -3,6 +3,8 @@ import {
     type ThesisResponseDto,
     type SubmitThesisDto,
     type UpdateThesisDto,
+    type IngestThesisDto,
+    type IngestThesisResponseDto
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils"
 
@@ -35,6 +37,13 @@ export class LiveThesisService implements ThesisService {
         return data;
     }
     // async ingestThesis(No Embedding currently implemented)
+     async ingestThesis(dto: IngestThesisDto): Promise<IngestThesisResponseDto> {
+            const { data } = await this.client.post<IngestThesisResponseDto>(
+                `/thesis/ingest`,
+                dto,
+            );
+            return data;
+    }
 
     // async updateThesis
     async updateThesis(thesisId: string, dto: UpdateThesisDto): Promise<boolean> { 
@@ -65,4 +74,5 @@ export class LiveThesisService implements ThesisService {
             return handle404(err, false);
         }
     }
+   
 }
