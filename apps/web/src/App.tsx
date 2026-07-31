@@ -11,6 +11,7 @@ import { auth } from "./lib/firebase";
 import About from "./pages/About";
 import Schedule from "./pages/Schedule";
 import Register from "./pages/Register";
+import SubmitThesis from "./pages/SubmitThesis";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/home" element={<Home />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/thesis" element={<div>Thesis page</div>} />
+            <Route path="/submit" element={<SubmitThesis />} />
             <Route path="/schedule" element={<Schedule />} />
           </Route>
         </Route>
