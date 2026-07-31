@@ -74,3 +74,24 @@ export function toThesisSummary(dto: ThesisResponseDto): ThesisSummary {
     excerpt: dto.abstract,
   };
 }
+
+export interface ThesisChunk {
+  chunkIndex:      number;
+  text:            string;
+  title?:          string;
+  url?:            string;
+  authors?:        string;   
+  publicationYear?: string;
+  journal?:        string;
+}
+
+export interface IngestThesisDto {
+  thesisId: string;
+  chunks:   ThesisChunk[];
+}
+
+export interface IngestThesisResponseDto  {
+  thesisId: string;
+  vectorCount: number;
+  status: 'Indexed' | 'Failed';
+}
