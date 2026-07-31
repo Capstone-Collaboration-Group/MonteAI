@@ -10,10 +10,12 @@ namespace server.Services.Interfaces
 
         Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto);
 
+        Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto);
         Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateThesisdto);
 
         Task<bool> UpdateStatusAsync(Guid id, UpdateThesisStatusDto updateStatusDto);
 
         Task<bool> DeleteAsync(Guid id);
+
     }
 }
