@@ -20,6 +20,7 @@
     "src/renderer.tsx",
     "src/App.tsx",
     "src/renderer/**/*",
-    "src/declarations.d.ts"
-  ]
+    "src/declarations.d.ts", 
+    "src/handlers",
+    "src/types" ]
 }
