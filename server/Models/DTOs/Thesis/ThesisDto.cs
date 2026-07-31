@@ -49,4 +49,26 @@ namespace server.Models.DTOs.Thesis
         public DateTime? IndexedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }
+    public class ThesisChunkDto
+    {
+        public int ChunkIndex { get; set; }
+        public string Text { get; set; } = string.Empty;  // maps to Chunk.Text
+        public string? Title { get; set; }
+        public string? Url { get; set; }
+        public string? Authors { get; set; }
+        public string? PublicationYear { get; set; }
+        public string? Journal { get; set; }
+    }
+
+    public class IngestThesisDto
+    {
+        public Guid ThesisId { get; set; }
+        public List<ThesisChunkDto> Chunks { get; set; } = [];
+    }
+    public class IngestThesisResponseDto
+    {
+        public Guid ThesisId { get; set;}
+        public int VectorCount { get ;set;}
+        public string Status { get; set;} = string.Empty;
+    }
 }
