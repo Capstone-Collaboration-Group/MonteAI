@@ -12,6 +12,8 @@ import About from "./pages/About";
 import Schedule from "./pages/Schedule";
 import Register from "./pages/Register";
 import SubmitThesis from "./pages/SubmitThesis";
+import Login from "./pages/Login";
+
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -28,6 +30,8 @@ const App = () => (
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<About />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+        
 
         {/* Authenticated — sidebar layout, gated by Firebase auth state */}
         <Route element={<ProtectedRoute />}>
@@ -41,7 +45,7 @@ const App = () => (
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+      </Routes> 
     </BrowserRouter>
     </AuthProvider>
     

@@ -1,28 +1,37 @@
-import type { Auth } from "firebase/auth";
-import Modal from "../components/auth/Modal";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import LeftPanel from "../components/auth/LeftPanel";
-import VerticalDivider from "../components/auth/VerticalDivider";
+import Modal from "../components/auth/Modal";
+import { Card } from "@monteai/ui";
+import { auth } from "../lib/firebase";
 import LoginForm from "../components/auth/LoginForm";
 
-type LoginProps = {
-  auth: Auth;
-  onClose: () => void;
-  onSuccess?: () => void;
-};
+export default function Login() {
+  const navigate = useNavigate();
 
-export default function Login({ auth, onClose, onSuccess }: LoginProps) {
   return (
-    <Modal onClose={onClose}>
-      <div className="flex w-full flex-col items-center justify-between gap-8 lg:flex-row lg:items-stretch">
-        <div className="w-full lg:w-1/2">
-          <LeftPanel />
-        </div>
+    <Modal onClose={() => navigate(-1)}>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex w-fit items-center gap-2 text-sm font-semibold text-[#006400] transition hover:opacity-80"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to home
+        </button>
 
-        <VerticalDivider />
+        <Card className="overflow-hidden rounded-[32px] border-none bg-white p-0 shadow-[0_20px_70px_rgba(0,100,0,0.12)]">
+          <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
+            <LeftPanel />
 
-        <div className="w-full flex-1 lg:w-1/2 lg:max-w-md">
-          <LoginForm auth={auth} onSuccess={onSuccess} />
-        </div>
+            <div className="p-6 sm:p-8 lg:p-10">
+              <LoginForm
+                auth={auth}
+                onSuccess={() => navigate("/home")}
+              />
+            </div>
+          </div>
+        </Card>
       </div>
     </Modal>
   );

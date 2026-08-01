@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+﻿using System.ClientModel;
+using System.Security.Claims;
+using Azure.AI.OpenAI;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
@@ -9,6 +11,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using OpenAI.Chat;
+using OpenAI.Embeddings;
+using Pinecone;
 using Serilog;
 using Serilog.Events;
 using server.Configuration;
@@ -16,6 +21,7 @@ using server.Data;
 using server.Middleware;
 using server.Services.AI;
 using server.Services.Interfaces;
+
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
@@ -31,12 +37,52 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
+    var chatEndpoint = builder.Configuration["AzureAI:Endpoint"];
+    var chatApiKey = builder.Configuration["AzureAI:ApiKey"];
+    var chatDeploymentName = builder.Configuration["AzureAI:DeploymentName"];
+
+    var embedEndpoint = builder.Configuration["AzureAIEmbedding:Endpoint"];
+    var embedDeploymentName = builder.Configuration["AzureAIEmbedding:EmbeddingDeploymentName"];
+    var embedApiKey = builder.Configuration["AzureAIEmbedding:ApiKey"];
+
+    var pineconeApiKey = builder.Configuration["Pinecone:ApiKey"] ??
+        throw new InvalidOperationException("Pinecone API key is missing from configuration");
+
+    // Pinecone 
+    builder.Services.AddSingleton(sp => new PineconeClient(pineconeApiKey));
+
+    builder.Services.AddTransient<ChatClient>(sp =>
+    {
+        var options = new AzureOpenAIClientOptions(AzureOpenAIClientOptions.ServiceVersion.V2024_06_01);
+        var azureClient = new AzureOpenAIClient(
+            new Uri(chatEndpoint!),
+            new ApiKeyCredential(chatApiKey!), 
+            options
+        );
+
+        return azureClient.GetChatClient(chatDeploymentName);
+    });
+
+    // 3. Register Embedding Client (Uses AzureAIEmbedding configuration)
+    builder.Services.AddTransient<EmbeddingClient>(sp =>
+    {
+        var options = new AzureOpenAIClientOptions(AzureOpenAIClientOptions.ServiceVersion.V2024_06_01);
+        var azureClient = new AzureOpenAIClient(
+            new Uri(embedEndpoint!),
+            new ApiKeyCredential(embedApiKey!),
+            options
+        );
+
+        return azureClient.GetEmbeddingClient(embedDeploymentName);
+    });
     // Use Serilog settings from configuration
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
     );
+
+ 
 
     // firebase configuration
     var firebaseJson = builder.Configuration["Firebase:AdminKeyPath"];
@@ -119,7 +165,8 @@ try
             .WithScopedLifetime()
     );
 
-    builder.Services.AddSingleton<IPineconeUpsertService, PineconeUpsertService>();
+    builder.Services.AddScoped<IPineconeService, PineconeService>();
+
 
 
        

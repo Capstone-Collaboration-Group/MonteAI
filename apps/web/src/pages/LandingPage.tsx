@@ -24,16 +24,6 @@ export default function LandingPage() {
 
       <Footer />
 
-      {isLoginOpen && (
-        <Login
-          auth={auth}
-          onClose={() => setIsLoginOpen(false)}
-          onSuccess={() => {
-            setIsLoginOpen(false);
-            navigate("/home");
-          }}
-        />
-      )}
     </main>
   );
 }

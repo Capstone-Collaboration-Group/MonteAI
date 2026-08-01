@@ -1,4 +1,4 @@
-import { Button, Card, Input } from "@monteai/ui";
+import { Button, Card, Input, PageHeader } from "@monteai/ui";
 import { formatDate } from "@monteai/utils";
 
 const metrics = [
@@ -87,24 +87,46 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-surface-container-low/60 p-6 lg:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <header className="flex flex-col gap-4 rounded-2xl border border-outline-variant/60 bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-primary">Administrator dashboard</p>
-            <h2 className="text-2xl font-semibold text-on-surface">Overview</h2>
-          </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="w-full sm:w-80">
-              <Input
-                placeholder="Search thesis, student, or faculty"
-                className="rounded-full border-outline-variant bg-surface-container-low"
-              />
-            </div>
-            <Button variant="secondary" className="rounded-full">
-              + New entry
-            </Button>
-          </div>
-        </header>
+        {/* <PageHeader
+  eyebrow="Announcements management"
+  title="Overview"
+  actions={
+    <>
+      <div className="w-full sm:w-80">
+        <Input
+          placeholder="Search by subject, category, or author"
+          value={search}
+          onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
+          className="rounded-full border-outline-variant bg-surface-container-low"
+        />
+      </div>
+      <Button variant="secondary" className="rounded-full" onClick={handleNewAnnouncement}>
+        + New announcement
+      </Button>
+    </>
+  }
+/> */}
+        <PageHeader
+          eyebrow="Administrator Dashboard"
+          title="Overview"
+          actions={
+            <>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="w-full sm:w-80">
+                  <Input
+                    placeholder="Search thesis, student, or faculty"
+                    className="rounded-full border-outline-variant bg-surface-container-low"
+                  />
+                </div>
+                <Button variant="secondary" className="rounded-full">
+                  + New entry
+                </Button>
+              </div>
+            </>
+          }
+        />
+
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {metrics.map((item) => (
