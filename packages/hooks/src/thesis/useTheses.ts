@@ -1,6 +1,6 @@
 import  { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ThesisService } from "@monteai/api";
-import type { SubmitThesisDto, UpdateThesisDto } from "@monteai/types";
+import type { SubmitThesisDto, UpdateThesisDto, IngestThesisDto } from "@monteai/types";
 
 export const thesesKeys = { 
     all: ["theses"] as const,
@@ -38,3 +38,15 @@ export function useUpdateThesis(thesisService: ThesisService) {
 }
 
 // I'll add update thesis status and delete here soon
+
+
+export function useIngestThesis(thesisService: ThesisService) { 
+    const queryClient = useQueryClient();
+    return useMutation({ 
+        mutationFn: (dto: IngestThesisDto) => thesisService.ingestThesis(dto),
+        onSuccess: (_data, variables) => { 
+            queryClient.invalidateQueries({ queryKey: thesesKeys.all });
+            queryClient.invalidateQueries({ queryKey: thesesKeys.detail(variables.thesisId) });
+        },
+    });
+}
