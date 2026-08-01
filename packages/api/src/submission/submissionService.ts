@@ -4,7 +4,7 @@ import type {
     UpdateSubmissionDto,
     SubmissionResponseDto
 } from "@monteai/types";
-import { SubmissionService } from "./types";
+import type { SubmissionService } from "./types";
 import { handle404 } from "@monteai/utils";
 
 export class LiveSubmissionService implements SubmissionService  { 
