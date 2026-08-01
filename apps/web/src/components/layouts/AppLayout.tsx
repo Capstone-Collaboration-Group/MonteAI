@@ -58,6 +58,11 @@ function AppSidebar() {
             <Sidebar.Item icon={<Search className="h-4 w-4" />} label="Find thesis" active={isActive} />
           )}
         </NavLink>
+        <NavLink to="/submit">
+          {({ isActive }) => (
+            <Sidebar.Item icon={<Search className="h-4 w-4" />} label="Submit Thesis" active={isActive} />
+          )}
+        </NavLink>
       </Sidebar.Nav>
 
       <Sidebar.SidebarSectionLabel>Recents</Sidebar.SidebarSectionLabel>
