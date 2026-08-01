@@ -77,6 +77,7 @@ export const mockThesisService : ThesisService = {
         thesesMap.set(id, newThesis);
         return newThesis;
     },
+   
 
     async updateThesis(thesisId: string, dto: UpdateThesisDto) { 
         await delay(300);
