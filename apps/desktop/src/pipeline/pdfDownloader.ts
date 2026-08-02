@@ -7,7 +7,7 @@ export async function downloadPdfToTemp(
     blobUrl:  string,
     thesisId: string
 ): Promise<string> {
-    console.log('[DEBUG] downloadPdfToTemp received:', { blobUrl, thesisId });
+    // console.log('[DEBUG] downloadPdfToTemp received:', { blobUrl, thesisId });
     const response = await fetch(blobUrl);
 
     if (!response.ok) {
