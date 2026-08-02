@@ -19,6 +19,7 @@ using Serilog.Events;
 using server.Configuration;
 using server.Data;
 using server.Middleware;
+using server.Services;
 using server.Services.AI;
 using server.Services.Interfaces;
 
@@ -164,6 +165,8 @@ try
             .AsMatchingInterface()
             .WithScopedLifetime()
     );
+
+    builder.Services.AddSingleton<IBlobService, BlobService>();
 
     builder.Services.AddScoped<IPineconeService, PineconeService>();
 

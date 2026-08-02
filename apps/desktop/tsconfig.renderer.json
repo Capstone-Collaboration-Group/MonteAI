@@ -3,7 +3,7 @@
     "target": "ESNext",
     "lib": ["ESNext", "DOM"],
     "module": "ESNext",
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "skipLibCheck": true,
@@ -14,12 +14,14 @@
     "paths": {
       "@/*": ["./src/*"],
       "@monteai/ui/*": ["../../packages/ui/src/*"]
-    }
+    },
+
   },
   "include": [
     "src/renderer.tsx",
     "src/App.tsx",
     "src/renderer/**/*",
-    "src/declarations.d.ts"
-  ]
+    "src/declarations.d.ts", 
+    "src/handlers",
+    "src/types", "src/lib/thesisService.ts" ]
 }

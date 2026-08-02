@@ -4,6 +4,8 @@ using server.Services.Interfaces;
 using ThesisEntity = server.Models.Entities.Thesis;
 using server.Repositories;
 using server.Repositories.Interfaces;
+using server.Models.Retrieval;
+using server.Services.AI;
 
 
 namespace server.Services.Theses
@@ -13,12 +15,16 @@ namespace server.Services.Theses
         private readonly IThesisRepository _repo;
         private readonly ILogger<ThesisService> _logger;
         private readonly IMapper _mapper;
+        private readonly IPineconeService _pineconeService;
+        private readonly IBlobService _blobService;
 
-        public ThesisService(IThesisRepository repo, ILogger<ThesisService> logger, IMapper mapper)
+        public ThesisService(IThesisRepository repo, ILogger<ThesisService> logger, IMapper mapper, IPineconeService pineconeService, IBlobService blobService)
         {
             _repo = repo;
             _logger = logger;
             _mapper = mapper;
+            _pineconeService = pineconeService;
+            _blobService = blobService;
         }
 
         public async Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync()
@@ -55,6 +61,60 @@ namespace server.Services.Theses
 
             return _mapper.Map<ThesisResponseDto>(result);
         } 
+        public async Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto)
+        {
+            try
+            {
+                 var upsertTasks = dto.Chunks.Select((chunkDto, index) => 
+                    _pineconeService.UpsertAbstractAsync(
+                        id: $"thesis_{dto.ThesisId}_chunk_{chunkDto.ChunkIndex}",
+                        chunk: _mapper.Map<Chunk>(chunkDto)
+                    )
+                );
+            var results = await Task.WhenAll(upsertTasks);
+            var upsertedCount =  results.Count(r => r);
+
+            if(upsertedCount < dto.Chunks.Count)
+            {
+                _logger.LogWarning("Thesis {ThesisId} partially ingested — {Upserted}/{Total} chunks succeeded",
+                dto.ThesisId, upsertedCount, dto.Chunks.Count);
+            };
+
+            await _repo.UpdateStatusAsync(dto.ThesisId, _mapper.Map<ThesisEntity>(new UpdateThesisStatusDto 
+                {
+                    Status = "Indexed"
+                }));
+                _logger.LogInformation(
+                    "Thesis {ThesisId} ingested — {Count} vectors upserted",
+                    dto.ThesisId, upsertedCount
+
+                );
+                return new IngestThesisResponseDto
+                {
+                    ThesisId = dto.ThesisId,
+                    VectorCount = upsertedCount,
+                    Status = "Indexed"
+                };
+            }
+            catch (Exception ex)
+    {
+        _logger.LogError(ex, "Ingestion failed for thesis {ThesisId}", dto.ThesisId);
+
+        return new IngestThesisResponseDto
+        {
+            ThesisId    = dto.ThesisId,
+            VectorCount = 0,
+            Status      = "Failed"
+        };
+    }
+           
+        }
+        public async Task<string?> GetDownloadUrlAsync(Guid thesisId)
+        {
+            var thesis= await _repo.GetThesisByIdAsync(thesisId);
+            if (thesis == null) return null;
+            return _blobService.GenerateSasUrl(thesis.FilePath, 15);
+        }
 
         public async Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateDto)
         {
@@ -77,6 +137,8 @@ namespace server.Services.Theses
         {
             var result = await _repo.DeleteThesisAsync(id);
             return result;
+
+            
 
         }
 

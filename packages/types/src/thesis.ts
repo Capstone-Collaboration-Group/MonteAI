@@ -44,7 +44,7 @@ export interface ThesisCatalogCounts {
 export type ThesisResponseListDto = ThesisResponseDto[];
 
 
-export type ThesisStatus = "pending" | "approved" | "rejected" | "revision";
+export type ThesisStatus = "pending" | "approved" | "rejected" | "revision" | "indexed";
 
 export interface ThesisSummary { 
   id: string;
@@ -73,4 +73,25 @@ export function toThesisSummary(dto: ThesisResponseDto): ThesisSummary {
     submittedDate: dto.submittedAt ?? dto.updatedAt,
     excerpt: dto.abstract,
   };
+}
+
+export interface ThesisChunk {
+  chunkIndex:      number;
+  text:            string;
+  title?:          string;
+  url?:            string;
+  authors?:        string;   
+  publicationYear?: string;
+  journal?:        string;
+}
+
+export interface IngestThesisDto {
+  thesisId: string;
+  chunks:   ThesisChunk[];
+}
+
+export interface IngestThesisResponseDto  {
+  thesisId: string;
+  vectorCount: number;
+  status: 'Indexed' | 'Failed';
 }

@@ -1,8 +1,5 @@
-using System;
-using Mapster;
 using Microsoft.AspNetCore.Mvc;
 using server.Models.DTOs.Thesis;
-using server.Services;
 using server.Services.Interfaces;
 
 /**SUMMARY
@@ -10,7 +7,6 @@ using server.Services.Interfaces;
  * Will not directly call the data layer
  * Ensures the flow controller -> Service -> Repository -> Data Layer(SQL/Vector DB)
  **/
-
 namespace server.Controllers
 {
     [ApiController]
@@ -19,10 +15,12 @@ namespace server.Controllers
     {
         private readonly ILogger<ThesisController> _logger;
         private readonly IThesisService _service;
-        public ThesisController(ILogger<ThesisController> logger, IThesisService service)
+        private readonly IBlobService _blobService;
+        public ThesisController(ILogger<ThesisController> logger, IThesisService service, IBlobService blobService)
         {
             _logger = logger;
             _service = service;
+            _blobService = blobService;
         }
 
         [HttpGet]
@@ -41,8 +39,18 @@ namespace server.Controllers
         }
 
         [HttpPost("submit")]
-        public async Task<IActionResult> SubmitThesis([FromBody] SubmitThesisDto dto)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> SubmitThesis([FromForm] SubmitThesisDto dto)
         {
+            await using var stream = dto.File.OpenReadStream();
+
+            var blobUrl = await _blobService.UploadAsync(
+                    stream,
+                    dto.File.FileName,
+                    dto.File.ContentType
+                );
+
+            dto.FilePath = blobUrl;
             var result = await _service.SubmitAsync(dto);
 
             _logger.LogInformation("Fetched Data: {result}", result);
@@ -52,10 +60,11 @@ namespace server.Controllers
 
         // Need to implement the pinecone ingestion of thesis after approval.
         [HttpPost("ingest")]
-        public async Task<IActionResult> IngestThesis()
+        public async Task<IActionResult> IngestThesis([FromBody] IngestThesisDto dto)
         {
+            var result = await _service.IngestAsync(dto);
             _logger.LogInformation("Haaaa");
-            return Ok(new { Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
+            return Ok(new { result, Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
         }
         [HttpPut("update/details/{id}")]
         public async Task<IActionResult> UpdateThesisDetails([FromBody] UpdateThesisDto dto, Guid id)
@@ -87,6 +96,24 @@ namespace server.Controllers
             _logger.LogInformation("Thesis with Id: {id} successfully deleted", id);
 
             return Ok(new { Message = $"Thesis {id} Deleted Successfully" });
+        }
+
+        [HttpGet("{id}/download-url")]
+        public async Task<IActionResult> GetDownloadUrl(Guid id)
+        {
+            try
+            {
+                var url = await _service.GetDownloadUrlAsync(id);
+                _logger.LogInformation("Endpoint is called and the Url is is: {url}", url);
+                if (string.IsNullOrEmpty(url)) return NotFound();
+                _logger.LogInformation("Thesis with id: {id} Fetched Url: {Url}", id, url);
+                return Ok(new { url });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Error Happening: {errorMessage}", ex.Message);
+                return BadRequest("Error ngani");
+            }
         }
 
     }

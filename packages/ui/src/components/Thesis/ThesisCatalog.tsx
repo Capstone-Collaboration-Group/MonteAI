@@ -6,7 +6,7 @@ import { FeaturedThesisCard } from "./FeaturedThesisCard";
 import { SubmissionHealthCard } from "./SubmissionHealthCard";
 import { ThesisListView } from "./ThesisListView";
 import { PageHeader } from "../common/PageHeader";
-import { Input } from "@monteai/ui/components/Input";
+import { Input } from "../Input";
 
 type StatusFilter = "None" | ThesisStatus;
 
@@ -18,10 +18,10 @@ interface ThesisCatalogProps {
   isLoading?: boolean;
   onViewDetails?: (thesisId: string) => void;
   onSelectThesis?: (thesisId: string) => void;
-  onThesisAction?: (thesisId: string) => void;
+  onThesisAction?: (thesisId: string, action: "approve" | "reject" | "revision") => void;
 }
 
-const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision"];
+const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision", "indexed"];
 
 export function ThesisCatalog({
   featuredThesis,

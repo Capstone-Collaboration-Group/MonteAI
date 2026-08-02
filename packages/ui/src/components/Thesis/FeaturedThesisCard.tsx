@@ -24,7 +24,7 @@ export function FeaturedThesisCard({ thesis, onViewDetails }: FeaturedThesisCard
       <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-[#6B7C74]">
         <span className="flex items-center gap-1.5">
           <User className="h-3.5 w-3.5" />
-          {thesis.authors.join(", ")}
+          {(thesis.authors ?? []).join(", ")}
         </span>
         <span className="flex items-center gap-1.5">
           <Calendar className="h-3.5 w-3.5" />

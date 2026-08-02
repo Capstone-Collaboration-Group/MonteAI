@@ -2,10 +2,13 @@ import type {
     SubmitThesisDto,
     UpdateThesisDto,
     ThesisResponseDto,
-    ThesisResponseListDto
+    IngestThesisDto,
+    IngestThesisResponseDto
 } from "@monteai/types";
 export interface ThesisService { 
     submitThesis(dto: SubmitThesisDto): Promise<ThesisResponseDto>;
+    ingestThesis(dto: IngestThesisDto): Promise<IngestThesisResponseDto>;
+    getDownloadUrl(thesisId: string): Promise<{url: string} | null>
     getThesis(thesisId: string): Promise<ThesisResponseDto | null>;
     getTheses(): Promise<ThesisResponseDto[]>;
     updateThesis(thesisId: string, dto: UpdateThesisDto): Promise<boolean>;

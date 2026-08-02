@@ -9,7 +9,5 @@
         string? PublicationYear,
         string? Journal,
         string? RelevanceScore
-    );
-    
-    
+    );    
 }
