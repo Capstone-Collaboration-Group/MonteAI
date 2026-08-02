@@ -5,13 +5,16 @@ namespace server.Models.DTOs.Thesis
     public class SubmitThesisDto
     {
         [Required]
+        public IFormFile File { get; set; } = null;
+        [Required]
         [MaxLength(255)]
+        
         public string Title { get; set; } = string.Empty;
 
         [Required]
         public string Abstract { get; set; } = string.Empty;
 
-        [Required]
+        //[Required]
         public string FilePath { get; set; } = string.Empty;
 
         [Required]
