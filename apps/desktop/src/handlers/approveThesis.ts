@@ -18,7 +18,6 @@ const thesisService = createThesisService(client, false);
 export function registerApproveThesisHandler() { 
   // apps/desktop/src/handlers/approveThesis.ts
   ipcMain.handle('thesis:approve', async (_event, { thesisId }) => {
-    console.log('[DEBUG] IPC received:', { thesisId });
     let tempPath: string | null = null;
 
     try {
@@ -28,7 +27,7 @@ export function registerApproveThesisHandler() {
         if (!result) {
             throw new Error('FAILED_TO_GET_DOWNLOAD_URL');
         }
-        console.log(`Result is ${result.url}`);
+  
         // Download using the SAS URL (has credentials, won't 409)
         tempPath = await downloadPdfToTemp(result.url, thesisId);
 
@@ -39,14 +38,13 @@ export function registerApproveThesisHandler() {
         const rawText = await extractText(tempPath);
 
         const { abstract } = isolateAbstract(rawText);
-        console.log(abstract);
         if (!abstract) {
             throw new Error('ABSTRACT_NOT_FOUND');
         }
 
         const { title, authors, publicationYear, url } = extractMetadata(rawText, result.url);
 
-        const chunks = chunkText(abstract).map((text, chunkIndex) => ({
+        const chunks = chunkText(abstract, 512, 50).map((text, chunkIndex) => ({
             chunkIndex,
             text,
             title,
