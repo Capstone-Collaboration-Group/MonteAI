@@ -82,7 +82,7 @@ export function ThesisListView({
                   <p className="text-xs text-[#8A9089]">{thesis.institute}</p>
                 </td>
                 <td className="px-6 py-4 text-sm text-[#4A5750]">
-                  {thesis.authors.join(", ")}
+                  {(thesis.authors ?? []).join(", ")}
                 </td>
                 <td className="px-6 py-4">
                   <StatusBadge status={thesis.status} />

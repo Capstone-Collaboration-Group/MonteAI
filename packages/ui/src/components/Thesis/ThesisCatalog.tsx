@@ -6,7 +6,7 @@ import { FeaturedThesisCard } from "./FeaturedThesisCard";
 import { SubmissionHealthCard } from "./SubmissionHealthCard";
 import { ThesisListView } from "./ThesisListView";
 import { PageHeader } from "../common/PageHeader";
-import { Input } from "@monteai/ui/components/Input";
+import { Input } from "../Input";
 
 type StatusFilter = "None" | ThesisStatus;
 

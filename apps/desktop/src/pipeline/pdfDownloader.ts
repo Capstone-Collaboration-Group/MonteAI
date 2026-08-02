@@ -1,4 +1,4 @@
-import { net } from 'electron';
+
 import fs      from 'fs/promises';
 import path    from 'path';
 import os      from 'os';
@@ -7,7 +7,8 @@ export async function downloadPdfToTemp(
     blobUrl:  string,
     thesisId: string
 ): Promise<string> {
-    const response = await net.fetch(blobUrl);
+    console.log('[DEBUG] downloadPdfToTemp received:', { blobUrl, thesisId });
+    const response = await fetch(blobUrl);
 
     if (!response.ok) {
         throw new Error(`Failed to download PDF: ${response.status} ${response.statusText}`);

@@ -1,14 +1,14 @@
-// apps/desktop/src/pipeline/pdfExtractor.ts
-// @ts-ignore — .mjs module, types resolved via pdf.d.mts
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { pathToFileURL } from 'url';
 
-pdfjs.GlobalWorkerOptions.workerSrc = '';
+const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).toString();
 
 export async function extractText(filePath: string): Promise<string> {
     const pdf = await pdfjs.getDocument({
-        url:             filePath,
-        useWorkerFetch:  false,
-        useSystemFonts:  true,
+        url:            filePath,
+        useWorkerFetch: false,
+        useSystemFonts: true,
     }).promise;
 
     let fullText = '';

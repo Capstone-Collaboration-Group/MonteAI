@@ -2,52 +2,64 @@ import { ipcMain } from 'electron';
 import { extractText } from '../pipeline/pdfExtractor';
 import { isolateAbstract, extractMetadata } from '../pipeline/abstractIsolator';
 import { chunkText } from '../pipeline/chunker';
-import { thesisService } from '../renderer/lib/thesisService';
 import { downloadPdfToTemp, deleteTempPdf } from '../pipeline/pdfDownloader';
+import { createApiClient, createThesisService } from "@monteai/api";
+import https from "https";
+
+
+const client = createApiClient({
+    baseURL: process.env.VITE_API_BASE_URL ?? "https://localhost:7085/api/v1",
+    ...(process.env.NODE_ENV === "development" && {
+        httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+    }),
+});
+const thesisService = createThesisService(client, false);
 
 export function registerApproveThesisHandler() { 
   // apps/desktop/src/handlers/approveThesis.ts
-  ipcMain.handle('thesis:approve', async (_event, { thesisId, filePath }) => {
-
-     console.log('[DEBUG] IPC received:', { thesisId, filePath });
+  ipcMain.handle('thesis:approve', async (_event, { thesisId }) => {
+    console.log('[DEBUG] IPC received:', { thesisId });
     let tempPath: string | null = null;
 
     try {
-      tempPath = await downloadPdfToTemp(filePath, thesisId);
+        // Get authenticated SAS URL from your backend
+        const result = await thesisService.getDownloadUrl(thesisId);
 
-      // --- THE FIX ---
-      // We check if tempPath is null. If it is, we abort.
-      // TypeScript now knows that tempPath MUST be a string after this check.
-      if (!tempPath) {
-        throw new Error('FAILED_TO_DOWNLOAD_PDF');
-      }
+        if (!result) {
+            throw new Error('FAILED_TO_GET_DOWNLOAD_URL');
+        }
+        console.log(`Result is ${result.url}`);
+        // Download using the SAS URL (has credentials, won't 409)
+        tempPath = await downloadPdfToTemp(result.url, thesisId);
 
-      // No more TypeScript error here!
-      const rawText = await extractText(tempPath);
-
-      const { abstract } = isolateAbstract(rawText);
-
-        if (!abstract) {
-        throw new Error('ABSTRACT_NOT_FOUND');
+        if (!tempPath) {
+            throw new Error('FAILED_TO_DOWNLOAD_PDF');
         }
 
-      // extractMetadata now returns all Chunk-compatible fields
-      const { title, authors, publicationYear, url } = extractMetadata(rawText, filePath);
+        const rawText = await extractText(tempPath);
 
-      const chunks = chunkText(abstract).map((text, chunkIndex) => ({
-        chunkIndex,
-        text,
-        title,
-        authors,    // "Dela Cruz, J., Santos, M. A., Reyes, K., Bautista, L."
-        publicationYear,
-        url,        // blob URL as source reference
-        journal: undefined,
-      }));
+        const { abstract } = isolateAbstract(rawText);
+        console.log(abstract);
+        if (!abstract) {
+            throw new Error('ABSTRACT_NOT_FOUND');
+        }
 
-      return thesisService.ingestThesis({ thesisId, chunks });
+        const { title, authors, publicationYear, url } = extractMetadata(rawText, result.url);
+
+        const chunks = chunkText(abstract).map((text, chunkIndex) => ({
+            chunkIndex,
+            text,
+            title,
+            authors,
+            publicationYear,
+            url: result.url,
+            journal: undefined,
+        }));
+
+        return thesisService.ingestThesis({ thesisId, chunks });
 
     } finally {
-      if (tempPath) await deleteTempPdf(tempPath);
+        if (tempPath) await deleteTempPdf(tempPath);
     }
-  });
+});
 }

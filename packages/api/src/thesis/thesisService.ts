@@ -42,7 +42,16 @@ export class LiveThesisService implements ThesisService {
                 `/thesis/ingest`,
                 dto,
             );
+        return data;
+    }
+    async getDownloadUrl(thesisId: string): Promise<{url: string} | null> {
+        try { 
+            const { data } = await this.client.get<{url: string}>(`/thesis/${thesisId}/download-url`);
+            
             return data;
+        } catch(err) { 
+            return handle404(err, null);
+        }
     }
 
     // async updateThesis

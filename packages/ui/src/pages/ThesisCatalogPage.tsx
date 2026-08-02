@@ -20,7 +20,10 @@ export function ThesisCatalogPage({
   onThesisAction,
   onFilterClick,
 }: ThesisCatalogPageProps) {
-  const { data: rawTheses = [], isLoading } = useTheses(thesisService);
+  const result = useTheses(thesisService);
+
+const { theses: rawTheses, isLoading } = result;
+  
 
   const theses = useMemo(() => rawTheses.map(toThesisSummary), [rawTheses]);
 

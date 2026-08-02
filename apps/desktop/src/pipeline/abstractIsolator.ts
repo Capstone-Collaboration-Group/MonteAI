@@ -12,7 +12,7 @@ interface IsolatedAbstract {
 
 export function isolateAbstract(rawText: string): IsolatedAbstract {
     const abstractPattern =
-        /(?:abstract|summary|executive\s+summary)\s*[\n\r]+([\s\S]*?)(?=\n\s*(?:introduction|keywords|table of contents|chapter\s+1|acknowledgements)|$)/i;
+        /\bAbstract\s+([\s\S]*?)(?=\s+(?:Introduction|Keywords|Table of Contents|Chapter\s+1|Acknowledgements|URL:|Record ID:)|$)/i;
 
     const match = rawText.match(abstractPattern);
 
@@ -22,39 +22,22 @@ export function isolateAbstract(rawText: string): IsolatedAbstract {
 
     return {
         abstract: match[1].trim(),
-        found:    true,
+        found: true,
     };
 }
 
 export function extractMetadata(rawText: string, blobUrl: string): ExtractedMetadata {
-    const lines = rawText
-        .split('\n')
-        .map(l => l.trim())
-        .filter(Boolean);
+    // Match "Authors: Mark Villanueva"
+    const authorMatch = rawText.match(/Authors?:\s*([^]+?)(?=\s{2,}|Publication Year:|$)/i);
+    const authors = authorMatch ? authorMatch[1].trim() : 'Unknown';
 
-    const title = lines
-        .slice(0, 10)
-        .reduce((a, b) => (b.length > a.length ? b : a), '');
+    // Match "Publication Year: 2025"
+    const yearMatch = rawText.match(/Publication Year:\s*(\d{4})/i);
+    const publicationYear = yearMatch ? yearMatch[1] : new Date().getFullYear().toString();
 
-    const titleIndex = lines.indexOf(title);
-    const authorLine = lines.find(l =>
-        /^(by|submitted by|prepared by)/i.test(l)
-    );
-
-    let authors = 'Unknown';
-    if (authorLine) {
-        authors = authorLine.replace(/^(by|submitted by|prepared by)[:\s]*/i, '').trim();
-    } else if (titleIndex >= 0) {
-        authors = lines
-            .slice(titleIndex + 1, titleIndex + 5)
-            .filter(l => !l.match(/^\d{4}$/) && !l.match(/abstract/i))
-            .join(', ');
-    }
-
-    const yearMatch = lines.slice(0, 15).join(' ').match(/\b(20\d{2})\b/);
-    const publicationYear = yearMatch
-        ? yearMatch[1]
-        : new Date().getFullYear().toString();
+    // Title is everything before "Authors:"
+    const titleMatch = rawText.match(/^([\s\S]*?)(?=\s{2,}Authors?:)/i);
+    const title = titleMatch ? titleMatch[1].trim() : 'Unknown';
 
     return { title, authors, publicationYear, url: blobUrl };
 }

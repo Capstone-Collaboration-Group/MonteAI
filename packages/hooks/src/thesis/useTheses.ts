@@ -50,3 +50,11 @@ export function useIngestThesis(thesisService: ThesisService) {
         },
     });
 }
+export function useGetDownloadUrl(thesisService: ThesisService)  {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (thesisId: string) => 
+            thesisService.getDownloadUrl(thesisId),
+    });
+}
