@@ -8,6 +8,7 @@ import type {
 export interface ThesisService { 
     submitThesis(dto: SubmitThesisDto): Promise<ThesisResponseDto>;
     ingestThesis(dto: IngestThesisDto): Promise<IngestThesisResponseDto>;
+    getDownloadUrl(thesisId: string): Promise<{url: string} | null>
     getThesis(thesisId: string): Promise<ThesisResponseDto | null>;
     getTheses(): Promise<ThesisResponseDto[]>;
     updateThesis(thesisId: string, dto: UpdateThesisDto): Promise<boolean>;
