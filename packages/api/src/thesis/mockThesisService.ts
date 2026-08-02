@@ -111,6 +111,12 @@ export const mockThesisService : ThesisService = {
         thesesMap.set(thesisId, { ...existing, ...dto } as ThesisResponseDto);
         return true;
     },
+    async getDownloadUrl(thesisId: string) {
+        await delay(300);
+        const existing = thesesMap.get(thesisId);
+        if (!existing) return null;
+        return { url: existing.filePath };
+    },
     async updateThesisStatus(thesisId: string, status: string) {
         await delay(300);
         const existing = thesesMap.get(thesisId);

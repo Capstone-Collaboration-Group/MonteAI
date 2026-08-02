@@ -18,10 +18,10 @@ interface ThesisCatalogProps {
   isLoading?: boolean;
   onViewDetails?: (thesisId: string) => void;
   onSelectThesis?: (thesisId: string) => void;
-  onThesisAction?: (thesisId: string) => void;
+  onThesisAction?: (thesisId: string, action: "approve" | "reject" | "revision") => void;
 }
 
-const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision"];
+const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision", "indexed"];
 
 export function ThesisCatalog({
   featuredThesis,

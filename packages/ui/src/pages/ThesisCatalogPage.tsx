@@ -9,7 +9,7 @@ interface ThesisCatalogPageProps {
   thesisService: ThesisService;
   onViewDetails?: (thesisId: string) => void;
   onSelectThesis?: (thesisId: string) => void;
-  onThesisAction?: (thesisId: string) => void;
+ onThesisAction?: (thesisId: string, action: "approve" | "reject" | "revision") => void;
   onFilterClick?: () => void;
 }
 
@@ -25,7 +25,11 @@ export function ThesisCatalogPage({
 const { theses: rawTheses, isLoading } = result;
   
 
-  const theses = useMemo(() => rawTheses.map(toThesisSummary), [rawTheses]);
+  const theses = useMemo(() => {
+    const mapped = rawTheses.map(toThesisSummary);
+    console.log('[DEBUG] mapped theses:', mapped);
+    return mapped;
+}, [rawTheses]);
 
   const featuredThesis = theses[0];
 

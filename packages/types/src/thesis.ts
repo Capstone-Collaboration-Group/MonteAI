@@ -44,7 +44,7 @@ export interface ThesisCatalogCounts {
 export type ThesisResponseListDto = ThesisResponseDto[];
 
 
-export type ThesisStatus = "pending" | "approved" | "rejected" | "revision";
+export type ThesisStatus = "pending" | "approved" | "rejected" | "revision" | "indexed";
 
 export interface ThesisSummary { 
   id: string;

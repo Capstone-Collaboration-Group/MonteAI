@@ -125,8 +125,8 @@ namespace server.Services.AI
                 var existing = await index.FetchAsync(new FetchRequest {  Ids = new[] { id } });
                 if ( existing.Vectors.ContainsKey(id))
                 {
-                    _logger.LogInformation("Chunk {Id} already exists in Pinecone, skipping upsert.", id);
-                    return true;
+                    _logger.LogWarning("Chunk {Id} already exists in Pinecone, skipping upsert.", id);
+                    return false;
                 }
 
                 await index.UpsertAsync(new UpsertRequest

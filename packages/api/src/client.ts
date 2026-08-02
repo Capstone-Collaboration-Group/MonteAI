@@ -15,9 +15,15 @@ export function createApiClient({
   refreshAuthToken,
   onAuthExpired,
   timeout = 10000,
-  httpsAgent
+  httpsAgent, 
 }: ApiClientConfig): AxiosInstance {
-  const client = axios.create({ baseURL, timeout, httpsAgent });
+  const client = axios.create({ 
+    baseURL, 
+    timeout, 
+    httpsAgent, 
+    headers: {
+      'Content-Type': 'application/json',
+} });
 
   type RetriableRequestConfig = AxiosRequestConfig & { _retried?: boolean };
   client.interceptors.request.use(async (config) => {

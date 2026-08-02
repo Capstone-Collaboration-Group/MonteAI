@@ -30,6 +30,11 @@ const STATUS_CONFIG: Record<ThesisStatus, {
     text: "text-status-defense",
     label: "For Revision",
   },
+  indexed:  { 
+    bg: "bg-blue-100",
+    text: "text-blue-700",
+    label: "Indexed",
+  }
 };
 
 const FALLBACK_CONFIG = STATUS_CONFIG["pending"];
