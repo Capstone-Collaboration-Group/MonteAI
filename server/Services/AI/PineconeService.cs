@@ -33,7 +33,7 @@ namespace server.Services.AI
 
             // 2. Query the Pinecone index for the top-k most similar vectors.
             var index = _pineconeClient.Index(IndexName);
-
+            
             var queryResponse = await index.QueryAsync(new QueryRequest
             {
                 Vector = queryVector,
@@ -84,7 +84,6 @@ namespace server.Services.AI
                 })
                 .Where(c => !string.IsNullOrWhiteSpace(c.Text)) // drop any malformed/empty entries
                 .ToList();
-
             _logger.LogInformation(
                 "Pinecone returned {Count} relevant chunks for query: {Query}",
                 chunks.Count, query);
@@ -102,12 +101,13 @@ namespace server.Services.AI
 
             try
             {
+                
                 OpenAIEmbedding embeddingResult = await _embeddingClient.GenerateEmbeddingAsync(chunk.Text);
                 float[] vectorValues = embeddingResult.ToFloats().ToArray();
 
                 var metadata = new Metadata();
                 metadata["abstract"] = chunk.Text;
-
+                
                 if (!string.IsNullOrEmpty(chunk.Title)) metadata["title"] = chunk.Title;
                 if (!string.IsNullOrEmpty(chunk.Url)) metadata["url"] = chunk.Url;
                 if (!string.IsNullOrEmpty(chunk.Authors)) metadata["authors"] = chunk.Authors;
@@ -122,6 +122,13 @@ namespace server.Services.AI
                 };
 
                 var index = _pineconeClient.Index(IndexName);
+                var existing = await index.FetchAsync(new FetchRequest {  Ids = new[] { id } });
+                if ( existing.Vectors.ContainsKey(id))
+                {
+                    _logger.LogInformation("Chunk {Id} already exists in Pinecone, skipping upsert.", id);
+                    return true;
+                }
+
                 await index.UpsertAsync(new UpsertRequest
                 {
                     Vectors = new[] { vector }

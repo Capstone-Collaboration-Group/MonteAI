@@ -16,13 +16,15 @@ namespace server.Services.Theses
         private readonly ILogger<ThesisService> _logger;
         private readonly IMapper _mapper;
         private readonly IPineconeService _pineconeService;
+        private readonly IBlobService _blobService;
 
-        public ThesisService(IThesisRepository repo, ILogger<ThesisService> logger, IMapper mapper, IPineconeService pineconeService)
+        public ThesisService(IThesisRepository repo, ILogger<ThesisService> logger, IMapper mapper, IPineconeService pineconeService, IBlobService blobService)
         {
             _repo = repo;
             _logger = logger;
             _mapper = mapper;
             _pineconeService = pineconeService;
+            _blobService = blobService;
         }
 
         public async Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync()
@@ -107,6 +109,12 @@ namespace server.Services.Theses
     }
            
         }
+        public async Task<string?> GetDownloadUrlAsync(Guid thesisId)
+        {
+            var thesis= await _repo.GetThesisByIdAsync(thesisId);
+            if (thesis == null) return null;
+            return _blobService.GenerateSasUrl(thesis.FilePath, 15);
+        }
 
         public async Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateDto)
         {
@@ -129,6 +137,8 @@ namespace server.Services.Theses
         {
             var result = await _repo.DeleteThesisAsync(id);
             return result;
+
+            
 
         }
 
