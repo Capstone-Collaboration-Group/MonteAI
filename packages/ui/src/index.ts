@@ -8,3 +8,4 @@ export * from "./components/Schedule";
 
 export * from "./pages";
 export * from "./components/common";
+export * from "./components/NotificationButton";
