@@ -11,6 +11,10 @@ export function useSchedules(scheduleService: ScheduleService) {
     return useQuery({
         queryKey: scheduleKeys.all,
         queryFn: () => scheduleService.getSchedules(),
+        //recent fix. still need to test
+        select: (data) => { 
+            return data;
+        }
     });
 }
 

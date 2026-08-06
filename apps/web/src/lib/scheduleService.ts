@@ -3,5 +3,6 @@ import { apiClient } from "./firebaseServices"; // reuse your existing configure
 
 export const scheduleService = createScheduleService(
   apiClient,
-  import.meta.env.VITE_USE_MOCK_SCHEDULE === "true"
+  import.meta.env.VITE_USE_MOCK === "true"
 );
+
