@@ -1,8 +1,8 @@
 import type { ButtonHTMLAttributes } from "react";
 import { Bell } from "lucide-react";
 
-interface NotificationButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement> {}
+
+type  NotificationButtonProps =  ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function NotificationButton({
   className = "",
