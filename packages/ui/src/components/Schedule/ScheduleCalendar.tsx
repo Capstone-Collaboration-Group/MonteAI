@@ -21,14 +21,12 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
 
   // Extract unique room venues for the filter dropdown
   const availableRooms = useMemo(() => {
-    if (!Array.isArray(schedules)) return [];
     const rooms = new Set(schedules.map((s) => s.roomVenue).filter(Boolean));
     return Array.from(rooms).sort();
   }, [schedules]);
 
   // Filter schedules by selected room
   const filteredSchedules = useMemo(() => {
-    if(!Array.isArray(schedules)) return [];
     if (!selectedRoom) return schedules;
     return schedules.filter((s) => s.roomVenue === selectedRoom);
   }, [schedules, selectedRoom]);
