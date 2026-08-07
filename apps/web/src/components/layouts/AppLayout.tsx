@@ -1,7 +1,14 @@
 // layouts/AppLayout.tsx
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { Sidebar } from "@monteai/ui";
-import { MessageSquare, Search, MessageCircle, Plus, LogOut } from "lucide-react"; // Imported LogOut
+import {
+  MessageSquare,
+  Search,
+  MessageCircle,
+  Plus,
+  LogOut,
+  Settings,
+} from "lucide-react"; // Imported LogOut
 import { recentChats } from "../../lib/mock-data";
 import CdmLogo from "../../assets/cdm-logo.png";
 
@@ -12,7 +19,7 @@ import { auth } from "../../lib/firebase";
 
 function AppSidebar() {
   const navigate = useNavigate();
-  
+
   // 1. Fetch the dynamic user profile
   const { profile, isLoading } = useUserProfile(profileService);
 
@@ -36,8 +43,12 @@ function AppSidebar() {
           className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
         />
         <div>
-          <p className="text-[15px] font-medium leading-tight text-on-surface">MonteAI</p>
-          <p className="text-[11px] leading-tight text-on-surface-variant">Your AI research assistant</p>
+          <p className="text-[15px] font-medium leading-tight text-on-surface">
+            MonteAI
+          </p>
+          <p className="text-[11px] leading-tight text-on-surface-variant">
+            Your AI research assistant
+          </p>
         </div>
       </Sidebar.Header>
 
@@ -50,17 +61,38 @@ function AppSidebar() {
       <Sidebar.Nav className="gap-0.5">
         <NavLink to="/chat">
           {({ isActive }) => (
-            <Sidebar.Item icon={<MessageSquare className="h-4 w-4" />} label="AI Chat" active={isActive} />
+            <Sidebar.Item
+              icon={<MessageSquare className="h-4 w-4" />}
+              label="AI Chat"
+              active={isActive}
+            />
           )}
         </NavLink>
         <NavLink to="/thesis">
           {({ isActive }) => (
-            <Sidebar.Item icon={<Search className="h-4 w-4" />} label="Find thesis" active={isActive} />
+            <Sidebar.Item
+              icon={<Search className="h-4 w-4" />}
+              label="Find thesis"
+              active={isActive}
+            />
           )}
         </NavLink>
         <NavLink to="/submit">
           {({ isActive }) => (
-            <Sidebar.Item icon={<Search className="h-4 w-4" />} label="Submit Thesis" active={isActive} />
+            <Sidebar.Item
+              icon={<Search className="h-4 w-4" />}
+              label="Submit Thesis"
+              active={isActive}
+            />
+          )}
+        </NavLink>
+        <NavLink to="/settings">
+          {({ isActive }) => (
+            <Sidebar.Item
+              icon={<Settings className="h-4 w-4" />}
+              label="Settings"
+              active={isActive}
+            />
           )}
         </NavLink>
       </Sidebar.Nav>
@@ -68,7 +100,11 @@ function AppSidebar() {
       <Sidebar.SidebarSectionLabel>Recents</Sidebar.SidebarSectionLabel>
       <Sidebar.Nav className="gap-0.5">
         {recentChats.map((chat) => (
-          <Sidebar.Item key={chat.id} icon={<MessageCircle className="h-4 w-4" />} label={chat.title} />
+          <Sidebar.Item
+            key={chat.id}
+            icon={<MessageCircle className="h-4 w-4" />}
+            label={chat.title}
+          />
         ))}
       </Sidebar.Nav>
 
@@ -77,14 +113,14 @@ function AppSidebar() {
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-xs font-semibold uppercase text-on-primary-container">
             {/* Extract the first letter of the email dynamically */}
-            {isLoading ? "..." : (profile?.email?.[0] || "U")}
+            {isLoading ? "..." : profile?.email?.[0] || "U"}
           </div>
           <span className="truncate text-xs text-on-surface-variant">
             {isLoading ? "Loading..." : profile?.email}
           </span>
         </div>
-        
-        <button 
+
+        <button
           onClick={handleLogout}
           className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
           aria-label="Sign out"

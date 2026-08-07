@@ -12,9 +12,7 @@ export function useSchedules(scheduleService: ScheduleService) {
         queryKey: scheduleKeys.all,
         queryFn: () => scheduleService.getSchedules(),
         //recent fix. still need to test
-        select: (data) => { 
-            return data;
-        }
+        select: (data) => (Array.isArray(data) ? data : []),
     });
 }
 

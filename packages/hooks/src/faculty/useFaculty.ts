@@ -16,6 +16,7 @@ export function useFaculties(facultyService: FacultyService) {
   return useQuery({
     queryKey: facultyKeys.all,
     queryFn: () => facultyService.getFaculties(),
+    select: (data) => (Array.isArray(data) ? data : []),
   });
 }
 

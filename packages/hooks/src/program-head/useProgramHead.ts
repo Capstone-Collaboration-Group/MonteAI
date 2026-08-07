@@ -16,6 +16,7 @@ export function useProgramHeads(programHeadService: ProgramHeadService) {
   return useQuery({
     queryKey: programHeadKeys.all,
     queryFn: () => programHeadService.getProgramHeads(),
+    select: (data) => (Array.isArray(data) ? data : []),
   });
 }
 

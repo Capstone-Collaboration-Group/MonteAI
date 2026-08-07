@@ -24,3 +24,4 @@ export * from "./Timeline";
 export * from "./Tooltip";
 export * from "./StatusBadge";
 export * from "./StatusPill";
+export * from "./StatCardGrid"
