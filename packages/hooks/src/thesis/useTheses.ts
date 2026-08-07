@@ -11,6 +11,7 @@ export function useTheses(thesisService: ThesisService) {
     const query = useQuery({
         queryKey: thesesKeys.all,
         queryFn: () => thesisService.getTheses(),
+        select: (data) => (Array.isArray(data) ? data : []),
     });
 
     // Return everything from the query, plus your custom properties
