@@ -13,14 +13,12 @@ namespace server.Models.DTOs.PanelistSchedule
         public string PanelistId { get; set; } = string.Empty;
 
         [Required]
-        [MaxLength(20)]
-        public string PanelistType { get; set; } = string.Empty;
+        public PanelistType PanelistType { get; set; }
     }
 
     public class UpdatePanelistScheduleDto
     {
-        [MaxLength(20)]
-        public string PanelistType { get; set; } = string.Empty;
+        public PanelistType PanelistType { get; set; }
     }
 
     public class PanelistScheduleResponseDto
@@ -29,7 +27,7 @@ namespace server.Models.DTOs.PanelistSchedule
 
         public string PanelistId { get; set; } = string.Empty;
 
-        public string PanelistType { get; set; } = string.Empty;
+        public PanelistType PanelistType { get; set; }
     }
 
 }
