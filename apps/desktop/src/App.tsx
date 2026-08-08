@@ -20,6 +20,7 @@ import {
 import Dashboard from "./renderer/pages/Dashboard";
 import Faculty from "./renderer/pages/Faculty";
 import Theses from "./renderer/pages/Theses";
+import Panelist from "./renderer/pages/Panelist";
 import Announcements from "./renderer/pages/Announcements";
 import { queryClient, QueryClientProvider } from "@monteai/hooks";
 import Schedule from "./renderer/pages/Schedule";
@@ -73,11 +74,11 @@ function AppSidebar() {
             />
           )}
         </NavLink>
-        <NavLink to="/panelists">
+        <NavLink to="/panelist">
           {({ isActive }) => (
             <Sidebar.Item
               icon={<Users className="h-4 w-4" />}
-              label="Panelists"
+              label="Panelist"
               active={isActive}
             />
           )}
@@ -151,6 +152,7 @@ const App = () => (
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/theses" element={<Theses />} />
             <Route path="/faculty" element={<Faculty />} />
+            <Route path="/panelist" element={<Panelist />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFoundPage />} />
