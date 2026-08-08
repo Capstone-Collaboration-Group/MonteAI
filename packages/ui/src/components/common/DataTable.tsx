@@ -15,6 +15,8 @@ interface DataTableProps<Row> extends HTMLAttributes<HTMLDivElement> {
   sortKey?: string;
   sortDir?: "asc" | "desc";
   onSort?: (key: string) => void;
+  /** Fires when a row is clicked. Row becomes cursor-pointer + hover highlight when set. */
+  onRowClick?: (row: Row) => void;
   /**
    * When true, removes the outer border/rounded wrapper so the table
    * can sit flush inside a parent Card without double borders.
@@ -29,6 +31,7 @@ export function DataTable<Row extends Record<string, unknown>>({
   sortKey,
   sortDir,
   onSort,
+  onRowClick,
   unstyled = false,
   className = "",
   ...props
@@ -58,7 +61,10 @@ export function DataTable<Row extends Record<string, unknown>>({
         {data.map((row, index) => (
           <tr
             key={rowKey ? rowKey(row) : index}
-            className="border-t border-outline-variant/40 bg-surface/70 hover:bg-surface-container-high transition-colors cursor-pointer"
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            className={`border-t border-outline-variant/40 bg-surface/70 hover:bg-surface-container-high transition-colors ${
+              onRowClick ? "cursor-pointer" : ""
+            }`}
           >
             {columns.map((col) => (
               <td key={col.key} className="px-6 py-4 align-middle text-on-surface-variant">

@@ -17,6 +17,8 @@ import {
 import { Card, Input } from "../../index";
 import { Users, GraduationCap, Search, Building2 } from "lucide-react";
 import type { FacultyResponseDto, ProgramHeadResponseDto } from "@monteai/types";
+import { fullNameHelper } from "@monteai/utils";
+import { MemberRow } from "@monteai/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,24 +30,6 @@ export interface FacultyViewProps {
   isLoading?: boolean;
   hasError?: boolean;
   onCreateNew?: () => void;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fullName(first: string, mi?: string, last?: string, suffix?: string) {
-  return [first, mi ? `${mi}.` : "", last, suffix].filter(Boolean).join(" ");
-}
-
-// ─── Row shape ────────────────────────────────────────────────────────────────
-
-interface MemberRow extends Record<string, unknown> {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  institute: string;
-  extra: string;
-  isActive: boolean;
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -118,7 +102,7 @@ export function FacultyView({
     () =>
       faculties.map((f) => ({
         id: f.id,
-        name: fullName(f.firstName, f.middleInitial, f.lastName, f.suffix),
+        name: fullNameHelper(f.firstName, f.middleInitial, f.lastName, f.suffix),
         email: f.email,
         role: f.role,
         institute: f.institute,
@@ -132,7 +116,7 @@ export function FacultyView({
     () =>
       programHeads.map((ph) => ({
         id: ph.id,
-        name: fullName(ph.firstName, ph.middleInitial, ph.lastName, ph.suffix),
+        name: fullNameHelper(ph.firstName, ph.middleInitial, ph.lastName, ph.suffix),
         email: ph.email,
         role: ph.role,
         institute: ph.institute,
