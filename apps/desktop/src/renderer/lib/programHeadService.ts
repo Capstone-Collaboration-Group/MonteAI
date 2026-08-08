@@ -4,5 +4,5 @@ const client = createApiClient({ baseURL: import.meta.env.API_BASE_URL });
 
 export const programHeadService = createProgramHeadService(
     client,
-    import.meta.env.API_BASE_URL
+    import.meta.env.API_BASE_URL === "true"
 )

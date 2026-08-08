@@ -15,64 +15,63 @@ export const panelistScheduleKeys = {
     ["panelist-schedules", scheduleId, panelistId] as const,
 };
 
-// Get all panelist schedules
-export function usePanelistSchedules(panelistScheduleService: PanelistScheduleService) {
+export function usePanelistSchedules(service: PanelistScheduleService) {
   return useQuery({
     queryKey: panelistScheduleKeys.all,
-    queryFn: () => panelistScheduleService.getPanelistSchedules(),
+    queryFn: () => service.getPanelistSchedules(),
+    select: (data) => (Array.isArray(data) ? data : []),
   });
 }
 
-// Get all schedules for a specific panelist
-export function usePanelistSchedulesById(panelistScheduleService: PanelistScheduleService, panelistId: string) {
+export function usePanelistSchedulesById(service: PanelistScheduleService, panelistId: string) {
   return useQuery({
     queryKey: panelistScheduleKeys.byPanelist(panelistId),
-    queryFn: () => panelistScheduleService.getPanelistSchedulesById(panelistId),
+    queryFn: () => service.getPanelistSchedulesById(panelistId),
     enabled: !!panelistId,
   });
 }
 
-// Get a specific panelist schedule
-export function usePanelistScheduleById(panelistScheduleService: PanelistScheduleService, scheduleId: string, panelistId: string) {
+export function usePanelistScheduleById(service: PanelistScheduleService, scheduleId: string, panelistId: string) {
   return useQuery({
     queryKey: panelistScheduleKeys.detail(scheduleId, panelistId),
-    queryFn: () => panelistScheduleService.getPanelistScheduleById(scheduleId, panelistId),
+    queryFn: () => service.getPanelistScheduleById(scheduleId, panelistId),
     enabled: !!scheduleId && !!panelistId,
   });
 }
 
-// Create panelist schedule
-export function useCreatePanelistSchedule(panelistScheduleService: PanelistScheduleService) {
+export function useCreatePanelistSchedule(service: PanelistScheduleService) {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (dto: CreatePanelistScheduleDto) =>
-      panelistScheduleService.createPanelistSchedule(dto),
-
+      service.createPanelistSchedule(dto),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: panelistScheduleKeys.all,});
+      queryClient.invalidateQueries({ queryKey: panelistScheduleKeys.all });
     },
   });
 }
 
-// Update panelist schedule
-export function useUpdatePanelistSchedule(panelistScheduleService: PanelistScheduleService) {
+export function useUpdatePanelistSchedule(service: PanelistScheduleService) {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: ({scheduleId, panelistId, dto,}: {scheduleId: string; panelistId: string; dto: UpdatePanelistScheduleDto;}) =>
-      panelistScheduleService.updatePanelistSchedule(scheduleId, panelistId, dto),
-    onSuccess: () => {queryClient.invalidateQueries({ queryKey: panelistScheduleKeys.all,});},
+    mutationFn: ({ scheduleId, panelistId, dto }: {
+      scheduleId: string;
+      panelistId: string;
+      dto: UpdatePanelistScheduleDto;
+    }) => service.updatePanelistSchedule(scheduleId, panelistId, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: panelistScheduleKeys.all });
+    },
   });
 }
 
-// Delete panelist schedule
-export function useDeletePanelistSchedule(panelistScheduleService: PanelistScheduleService) {
+export function useDeletePanelistSchedule(service: PanelistScheduleService) {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: (scheduleId: string) => 
-      panelistScheduleService.deletePanelistSchedule(scheduleId),
-    onSuccess: () => {queryClient.invalidateQueries({queryKey: panelistScheduleKeys.all,});},
+    // Fixed: composite key needs both scheduleId and panelistId
+    mutationFn: ({ scheduleId, panelistId }: { scheduleId: string; panelistId: string }) =>
+      service.deletePanelistSchedule(scheduleId, panelistId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: panelistScheduleKeys.all });
+    },
   });
 }

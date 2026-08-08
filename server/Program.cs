@@ -1,5 +1,6 @@
 ﻿using System.ClientModel;
 using System.Security.Claims;
+using System.Text.Json.Serialization;
 using Azure.AI.OpenAI;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
@@ -172,10 +173,12 @@ try
 
 
 
-       
 
-    
-    builder.Services.AddControllers();
+
+
+    builder.Services.AddControllers()
+        .AddJsonOptions(o =>
+            o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();

@@ -1,71 +1,84 @@
 import { type AxiosInstance } from "axios";
-import type { 
+import type {
     CreatePanelistScheduleDto,
     UpdatePanelistScheduleDto,
-    PanelistScheduleResponseDto
+    PanelistScheduleResponseDto,
+    PanelistResponseDto,
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
+import type { PanelistScheduleService } from "./types";
 
-import { PanelistScheduleService } from "./types";
+export class LivePanelistScheduleService implements PanelistScheduleService {
+    constructor(private readonly client: AxiosInstance) {}
 
-export class LivePanelistScheduleService implements PanelistScheduleService { 
-    constructor (private readonly client: AxiosInstance){}
-
-    // getPanelistSchedules()
-    async getPanelistSchedules(): Promise<PanelistScheduleResponseDto[] | []> { 
-        try { 
-            const { data } = await this.client.get<PanelistScheduleResponseDto[]>(`/panelistschedule`);
+    // GET /panelistschedule/details — enriched person data with assignments
+    async getPanelistSchedules(): Promise<PanelistResponseDto[]> {
+        try {
+            const { data } = await this.client.get<PanelistResponseDto[]>(`/panelistschedule/details`);
             return data;
-        } catch (err) { 
+        } catch (err) {
             return handle404(err, []);
         }
     }
-    // getPanelistSchedulesById(panelisId: string):
-    async getPanelistSchedulesById(panelistId: string): Promise<PanelistScheduleResponseDto[] | []> {
-        try { 
-            const { data } = await this.client.get<PanelistScheduleResponseDto[]>(`/panelistschedule/${panelistId}`);
+
+    // GET /panelistschedule/by-panelist/{panelistId}
+    async getPanelistSchedulesById(panelistId: string): Promise<PanelistScheduleResponseDto[]> {
+        try {
+            const { data } = await this.client.get<PanelistScheduleResponseDto[]>(
+                `/panelistschedule/by-panelist/${panelistId}`
+            );
             return data;
-        } catch(err){ 
+        } catch (err) {
             return handle404(err, []);
         }
     }
-    // getPanelistScheduleById(scheduleId: string, panelistId: string)
+
+    // GET /panelistschedule/{scheduleId}?panelistId=xxx
     async getPanelistScheduleById(scheduleId: string, panelistId: string): Promise<PanelistScheduleResponseDto | null> {
-        try { 
-            const { data } = await this.client.get<PanelistScheduleResponseDto>(`/panelistschedule/${scheduleId}`, { params: { panelistId } });
+        try {
+            const { data } = await this.client.get<PanelistScheduleResponseDto>(
+                `/panelistschedule/${scheduleId}`,
+                { params: { panelistId } }
+            );
             return data;
-        } catch (err) { 
+        } catch (err) {
             return handle404(err, null);
         }
     }
-    // createPanelistSchedule(dto: CreatePanelistScheduleDto)
+
+    // POST /panelistschedule/create
     async createPanelistSchedule(dto: CreatePanelistScheduleDto): Promise<boolean> {
-        try { 
+        try {
             const { data } = await this.client.post<boolean>(`/panelistschedule/create`, dto);
             return data;
-        } catch (err) { 
-           return handle404(err, false);
+        } catch (err) {
+            return handle404(err, false);
         }
-        
     }
-    // updatePanelistSchedule(scheduleId: string, panelistId: string, dto: UpdatePanelistScheduleDto)
+
+    // PATCH /panelistschedule/update/{scheduleId}?panelistId=xxx
     async updatePanelistSchedule(scheduleId: string, panelistId: string, dto: UpdatePanelistScheduleDto): Promise<boolean> {
-        try { 
-            const { data } = await this.client.patch<boolean>(`/panelistschedule/update/${scheduleId}`, dto,  { params: { panelistId}});
+        try {
+            const { data } = await this.client.patch<boolean>(
+                `/panelistschedule/update/${scheduleId}`,
+                dto,
+                { params: { panelistId } }
+            );
             return data;
-        } catch (err) { 
+        } catch (err) {
             return handle404(err, false);
         }
-        
     }
-    // deletePanelistSchedule()
-    async deletePanelistSchedule(scheduleId: string): Promise<boolean> {
-        try { 
-            const { data } = await this.client.delete<boolean>(`/panelistschedule/delete/${scheduleId}`);
+
+    // DELETE /panelistschedule/delete/{scheduleId}/{panelistId}
+    async deletePanelistSchedule(scheduleId: string, panelistId: string): Promise<boolean> {
+        try {
+            const { data } = await this.client.delete<boolean>(
+                `/panelistschedule/delete/${scheduleId}/${panelistId}`
+            );
             return data;
-        } catch (err) { 
+        } catch (err) {
             return handle404(err, false);
         }
-        
     }
 }

@@ -222,13 +222,28 @@ namespace server.Data
 
             modelBuilder.Entity<PanelistSchedule>(entity =>
             {
-                entity.ToTable("PanelistSchedules");
-                entity.HasKey(e => new { e.ScheduleId, e.PanelistId });
-                entity.Property(e => e.PanelistId)
-                      .HasMaxLength(128)
-                      .IsRequired();
-                entity.Property(e => e.PanelistType)
-                      .HasMaxLength(20);
+                  entity.ToTable("PanelistSchedules");
+
+                  entity.HasKey(e => new { e.ScheduleId, e.PanelistId });
+
+                  entity.Property(e => e.ScheduleId)
+                  .IsRequired();
+
+                  entity.Property(e => e.PanelistId)
+                        .HasMaxLength(128)
+                        .IsRequired();
+
+                  entity.Property(e => e.PanelistType)
+                        .HasConversion<string>()
+                        .HasMaxLength(20)
+                        .IsRequired();
+
+                  entity.Property(e => e.Role)
+                        .HasMaxLength(50);
+                  
+                  entity.Property(e => e.CreatedAt)
+                        .HasDefaultValueSql("GETUTCDATE()");
+
             });
 
             modelBuilder.Entity<ChatSession>(entity =>
