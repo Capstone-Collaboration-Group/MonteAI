@@ -11,4 +11,4 @@ export function createChatService(
 }
 export type { ChatService } from "./types";
 export  { mockChatService } from "./mockChatService";
-export {LiveChatService } from "./chatService";
+export { LiveChatService } from "./chatService";
