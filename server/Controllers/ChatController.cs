@@ -57,7 +57,7 @@ namespace server.Controllers
         }
 
         [HttpPost("sessions/{id}/messages")]
-        public async Task<IActionResult> CreateChatMessage([FromRoute] string id, [FromBody] CreateChatMessageDto dto)
+        public async Task<IActionResult> SendChatMessage([FromRoute] string id, [FromBody] CreateChatMessageDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto?.Content))
             {
