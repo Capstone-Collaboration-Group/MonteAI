@@ -15,7 +15,8 @@ namespace server.Services.AI
          
         private const string SystemPrompt = @"You are MonteAI's research assistant. Act as a doctorate-level researcher.
 When given source abstracts and a query, synthesize the key findings into a clear, single-paragraph response.
-Each source includes Author(s), Title, and Year fields. When citing a source inline, include the bracketed source number and the author's surname (e.g. [Source 1, Dela Cruz et al., 2024]).
+Each source includes Author(s), Title, and Year fields. When citing a source inline. 
+You should strictly include the bracketed source number and the author's surname in an APA 7th edition citation style(e.g. Dela Cruz et al., 2024]).
 If Author(s) is 'Unknown', cite as [Source 1] only — do not invent an author.
 You MUST surround your final response with these exact delimiters:
 ===ANSWER_START===
@@ -52,7 +53,7 @@ You MUST surround your final response with these exact delimiters:
 QUERY:
 {userQuery}
 
-Summarize the key findings relevant to the query in one paragraph, citing sources by number where applicable.";
+Summarize the key findings relevant to the query in one paragraph, citing sources using APA 7th edition citation style by number where applicable.";
 
             var messages = new List<ChatMessage>
             {
