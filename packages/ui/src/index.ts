@@ -2,7 +2,7 @@ export * from "./components/Toaster";
 export * from "./components/Button";
 export * from "./components/Card";
 export * from "./components/Input";
-export * from "./components/ChatPreview";
+export * from "./components/Chat/ChatView";
 export * from "./components/Sidebar";
 export * from "./components/Schedule";
 export * from "./components/Settings";

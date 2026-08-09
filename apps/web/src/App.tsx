@@ -29,6 +29,7 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/chat" element={<Chat />} />
 
           {/* Authenticated — sidebar layout, gated by Firebase auth state */}
           <Route element={<ProtectedRoute />}>
