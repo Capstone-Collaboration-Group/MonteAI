@@ -1,7 +1,7 @@
 import {
-    FacultyResponseDto,
-    CreateFacultyDto,
-    UpdateFacultyDto
+    type FacultyResponseDto,
+    type CreateFacultyDto,
+    type UpdateFacultyDto
 } from "@monteai/types";
 
 export interface FacultyService {
