@@ -12,11 +12,13 @@
   "license": "ISC",
   "packageManager": "pnpm@10.33.2",
   "dependencies": {
-    "sonner": "^2.0.7",
     "@monteai/api": "workspace:*",
+    "@monteai/hooks": "workspace:*",
     "@monteai/types": "workspace:*",
     "@monteai/utils": "workspace:*",
-    "@monteai/hooks": "workspace:*"
+    "react-pdf": "^10.4.1",
+    "react-pdf-highlighter": "8.0.0-rc.0",
+    "sonner": "^2.0.7"
   },
   "peerDependencies": {
     "react": "^19.2.7",
