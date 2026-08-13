@@ -13,15 +13,15 @@ interface FeaturedThesisCardProps {
 
 export function FeaturedThesisCard({ thesis, onViewDetails }: FeaturedThesisCardProps) {
   return (
-    <Card className="flex h-full flex-col rounded-2xl border border-[#E4E0D4] bg-white p-6 shadow-sm">
+    <Card className="flex h-full flex-col rounded-2xl border border-outline-variant bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4">
-        <h2 className="font-serif text-xl font-semibold leading-snug text-[#1F2A24]">
+        <h2 className="font-sans text-xl font-semibold leading-snug text-on-surface-variant">
           {thesis.title}
         </h2>
         <StatusBadge status={thesis.status} className="shrink-0" />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-[#6B7C74]">
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-outline">
         <span className="flex items-center gap-1.5">
           <User className="h-3.5 w-3.5" />
           {(thesis.authors ?? []).join(", ")}
@@ -33,7 +33,7 @@ export function FeaturedThesisCard({ thesis, onViewDetails }: FeaturedThesisCard
       </div>
 
       {thesis.excerpt && (
-        <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-[#4A5750]">
+        <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-on-surface">
           {thesis.excerpt}
         </p>
       )}
@@ -41,7 +41,7 @@ export function FeaturedThesisCard({ thesis, onViewDetails }: FeaturedThesisCard
       <Button
         type="button"
         onClick={() => onViewDetails?.(thesis.id)}
-        className="mt-auto flex w-fit items-center gap-1.5  text-sm font-semibold text-[#16342B] transition-colors hover:text-[#B8934C]"
+        className="mt-auto flex w-fit items-center gap-1.5  text-sm font-semibold transition-colors"
       >
         View Details
         <ArrowRight className="h-4 w-4" />
