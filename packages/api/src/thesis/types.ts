@@ -3,7 +3,11 @@ import type {
     UpdateThesisDto,
     ThesisResponseDto,
     IngestThesisDto,
-    IngestThesisResponseDto
+    IngestThesisResponseDto,
+    AnnotationResponseDto,
+    CreateAnnotationDto,
+    ResolveAnnotationDto,
+    ThesisVersion
 } from "@monteai/types";
 export interface ThesisService { 
     submitThesis(dto: SubmitThesisDto): Promise<ThesisResponseDto>;
@@ -14,5 +18,18 @@ export interface ThesisService {
     updateThesis(thesisId: string, dto: UpdateThesisDto): Promise<boolean>;
     updateThesisStatus(thesisId: string, status: string): Promise<boolean>;
     deleteThesis(thesisId: string): Promise<boolean>;
+
+    // Annotations 
+    getAnnotations(thesisId: string, versionId: string): Promise<AnnotationResponseDto[]>;
+    createAnnotation(thesisId: string, dto: CreateAnnotationDto): Promise<boolean>;
+    resolveAnnotation(thesisId: string, annotationId: string, dto: ResolveAnnotationDto): Promise<boolean>;
+    deleteAnnotation(thesisId: string, annotationId: string): Promise<boolean>;
+
+    // versions
+    getVersions(thesisId: string): Promise<ThesisVersion[]>;
+    getVersionFile(thesisId: string, versionId: string): Promise<ThesisResponseDto>;
+
+    // Proceedings
+    generateProceedings(thesisId: string): Promise<Blob>;
 }
 
