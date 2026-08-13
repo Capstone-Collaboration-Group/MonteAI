@@ -1,80 +1,103 @@
-import { useState } from "react";
-import { PdfLoader, PdfHighlighter, Highlight, Popup, Tip, NewHighlight } from "react-pdf-highlighter";
-import { Spinner } from "../components/common";
-interface AnnotationComment {
-  id: string;
-  content: string;
-  highlightedText?: string;
-  position: object; // bounding box from react-pdf-highlighter
-  pageNumber: number;
-  createdBy: string;
-  createdAt: string;
+// packages/ui/src/pages/ThesisPDFViewer.tsx
+import { useState, useCallback } from "react";
+import type { ThesisService } from "@monteai/api";
+import type { CreateAnnotationDto, ResolveAnnotationDto } from "@monteai/types";
+import {
+  useThesisVersions,
+  useAnnotations,
+  useCreateAnnotation,
+  useResolveAnnotation,
+  useDeleteAnnotation,
+  useGenerateProceedings,
+} from "@monteai/hooks";
+import { ThesisPDFViewerLayout } from "../components/Thesis";
+
+export type ViewerRole = "adviser" | "program_head" | "student";
+
+interface ThesisPDFViewerProps {
+  thesisId: string;
+  thesisService: ThesisService;
+  role?: ViewerRole;
+  onBack?: () => void;
 }
 
-export default function ThesisPDFViewer({ thesisId, fileUrl }: Props) {
-  const [annotations, setAnnotations] = useState<AnnotationComment[]>([]);
-  const [pendingComment, setPendingComment] = useState<string>("");
+const ANNOTATOR_ROLES: ViewerRole[] = ["adviser", "program_head"];
 
-  const addHighlight = (highlight: NewHighlight) => {
-    const annotation: AnnotationComment = {
-      id: crypto.randomUUID(),
-      content: pendingComment,
-      highlightedText: highlight.content.text,
-      position: highlight.position,
-      pageNumber: highlight.position.pageNumber,
-      createdBy: "Director",
-      createdAt: new Date().toISOString(),
-    };
-    setAnnotations(prev => [...prev, annotation]);
-    // persist to backend
-    // saveAnnotation(thesisId, annotation);
-  };
+export function ThesisPDFViewerPage({
+  thesisId,
+  thesisService,
+  role = "student",
+  onBack,
+}: ThesisPDFViewerProps) {
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+
+  const canAnnotate = ANNOTATOR_ROLES.includes(role);
+
+  const { versions, latestVersion, isLoading: versionsLoading } = useThesisVersions(
+    thesisService,
+    thesisId
+  );
+
+  const activeVersionId = selectedVersionId ?? latestVersion?.id ?? null;
+
+  const { annotations, unresolvedCount, resolvedCount, isLoading: annotationsLoading } =
+    useAnnotations(thesisService, thesisId, activeVersionId ?? "");
+
+  const { mutate: createAnnotation, isPending: isCreating } =
+    useCreateAnnotation(thesisService);
+  const { mutate: resolveAnnotation, isPending: isResolving } =
+    useResolveAnnotation(thesisService);
+  const { mutate: deleteAnnotation } = useDeleteAnnotation(thesisService);
+  const { mutate: generateProceedings, isPending: isGenerating } =
+    useGenerateProceedings(thesisService);
+
+  const handleAddAnnotation = useCallback(
+    (dto: Omit<CreateAnnotationDto, "thesisVersionId">) => {
+      if (!activeVersionId) return;
+      createAnnotation({ thesisId, dto: { ...dto, thesisVersionId: activeVersionId } });
+    },
+    [thesisId, activeVersionId, createAnnotation]
+  );
+
+  const handleResolve = useCallback(
+    (annotationId: string, dto: ResolveAnnotationDto) => {
+      if (!activeVersionId) return;
+      resolveAnnotation({ thesisId, versionId: activeVersionId, annotationId, dto });
+    },
+    [thesisId, activeVersionId, resolveAnnotation]
+  );
+
+  const handleDelete = useCallback(
+    (annotationId: string) => {
+      deleteAnnotation({ thesisId, annotationId });
+    },
+    [thesisId, deleteAnnotation]
+  );
+
+  const handleGenerateProceedings = useCallback(() => {
+    generateProceedings(thesisId);
+  }, [thesisId, generateProceedings]);
+
+  const activeVersion = versions.find((v) => v.id === activeVersionId) ?? latestVersion;
 
   return (
-    <div className="flex h-full">
-      {/* PDF + highlight layer */}
-      <div className="flex-1 relative">
-        <PdfLoader url={fileUrl} beforeLoad={<Spinner />}>
-          {(pdfDocument) => (
-            <PdfHighlighter
-              pdfDocument={pdfDocument}
-              highlights={annotations}
-              onScrollChange={() => {}}
-              scrollRef={() => {}}
-              onSelectionFinished={(position, content, hideTipAndSelection) => (
-                <Tip
-                  onOpen={() => {}}
-                  onConfirm={(comment) => {
-                    addHighlight({ content, position, comment });
-                    hideTipAndSelection();
-                  }}
-                />
-              )}
-              highlightTransform={(highlight, index, setTip, hideTip, _, __, isScrolledTo) => (
-                <Popup
-                  popupContent={<CommentPopup comment={highlight.content} />}
-                  onMouseOver={(popupContent) => setTip(highlight, () => popupContent)}
-                  onMouseOut={hideTip}
-                  key={index}
-                >
-                  <Highlight
-                    isScrolledTo={isScrolledTo}
-                    position={highlight.position}
-                    comment={highlight.comment}
-                  />
-                </Popup>
-              )}
-            />
-          )}
-        </PdfLoader>
-      </div>
-
-      {/* Comments sidebar */}
-      <AnnotationSidebar
-        annotations={annotations}
-        onDelete={(id) => setAnnotations(prev => prev.filter(a => a.id !== id))}
-        onGenerateProceedings={() => generateProceedings(thesisId)}
-      />
-    </div>
+    <ThesisPDFViewerLayout
+      versions={versions}
+      activeVersion={activeVersion ?? null}
+      annotations={annotations}
+      unresolvedCount={unresolvedCount}
+      resolvedCount={resolvedCount}
+      isLoading={versionsLoading || annotationsLoading}
+      isGenerating={isGenerating}
+      isCreating={isCreating}
+      isResolving={isResolving}
+      canAnnotate={canAnnotate}
+      onVersionChange={setSelectedVersionId}
+      onAddAnnotation={handleAddAnnotation}
+      onResolve={handleResolve}
+      onDelete={handleDelete}
+      onGenerateProceedings={handleGenerateProceedings}
+      onBack={onBack}
+    />
   );
 }
