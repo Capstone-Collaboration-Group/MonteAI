@@ -1,10 +1,14 @@
 import { type AxiosInstance } from "axios";
-import { 
-    type ThesisResponseDto,
-    type SubmitThesisDto,
-    type UpdateThesisDto,
-    type IngestThesisDto,
-    type IngestThesisResponseDto
+import type { 
+    ThesisResponseDto,
+    SubmitThesisDto,
+    UpdateThesisDto,
+    IngestThesisDto,
+    IngestThesisResponseDto,
+    AnnotationResponseDto,
+    CreateAnnotationDto,
+    ResolveAnnotationDto,
+    ThesisVersion
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils"
 
@@ -83,5 +87,62 @@ export class LiveThesisService implements ThesisService {
             return handle404(err, false);
         }
     }
-   
+
+    // Annotations 
+    async getAnnotations(thesisId: string, versionId: string): Promise<AnnotationResponseDto[] | []> {
+         try { 
+            const  {data } = await this.client.get<AnnotationResponseDto[]>(`/thesis/${thesisId}/versions/${versionId}/annotations`)
+            return data;
+         } catch (err) { 
+            return handle404(err, []);
+         }
+       
+    }
+
+    async createAnnotation(thesisId: string, dto: CreateAnnotationDto): Promise<boolean> {
+        try { 
+            const { data } = await this.client.post<boolean>(`/thesis/${thesisId}/annotations`, dto);
+            return data;
+        } catch(err) {
+            return handle404(err, false);
+        }
+    }
+
+    async resolveAnnotation(thesisId: string, annotationId: string, dto: ResolveAnnotationDto): Promise<boolean> {
+        try { 
+            const { data } = await this.client.patch<boolean>(`/thesis/${thesisId}/annotations/${annotationId}/resolve`, dto)
+            return data;
+        } catch (err) { 
+            return handle404(err, false);
+        }
+    }
+
+    async deleteAnnotation(thesisId: string, annotationId: string): Promise<boolean> {
+        try { 
+            const { data }  = await this.client.delete<boolean>(`/thesis/${thesisId}/annotations/${annotationId}`);
+            return data;
+        } catch (err) { 
+            return handle404(err, false);
+        }
+    }
+    // Versions
+    async getVersions(thesisId: string): Promise<ThesisVersion[] | []> {
+        try  {
+            const { data } = await this.client.get<ThesisVersion[]>(`/thesis/${thesisId}/versions/`);
+        return data;
+        } catch (err) { 
+            return handle404(err, []);
+        }
+        
+    }
+    async getVersionFile(thesisId: string, versionId: string): Promise<ThesisResponseDto> {
+        const { data } = await this.client.get<ThesisResponseDto>(`/thesis/${thesisId}/versions/${versionId}/file`);
+        return data;
+    }
+
+    // Proceedings 
+    async generateProceedings(thesisId: string): Promise<Blob> {
+        const { data } = await this.client.post<Blob>(`/thesis/${thesisId}/proceedings`, {}, { responseType: "blob"})
+        return data
+    }
 }
