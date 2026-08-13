@@ -12,6 +12,7 @@ import Schedule from "./pages/Schedule";
 import Register from "./pages/Register";
 import SubmitThesis from "./pages/SubmitThesis";
 import Login from "./pages/Login";
+import ThesisViewer from "./pages/ThesisViewer";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
            <Route element={<AppLayout />}>
               <Route path="/home" element={<Home />} />
               <Route path="/chat" element={<Chat />} />
