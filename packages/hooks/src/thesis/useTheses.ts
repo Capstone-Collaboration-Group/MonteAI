@@ -1,11 +1,20 @@
 import  { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ThesisService } from "@monteai/api";
-import type { SubmitThesisDto, UpdateThesisDto, IngestThesisDto } from "@monteai/types";
+import type { SubmitThesisDto, UpdateThesisDto, IngestThesisDto,
+    CreateAnnotationDto,
+    ResolveAnnotationDto,
+ } from "@monteai/types";
+
 
 export const thesesKeys = { 
     all: ["theses"] as const,
     detail: (id:string) => ["theses", id] as const,
-}
+
+    versions: (thesisId: string) => ["theses", thesisId, "versions"] as const, 
+
+    annotations: (thesisId: string, versionId: string) => 
+    ["theses", thesisId, "versions", versionId, "annotations"] as const,
+};
 
 export function useTheses(thesisService: ThesisService) { 
     const query = useQuery({
@@ -52,10 +61,118 @@ export function useIngestThesis(thesisService: ThesisService) {
     });
 }
 export function useGetDownloadUrl(thesisService: ThesisService)  {
-    const queryClient = useQueryClient();
-
     return useMutation({
         mutationFn: (thesisId: string) => 
             thesisService.getDownloadUrl(thesisId),
+    });
+}
+
+export function useThesisVersions(thesisService: ThesisService, thesisId: string)  { 
+    const query = useQuery({ 
+        queryKey: thesesKeys.versions(thesisId),
+        queryFn: () => thesisService.getVersions(thesisId),
+        enabled: !!thesisId,
+        select: (data) => (Array.isArray(data) ? data : []),
+    });
+    return { 
+        ...query,
+        versions: query.data ?? [],
+        latestVersion: query.data?.[query.data.length - 1] ?? null,
+    };
+}
+
+export function useAnnotations(
+    thesisService: ThesisService,
+    thesisId: string,
+    versionId: string
+) { 
+    const query = useQuery({ 
+        queryKey: thesesKeys.annotations(thesisId, versionId),
+        queryFn: () => thesisService.getAnnotations(thesisId, versionId),
+        enabled: !!thesisId && !!versionId, 
+        select: (data) => (Array.isArray(data) ? data : []),
+    });
+
+    return { 
+        ...query,
+        annotations: query.data ?? [],
+        unresolvedCount: query.data?.filter((a) => !a.isResolved).length ?? 0,
+        resolvedCount: query.data?.filter((a) => a.isResolved).length ?? 0,
+    };
+}
+
+export function useCreateAnnotation(thesisService: ThesisService) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      thesisId,
+      dto,
+    }: {
+      thesisId: string;
+      dto: CreateAnnotationDto;
+    }) => thesisService.createAnnotation(thesisId, dto),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: thesesKeys.annotations(variables.thesisId, variables.dto.thesisVersionId),
+      });
+    },
+  });
+}
+
+
+export function useResolveAnnotation(thesisService: ThesisService) { 
+    const queryClient = useQueryClient();
+
+    return useMutation({ 
+        mutationFn: ({ 
+            thesisId, 
+            versionId,
+            annotationId,
+            dto,
+        }: { 
+            thesisId: string;
+            versionId: string;
+            annotationId: string;
+            dto: ResolveAnnotationDto;
+        }) => thesisService.resolveAnnotation(thesisId, annotationId, dto),
+        onSuccess: (_data, variables) => { 
+            queryClient.invalidateQueries({
+                queryKey: thesesKeys.annotations(variables.thesisId, variables.versionId),
+            });
+        },
+    });
+}
+
+export function useDeleteAnnotation(thesisService: ThesisService) { 
+    const queryClient = useQueryClient();
+
+    return useMutation({ 
+        mutationFn: ({ 
+            thesisId,
+            annotationId,
+        }: { 
+            thesisId: string;
+            annotationId: string;
+        }) => thesisService.deleteAnnotation(thesisId, annotationId),
+        onSuccess: (_data, variables) => { 
+            queryClient.invalidateQueries({ 
+                queryKey: ["theses", variables.thesisId],
+            });
+        },
+    });
+}
+
+export function useGenerateProceedings(thesisService: ThesisService) { 
+    return useMutation({ 
+        mutationFn: (thesisId: string) => thesisService.generateProceedings(thesisId), 
+        onSuccess: (blob, thesisId) => { 
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `proceedings-${thesisId}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+        },
     });
 }

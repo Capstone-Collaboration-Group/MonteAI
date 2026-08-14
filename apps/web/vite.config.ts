@@ -16,4 +16,12 @@ export default defineConfig({
     },
     dedupe: ["react", "react-dom"],
   },
+  optimizeDeps: { 
+    exclude: ["canvas"],
+  },
+  build: { 
+    rollupOptions: { 
+      external: ["canvas"],
+    },
+  },
 })

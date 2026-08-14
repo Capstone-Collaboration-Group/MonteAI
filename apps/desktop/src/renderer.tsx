@@ -26,9 +26,15 @@
  * ```
  */
 
+import { pdfjs } from "react-pdf";
+import { GlobalWorkerOptions } from 'pdfjs-dist';
+GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+console.log("PDF worker set:", GlobalWorkerOptions.workerSrc);
+
 import './index.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+
 import App from './App';
 
 console.log(

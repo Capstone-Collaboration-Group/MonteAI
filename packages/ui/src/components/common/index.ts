@@ -13,6 +13,7 @@ export * from "./Pagination";
 export * from "./RatingInput";
 export * from "./Select";
 export * from "./PageHeader";
+export * from "./PageLayout";
 export * from "./Skeleton";
 export * from "./Spinner";
 export * from "./StepIndicator";
@@ -25,3 +26,4 @@ export * from "./Tooltip";
 export * from "./StatusBadge";
 export * from "./StatusPill";
 export * from "./StatCardGrid"
+

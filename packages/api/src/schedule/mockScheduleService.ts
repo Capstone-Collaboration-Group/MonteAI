@@ -48,6 +48,10 @@ const panelistPool = [
   "Dr. Roland Balmes", "Ms. Jane Doe", "Mr. Mark Luna", "Dr. Ana Reyes",
   "Prof. Carlo Santos", "Dr. Liza Cruz", "Mr. John Tan", "Ms. Grace Aguilar",
 ];
+const institutes = [
+  "ibe", "ics", "ite"
+];
+
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -58,7 +62,7 @@ function buildSeed(): ScheduleResponseDto[] {
   const schedules: ScheduleResponseDto[] = [];
 
   for (let i = 0; i < 20; i++) {
-    const dayOffset = i % 5; // cycle Mon(0)..Fri(4), 4 schedules per day
+    const dayOffset = i % 5; 
     const scheduleDate = new Date(monday);
     scheduleDate.setDate(monday.getDate() + dayOffset);
     const dateStr = scheduleDate.toISOString().split("T")[0];
@@ -69,25 +73,28 @@ function buildSeed(): ScheduleResponseDto[] {
     let hasConflict = true;
     let attempts = 0;
 
-    // Re-roll time block until we find one that doesn't conflict
     while (hasConflict && attempts < 50) {
       hasConflict = false;
-      
-      // Randomize start hour within 8am–3pm so a 1–2.5hr block still fits the 8am–5pm grid
-      const startHour = randomInt(8, 15);
-      const startMinute = Math.random() < 0.5 ? 0 : 30;
-      const durationMinutes = [60, 90, 120, 150][randomInt(0, 3)];
-      
-      startTotalMin = startHour * 60 + startMinute;
-      endTotalMin = Math.min(startTotalMin + durationMinutes, 17 * 60); // cap at 5pm
 
-      // Check against already assigned schedules for the same date and room
+      const startHour = randomInt(7, 18);
+      const startMinute = Math.random() < 0.5 ? 0 : 30;
+
+      const durationMinutes = [60, 90, 120, 150][randomInt(0, 3)];
+
+      startTotalMin = startHour * 60 + startMinute;
+
+      const intendedEnd = startTotalMin + durationMinutes;
+
+      const cappedEnd = Math.min(intendedEnd, 18 * 60);
+
+      endTotalMin = Math.max(cappedEnd, startTotalMin + 60);
+
+
       for (const existing of schedules) {
         if (existing.date === dateStr && existing.roomVenue === roomVenue) {
           const eStart = parseTimeToMins(existing.startTime);
           const eEnd = parseTimeToMins(existing.endingTime);
 
-          // Overlap check: New schedule starts before existing ends AND ends after existing starts
           if (startTotalMin < eEnd && endTotalMin > eStart) {
             hasConflict = true;
             break;
@@ -102,14 +109,14 @@ function buildSeed(): ScheduleResponseDto[] {
 
     const scheduleId = (i + 1).toString();
     const groupIndex = i % groupNames.length;
+    const instituteIndex = i % institutes.length;
 
-    // Give every 3rd schedule a couple of panelists, rest none — mirrors the original mix
     const panelists =
       i % 3 === 0
         ? [
-            { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Adviser" },
-            { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Panelist" },
-          ]
+          { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Adviser" },
+          { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Panelist" },
+        ]
         : [];
 
     schedules.push({
@@ -127,6 +134,7 @@ function buildSeed(): ScheduleResponseDto[] {
         leaderId: `lead${i + 1}`,
         createdAt: "2023-01-01",
         updatedAt: "2023-01-01",
+        institute: institutes[instituteIndex],
       },
       panelists,
     });

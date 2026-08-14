@@ -20,6 +20,11 @@
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.33.2",
+   "pnpm": {
+    "overrides": {
+      "pdfjs-dist": "4.4.168"
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.7.0",
