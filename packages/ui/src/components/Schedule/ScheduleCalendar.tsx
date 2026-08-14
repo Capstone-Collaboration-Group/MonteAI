@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import type { ScheduleResponseDto } from "@monteai/types";
 import { DefenseCard } from "./DefenseCard";
 import { ScheduleDetailPanel } from "./ScheduleDetailPanel";
 import { layoutDaySchedules } from "./scheduleLayout";
+import { PageLayout, Select } from "../common";
+import { Button } from "../Button";
 
 type ViewType = "day" | "week" | "month";
 
@@ -19,13 +21,11 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleResponseDto | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>("");
 
-  // Extract unique room venues for the filter dropdown
   const availableRooms = useMemo(() => {
     const rooms = new Set(schedules.map((s) => s.roomVenue).filter(Boolean));
     return Array.from(rooms).sort();
   }, [schedules]);
 
-  // Filter schedules by selected room
   const filteredSchedules = useMemo(() => {
     if (!selectedRoom) return schedules;
     return schedules.filter((s) => s.roomVenue === selectedRoom);
@@ -62,17 +62,29 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
   };
 
   const dayLabels = ["MON", "TUE", "WED", "THU", "FRI"];
-  const hours = Array.from({ length: 9 }, (_, i) => {
-    const hour = 8 + i;
+  
+  // 1. Updated Time Formatting to drop the ":00" and leading zeros
+  const hours = Array.from({ length: 12 }, (_, i) => {
+    const hour = 7 + i;
     const ampm = hour >= 12 ? "PM" : "AM";
     const displayHour = hour > 12 ? hour - 12 : hour;
-    return `${displayHour.toString().padStart(2, "0")}:00 ${ampm}`;
+    return `${displayHour} ${ampm}`;
   });
 
+  const roomOptions = useMemo(() => {
+    return [
+      { label: "All Rooms", value: "" },
+      ...availableRooms.map((room) => ({
+        label: room,
+        value: room,
+      })),
+    ];
+  }, [availableRooms]);
+
   return (
-    <div className="flex h-screen w-full bg-surface-white overflow-hidden">
+    <PageLayout direction="row" className="w-full !bg-surface overflow-hidden">
       <main className="flex-1 flex flex-col">
-        <header className="flex items-center justify-between px-6 h-16 border-b border-outline-variant">
+        <header className="flex items-center justify-between px-6 h-16 border-b border-outline-variant bg-surface relative z-20">
           <div className="flex items-center gap-4">
             <h2 className="text-headline-sm font-headline-sm text-on-surface">Defense Schedule</h2>
             <div className="flex border border-outline-variant rounded-lg overflow-hidden">
@@ -80,52 +92,54 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-4 py-1.5 font-label-md text-label-md capitalize transition-colors ${
-                    view === v
+                  className={`px-4 py-1.5 font-label-md text-label-md capitalize transition-colors ${view === v
                       ? "bg-primary text-white"
                       : "bg-surface-container-high text-on-surface hover:bg-surface-container"
-                  }`}
+                    }`}
                 >
                   {v}
                 </button>
               ))}
             </div>
 
-            {/* Room Filter */}
-            <div className="relative">
-              <select
+            <div className="w-40"> 
+              <Select
+                options={roomOptions}
                 value={selectedRoom}
-                onChange={(e) => setSelectedRoom(e.target.value)}
-                className="appearance-none bg-surface-container-high border border-outline-variant rounded-lg pl-3 pr-8 py-1.5 text-label-md text-on-surface hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer transition-all"
-              >
-                <option value="">All Rooms</option>
-                {availableRooms.map((room) => (
-                  <option key={room} value={room}>
-                    {room}
-                  </option>
-                ))}
-              </select>
-              <ChevronRight className="w-3.5 h-3.5 text-on-surface-variant absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" />
+                onChange={setSelectedRoom}
+                className="bg-surface-container-high rounded-lg"
+              />
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-body-md font-body-md text-on-surface-variant">{dateRange}</span>
-            <button
+            <span className="text-body-md font-body-md text-on-surface-variant">
+              {dateRange}
+            </span>
+
+            <Button
+              variant="ghost"
               onClick={() => setCurrentDate(new Date())}
-              className="px-3 py-1.5 text-sm font-medium border border-outline-variant rounded-lg hover:bg-surface-container transition-colors"
+              className="!px-3 !py-1.5 text-sm border border-outline-variant"
             >
               Today
-            </button>
-            <div className="flex border border-outline-variant rounded-lg">
-              <button onClick={() => shiftWeek(-1)} className="p-1.5 hover:bg-surface-container transition-colors">
+            </Button>
+
+            <div className="flex border border-outline-variant rounded-lg overflow-hidden">
+              <Button
+                variant="ghost"
+                onClick={() => shiftWeek(-1)}
+                className="!p-1.5 !rounded-none"
+              >
                 <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
+              </Button>
+
+              <Button
+                variant="ghost"
                 onClick={() => shiftWeek(1)}
-                className="p-1.5 border-l border-outline-variant hover:bg-surface-container transition-colors"
+                className="!p-1.5 !rounded-none border-l border-outline-variant"
               >
                 <ChevronRight className="w-5 h-5" />
-              </button>
+              </Button>
             </div>
           </div>
         </header>
@@ -135,7 +149,7 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
             <p className="p-6 text-sm text-on-surface-variant">Loading schedule…</p>
           ) : (
             <>
-              <div className="schedule-grid border-b border-outline-variant sticky top-0 bg-surface-white z-10 text-center">
+              <div className="schedule-grid border-b border-outline-variant sticky top-0 bg-surface z-20 text-center">
                 <div className="p-4 border-r border-outline-variant" />
                 {dayLabels.map((day, idx) => {
                   const date = weekDates[idx];
@@ -155,31 +169,54 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
 
               <div className="relative">
                 <div className="schedule-grid">
-                  <div className="col-span-1 border-r border-outline-variant">
+                  
+                  {/* 2. TIME COLUMN: Outlook Style */}
+                  <div className="col-span-1 border-r border-outline-variant bg-surface z-10">
                     {hours.map((hour) => (
-                      <div key={hour} className="time-row flex items-center justify-center text-label-sm font-label-sm text-outline">
-                        {hour}
+                      <div key={hour} className="time-row relative border-t border-outline-variant/40 first:border-t-0">
+                        {/* Text pinned to top-right under the solid line */}
+                        <span className="absolute top-1 right-2 text-xs font-medium text-on-surface-variant">
+                          {hour}
+                        </span>
+                        {/* Faint dashed line at the 30-minute mark */}
+                        <div className="absolute top-[30px] w-full border-t border-dashed border-outline-variant/30" />
                       </div>
                     ))}
                   </div>
-                  <div className="col-span-5 grid grid-cols-5 h-[540px]">
-                    {Array.from({ length: 5 }).map((_, dayIdx) => {
-                      const laidOut = layoutDaySchedules(schedulesByDay(dayIdx));
-                      return (
-                        <div key={dayIdx} className="relative border-r border-outline-variant last:border-r-0">
-                          {laidOut.map(({ schedule, col, totalCols }) => (
-                            <DefenseCard
-                              key={schedule.scheduleId}
-                              schedule={schedule}
-                              isActive={selectedSchedule?.scheduleId === schedule.scheduleId}
-                              onClick={() => setSelectedSchedule(schedule)}
-                              col={col}
-                              totalCols={totalCols}
-                            />
-                          ))}
+
+                  {/* 3. CALENDAR GRID: Includes Background Grid Lines */}
+                  <div className="col-span-5 relative" style={{ height: `${hours.length * 60}px` }}>
+                    
+                    {/* Background lines spanning the whole grid */}
+                    <div className="absolute inset-0 z-0 flex flex-col pointer-events-none">
+                      {hours.map((_, i) => (
+                        <div key={i} className="h-[60px] w-full border-t border-outline-variant/40 first:border-t-0 relative">
+                          <div className="absolute top-[30px] w-full border-t border-dashed border-outline-variant/30" />
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
+
+                    {/* Foreground Columns & Cards */}
+                    <div className="absolute inset-0 z-10 grid grid-cols-5 h-full">
+                      {Array.from({ length: 5 }).map((_, dayIdx) => {
+                        const laidOut = layoutDaySchedules(schedulesByDay(dayIdx));
+                        return (
+                          <div key={dayIdx} className="relative border-r border-outline-variant last:border-r-0">
+                            {laidOut.map(({ schedule, col, totalCols }) => (
+                              <DefenseCard
+                                key={schedule.scheduleId}
+                                schedule={schedule}
+                                isActive={selectedSchedule?.scheduleId === schedule.scheduleId}
+                                onClick={() => setSelectedSchedule(schedule)}
+                                col={col}
+                                totalCols={totalCols}
+                              />
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+
                   </div>
                 </div>
               </div>
@@ -191,15 +228,13 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
       <ScheduleDetailPanel schedule={selectedSchedule} onClose={() => setSelectedSchedule(null)} />
 
       {onCreateNew && (
-        <button
+        <Button
           onClick={onCreateNew}
-          className="fixed bottom-8 right-8 w-14 h-14 bg-status-defense text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-50"
+          className="fixed bottom-8 right-8 z-50 flex h-14 w-14 items-center justify-center !p-0 !rounded-full !bg-status-defense text-white shadow-2xl !transition-all hover:scale-110"
         >
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
+          <Plus className="h-8 w-8" strokeWidth={2} />
+        </Button>
       )}
-    </div>
+    </PageLayout>
   );
 }
