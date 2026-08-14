@@ -14,7 +14,7 @@ import Announcements from "./renderer/pages/Announcements";
 import { queryClient, QueryClientProvider } from "@monteai/hooks";
 import Schedule from "./renderer/pages/Schedule";
 import  AppSidebar  from "@/renderer/components/AppSidebar";
-
+import ThesisViewer from "./renderer/pages/ThesisViewer";
 function NotFoundPage() {
   const navigate = useNavigate();
   return <NotFound onGoHome={() => navigate("/")} />;
@@ -37,7 +37,8 @@ const App = () => (
             <Route path="/panelist" element={<Panelist />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<NotFoundPage />} />
+            <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
+           <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
       </div>
