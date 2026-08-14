@@ -156,10 +156,28 @@ MonteAI.packages/
 
 
 ## MonteAI server
-```
 
+```
 MonteAI.server/
-├── Services/
+├── Configuration/
+│ 
+├── Controllers/        <--- All API Controllers
+│ 
+├── Data/               <--- AppDbContext
+│ 
+├── Mappings/           <--- Uses Automapper
+│ 
+├── Middleware/         <--- Firebase Auth and Role Authorization Middleware
+│ 
+├── Migrations/         <--- DB Migrations
+│ 
+├── Models/             
+│   ├── DTOs/
+│   └── Entites/
+│ 
+├── Repositories/       <--- Data Layer
+│  
+├── Services/           
 │   ├── Auth/
 │   │   └── FirebaseAuthService.cs
 │   ├── AI/
@@ -167,7 +185,9 @@ MonteAI.server/
 │   │   ├── AbstractIsolatorService.cs    ← moved to Electron
 │   │   ├── ChunkingService.cs            ← moved to Electron
 │   │   ├── PineconeUpsertService.cs      ← receives vectors[], upserts to Pinecone
-│   │   └── RagQueryService.cs             ← query pipeline unchanged
+│   │   └── RagQueryService.cs            ← query pipeline unchanged
+│   ├── Interfaces/
+│   │   └── IService.cs                   ← Interface
 │   ├── Thesis/
 │   │   ├── ThesisService.cs
 │   │   ├── SubmissionService.cs
