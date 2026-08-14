@@ -16,8 +16,7 @@
     "@monteai/hooks": "workspace:*",
     "@monteai/types": "workspace:*",
     "@monteai/utils": "workspace:*",
-    "react-pdf": "^10.4.1",
-    "react-pdf-highlighter": "8.0.0-rc.0",
+    "react-pdf": "^9.2.1",
     "sonner": "^2.0.7"
   },
   "peerDependencies": {
