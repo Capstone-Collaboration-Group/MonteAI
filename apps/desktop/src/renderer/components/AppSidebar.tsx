@@ -9,7 +9,8 @@ import { LayoutDashboard,
     Calendar,
     LogOut,
     Settings as SettingsIcon,
-     Megaphone} from "lucide-react";
+     Megaphone,
+     View} from "lucide-react";
 export default function AppSidebar() {
   return (
     <Sidebar>
@@ -82,6 +83,7 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
+       
       </Sidebar.Nav>
 
       <Sidebar.Footer>
