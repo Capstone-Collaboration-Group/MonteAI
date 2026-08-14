@@ -4,8 +4,11 @@ import { useApproveThesis } from "@/hooks/useApproveThesis";
 import { useRequestRevision } from "@/hooks/useRequestRevision";
 import { useRejectThesis } from "@/hooks/useRejectThesis"
 import { thesisService } from "../lib/thesisService";
+import { useNavigate } from "react-router-dom";
 
 export default function Theses() {
+
+    const navigate = useNavigate();
     const { mutate: approve } = useApproveThesis();
     const { mutate: revision } = useRequestRevision();
     const { mutate: reject } = useRejectThesis();
@@ -16,9 +19,10 @@ export default function Theses() {
         if (action === "revision") revision({ thesisId });
     };
 
-    return (
+     return (
         <ThesisCatalogPage
             thesisService={thesisService}
+            onViewDetails={(thesisId) => navigate(`/thesis/view/${thesisId}`)}
             onThesisAction={handleThesisAction}
         />
     );
