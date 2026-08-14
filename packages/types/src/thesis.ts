@@ -95,3 +95,42 @@ export interface IngestThesisResponseDto  {
   vectorCount: number;
   status: 'Indexed' | 'Failed';
 }
+
+export interface ThesisVersion { 
+  id: string;
+  thesisId: string;
+  versionNumber: number;
+  filePath: string;
+  uploadedById: string;
+  uploadedAt: string;
+  changeNote?: string;
+}
+
+export interface AnnotationResponseDto { 
+  id: string; 
+  thesisId: string;
+  thesisVersionId: string;
+  reviewerId: string;
+  comment: string;
+  highlightedText?: string;
+  positionJson: string;
+  pageNumber: number;
+  isResolved: boolean;
+  resolvedAt: string;
+  createdAt: string;
+  resolverNote?: string;
+}
+
+export interface CreateAnnotationDto {
+  thesisVersionId: string;
+  comment: string;
+  highlightedText?: string;
+  positionJson: string;
+  pageNumber: number;
+}
+
+export interface ResolveAnnotationDto { 
+  isResolved: boolean;
+  resolverNote?: string;
+}
+
