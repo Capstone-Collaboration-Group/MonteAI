@@ -8,3 +8,5 @@ export * from "./ThesisPDFViewerLayout";
 export * from "./AnnotationSidebar";
 export * from "./VersionSelector";
 export * from "./PDFHighlightViewer";
+
+export * from "./skeletons"

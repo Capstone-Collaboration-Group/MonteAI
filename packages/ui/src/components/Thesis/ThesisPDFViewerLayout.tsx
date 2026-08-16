@@ -14,6 +14,7 @@ import { PDFHighlightViewer } from "./PDFHighlightViewer";
 import { Button } from "../Button";
 import { PageLayout } from "../common";
 import "globals";
+import { ThesisPDFViewerSkeleton } from "./skeletons";
 
 interface ThesisPDFViewerLayoutProps {
   versions: ThesisVersion[];
@@ -111,9 +112,7 @@ export function ThesisPDFViewerLayout({
 
       {/* ── Body ── */}
       {isLoading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner className="h-8 w-8 text-[#16342B]" />
-        </div>
+        <ThesisPDFViewerSkeleton onBack={onBack}/>
       ) : !activeVersion ? (
         <div className="flex flex-1 items-center justify-center text-[#8A9089]">
           No thesis version available.

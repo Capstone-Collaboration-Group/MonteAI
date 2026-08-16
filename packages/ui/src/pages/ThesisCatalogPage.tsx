@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useTheses } from "@monteai/hooks";
 import type { ThesisService } from "@monteai/api";
 import { toThesisSummary } from "@monteai/types";
-import { ThesisCatalog } from "../components/Thesis";
+import { ThesisCatalog, ThesisCatalogSkeleton } from "../components/Thesis";
 
 interface ThesisCatalogPageProps {
   thesisService: ThesisService;
@@ -49,8 +49,8 @@ const { theses: rawTheses, isLoading } = result;
     };
   }, [theses]);
 
-  if (!featuredThesis) {
-    return null;
+  if (isLoading || !featuredThesis) {
+    return <ThesisCatalogSkeleton />;
   }
 
   return (
