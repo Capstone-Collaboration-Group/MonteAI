@@ -31,12 +31,13 @@ const App = () => (
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
+           <Route path="/schedule" element={<Schedule />} />
            <Route element={<AppLayout />}>
               <Route path="/home" element={<Home />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/thesis" element={<div>Thesis page</div>} />
               <Route path="/submit" element={<SubmitThesis />} />
-              <Route path="/schedule" element={<Schedule />} />
+             
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
 
