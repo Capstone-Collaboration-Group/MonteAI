@@ -5,8 +5,6 @@ import ChatPreview from "../components/ChatPreview";
 import Footer from "../components/Footer";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth } from "../lib/firebase";
-import Login  from "./Login";
 
 export default function LandingPage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);

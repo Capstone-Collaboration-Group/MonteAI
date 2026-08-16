@@ -17,7 +17,7 @@ export default function Navbar({ onLoginClick }: NavbarProps) {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-5 lg:px-10">
         <Link
           to="/"
-          className="[font-family:'Inter-Black',Helvetica] text-2xl font-black text-[#006400] transition hover:opacity-80"
+          className=" text-3xl font-black text-secondary transition hover:opacity-80"
         >
           MonteSkolar
         </Link>

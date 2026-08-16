@@ -43,7 +43,7 @@ function AppSidebar() {
           className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
         />
         <div>
-          <p className="text-[15px] font-medium leading-tight text-on-surface">
+          <p className="text-md font-bold leading-tight text-on-surface">
             MonteAI
           </p>
           <p className="text-[11px] leading-tight text-on-surface-variant">
