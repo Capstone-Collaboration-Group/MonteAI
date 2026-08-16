@@ -15,6 +15,8 @@ import type {
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
+const TEST_PDF = "https://arxiv.org/pdf/1708.08021";
+
 
 console.log("mockThesisService loaded — Initialized with seed data");
 
@@ -27,34 +29,34 @@ function buildTheses(): ThesisResponseDto[] {
             title: "Assessing Cloud-based Platforms for Self-Paced Skill Enhancement",
             status: "Published",
             authors: ["Charles Balaguer", "Angelica Buenaagua", "John Christian Joyo", "Reca Mae Montebon"],
-            submittedAt: "2023-01-15T00:00:00.000Z",
-            filePath: "https://arxiv.org/pdf/1708.08021",
-            updatedAt: "2023-01-15T00:00:00.000Z",
+            submittedAt: "2026-05-20T10:00:00.000Z",
+            reviewedAt:  "2026-06-06T13:00:00.000Z",
+            approvedAt:  "2026-06-15T15:00:00.000Z",
+            indexedAt:   "2026-06-15T15:00:00.000Z",
+            rejectedAt:  "",
+            updatedAt:   "2026-06-15T15:00:00.000Z",
+            filePath: TEST_PDF,
             uploadedById: "CharlesID",
             abstract: "Abstract Ngani",
-            approvedAt: "",
-            indexedAt: "",
             institute: "Institute of Computing Studies",
-            pineconeStatus: "None",
-            rejectedAt: "",
-            reviewedAt: "",
+            pineconeStatus: "Indexed",
         },
         {
             id: "t2",
             title: "AI-Driven Phishing & Social Engineering Detection",
             status: "Under Review",
             authors: ["Liyo Wang", "Jazon Williams Chang", "Jake Laurence Galgo"],
-            submittedAt: "2023-06-10T00:00:00.000Z",
-            filePath: "https://arxiv.org/pdf/1708.08021",
-            updatedAt: "2023-06-10T00:00:00.000Z",
+            submittedAt: "2026-05-24T11:00:00.000Z",
+            reviewedAt:  "2026-06-06T13:00:00.000Z",
+            approvedAt:  "",
+            indexedAt:   "",
+            rejectedAt:  "",
+            updatedAt:   "2026-06-06T13:00:00.000Z",
+            filePath: TEST_PDF,
             uploadedById: "LiyoID",
             abstract: "Abstract Ngani",
-            approvedAt: "",
-            indexedAt: "",
             institute: "Institute of Computing Studies",
             pineconeStatus: "None",
-            rejectedAt: "",
-            reviewedAt: "",
         },
     ];
 }
@@ -64,7 +66,6 @@ buildTheses().forEach((t) => thesesMap.set(t.id, t));
 
 
 // mockThesisService.ts
-const TEST_PDF = "https://arxiv.org/pdf/1708.08021";
 
 function buildVersions(): Map<string, ThesisVersion[]> {
     const map = new Map<string, ThesisVersion[]>();

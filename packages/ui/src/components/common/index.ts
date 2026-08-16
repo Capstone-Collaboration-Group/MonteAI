@@ -7,6 +7,7 @@ export * from "./DataTable";
 export * from "./EmptySearch";
 export * from "./EmptyState";
 export * from "./ErrorState";
+export * from "./Hamburger"
 export * from "./Alert";
 export * from "./Notification";
 export * from "./Pagination";
@@ -25,5 +26,4 @@ export * from "./Timeline";
 export * from "./Tooltip";
 export * from "./StatusBadge";
 export * from "./StatusPill";
-export * from "./StatCardGrid"
-
+export * from "./StatCardGrid";

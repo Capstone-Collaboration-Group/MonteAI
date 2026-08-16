@@ -6,6 +6,7 @@ import type {
   AnnotationResponseDto,
   CreateAnnotationDto,
   ResolveAnnotationDto,
+  ThesisResponseDto,
 } from "@monteai/types";
 import { Spinner } from "../common/Spinner";
 import { AnnotationSidebar } from "./AnnotationSidebar";
@@ -15,8 +16,11 @@ import { Button } from "../Button";
 import { PageLayout } from "../common";
 import "globals";
 import { ThesisPDFViewerSkeleton } from "./skeletons";
-
+import { ViewerRole } from "../../pages/ThesisPDFViewer";
+import { ThesisStatusTimeline } from "../Thesis/ThesisStatusTime"
 interface ThesisPDFViewerLayoutProps {
+  thesis: ThesisResponseDto |  null;
+  role: ViewerRole;
   versions: ThesisVersion[];
   activeVersion: ThesisVersion | null;
   annotations: AnnotationResponseDto[];
@@ -36,6 +40,8 @@ interface ThesisPDFViewerLayoutProps {
 }
 
 export function ThesisPDFViewerLayout({
+  thesis,
+  role,
   versions,
   activeVersion,
   annotations,
@@ -55,7 +61,7 @@ export function ThesisPDFViewerLayout({
 }: ThesisPDFViewerLayoutProps) {
   // currentPage lives here so both sidebar and PDF viewer can read/write it
   const [currentPage, setCurrentPage] = useState(1);
-
+  const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   return (
     <PageLayout>
       {/* ── Top Bar ── */}
@@ -119,6 +125,16 @@ export function ThesisPDFViewerLayout({
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
+
+          {thesis && (
+            <ThesisStatusTimeline
+              thesis={thesis}
+              role={role}
+              isCollapsed={timelineCollapsed}
+              onToggle={() => setTimelineCollapsed((p) => !p)}
+            /> 
+
+          )}
           <main className="flex-1 overflow-hidden">
             <PDFHighlightViewer
               fileUrl={activeVersion.filePath}

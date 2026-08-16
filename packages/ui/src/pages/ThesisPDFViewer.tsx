@@ -9,8 +9,10 @@ import {
   useResolveAnnotation,
   useDeleteAnnotation,
   useGenerateProceedings,
+  useThesis,
 } from "@monteai/hooks";
 import { ThesisPDFViewerLayout } from "../components/Thesis";
+
 
 export type ViewerRole = "adviser" | "program_head" | "student";
 
@@ -33,6 +35,8 @@ export function ThesisPDFViewerPage({
 
   const canAnnotate = ANNOTATOR_ROLES.includes(role);
 
+  const { thesis } = useThesis(thesisService, thesisId);
+ 
   const { versions, latestVersion, isLoading: versionsLoading } = useThesisVersions(
     thesisService,
     thesisId
@@ -82,6 +86,8 @@ export function ThesisPDFViewerPage({
 
   return (
     <ThesisPDFViewerLayout
+      thesis={thesis ?? null}
+      role={role}
       versions={versions}
       activeVersion={activeVersion ?? null}
       annotations={annotations}

@@ -176,3 +176,17 @@ export function useGenerateProceedings(thesisService: ThesisService) {
         },
     });
 }
+
+// fetching thesis timeline
+export function useThesis(thesisService: ThesisService, thesisId: string) { 
+    const query = useQuery({ 
+        queryKey: thesesKeys.detail(thesisId),
+        queryFn: () => thesisService.getThesis(thesisId),
+        enabled: !!thesisId,
+    });
+
+    return {
+        ...query,
+        thesis: query.data ?? null,
+    };
+}
