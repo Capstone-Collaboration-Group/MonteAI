@@ -12,6 +12,7 @@ import Schedule from "./pages/Schedule";
 import Register from "./pages/Register";
 import SubmitThesis from "./pages/SubmitThesis";
 import Login from "./pages/Login";
+import Announcements from "./pages/Announcements";
 import ThesisViewer from "./pages/ThesisViewer";
 
 function NotFoundPage() {
@@ -23,28 +24,25 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider auth={auth}>
       <Toaster />
-      <BrowserRouter>
-        <Routes>
-          {/* Public — no sidebar */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
-           <Route path="/schedule" element={<Schedule />} />
-           <Route element={<AppLayout />}>
-              <Route path="/home" element={<Home />} />
-              <Route path="/chat" element={<Chat />} />
-              <Route path="/thesis" element={<div>Thesis page</div>} />
-              <Route path="/submit" element={<SubmitThesis />} />
-             
-              <Route path="/settings" element={<SettingsPage />} />
-            </Route>
+    <BrowserRouter>
+      <Routes>
+        {/* Public — no sidebar */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+          <Route path="/announcements" element={<Announcements />} />
 
-          {/* Authenticated — sidebar layout, gated by Firebase auth state */}
-          <Route element={<ProtectedRoute />}>
-           
+        {/* Authenticated — sidebar layout, gated by Firebase auth state */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="/home" element={<Home />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/thesis" element={<div>Thesis page</div>} />
+            <Route path="/submit" element={<SubmitThesis />} />
+            <Route path="/schedule" element={<Schedule />} />
           </Route>
+        </Route>
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

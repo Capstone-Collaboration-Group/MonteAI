@@ -95,6 +95,11 @@ function AppSidebar() {
             />
           )}
         </NavLink>
+        <NavLink to="/announcements">
+          {({ isActive }) => (
+            <Sidebar.Item icon={<Search className="h-4 w-4" />} label="Announcements" active={isActive} />
+          )}
+        </NavLink>
       </Sidebar.Nav>
 
       <Sidebar.SidebarSectionLabel>Recents</Sidebar.SidebarSectionLabel>
