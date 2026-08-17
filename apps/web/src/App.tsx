@@ -13,6 +13,7 @@ import Schedule from "./pages/Schedule";
 import Register from "./pages/Register";
 import SubmitThesis from "./pages/SubmitThesis";
 import Login from "./pages/Login";
+import Announcements from "./pages/Announcements";
 
 
 function NotFoundPage() {
@@ -31,6 +32,7 @@ const App = () => (
         <Route path="/about" element={<About />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/announcements" element={<Announcements />} />
         
 
         {/* Authenticated — sidebar layout, gated by Firebase auth state */}
