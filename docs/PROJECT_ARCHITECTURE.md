@@ -804,27 +804,29 @@ https://api.monteai.edu.ph/api/v1
 
 ### 8.2 Endpoint Summary
 
-#### Authentication
+#### Admin
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/admin` | Retrieve all administrators | Admin |
+| GET | `/admin/{id}` | Retrieve an administrator by ID | Admin |
+| PATCH | `/admin/update/{id}` | Update administrator information | Admin |
+| DELETE | `/admin/delete/{id}` | Delete an administrator by ID | Admin |
+
+#### Announcement
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/announcement` | Retrieve all announcements | Student, Faculty, Admin |
+| GET | `/announcement/{id}` | Retrieve an announcement by ID | Student, Faculty, Admin |
+| POST | `/announcement/create` | Create a new announcement | Admin |
+| PATCH | `/announcement/update/{id}` | Update an existing announcement | Admin |
+| DELETE | `/announcement/delete/{id}` | Delete an announcement by ID | Admin |
+
+#### Authentication 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/auth/login` | Exchange Firebase token for app JWT | Public |
 | POST | `/auth/register` | Create user profile post-Firebase signup | Public |
-| POST | `/auth/refresh` | Refresh app JWT | Authenticated |
-
-#### Thesis Management
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| POST | `/theses` | Upload and submit a thesis PDF | Student |
-| GET | `/theses` | List all theses (paginated) | All authenticated |
-| GET | `/theses/{id}` | Get thesis detail | All authenticated |
-| PATCH | `/theses/{id}/status` | Update thesis status | Admin |
-| DELETE | `/theses/{id}` | Delete thesis | Admin |
-
-#### Search & Discovery
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| GET | `/search?q={query}` | Semantic search via Pinecone | All authenticated |
-| GET | `/search/filter` | Filter by author, date, status | All authenticated |
+| GET | `/auth/me` | Refresh app JWT | Authenticated |
 
 #### Chat
 | Method | Endpoint | Description | Access |
@@ -833,7 +835,94 @@ https://api.monteai.edu.ph/api/v1
 | GET | `/chat/sessions` | List user's chat sessions | Student, Faculty, Admin |
 | GET | `/chat/sessions/{id}` | Get session with messages | Student, Faculty, Admin |
 | POST | `/chat/sessions/{id}/messages` | Send message, stream response (SSE) | Student, Faculty, Admin |
+| PUT | `/chat/sessions/{id}/update` | Update chat session information | Owner |
 | DELETE | `/chat/sessions/{id}/delete` | Delete a session | Owner |
+
+
+
+#### Faculty Management
+| Method| | Endpoint | Description | Access |
+|---------|----------|-------------|--------|
+| GET | `/faculty` | List all faculty staffs | Admin |
+| GET | `/faculty/{id}` | Get faculty details | Admin |
+| PATCH | `/faculty/update/{id}` | Assign faculty as panelist | Admin |
+| DELETE | `/faculty/delete/{id}` | Revoke Panelist Permission | Admin | 
+
+#### Panelist Schedule
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/panelistschedule` | Retrieve all panelist schedules | Admin |
+| GET | `/panelistschedule/{scheduleId}` | Retrieve a panelist schedule by schedule ID and panelist ID | Faculty, Admin |
+| POST | `/panelistschedule/create` | Create a new panelist schedule | Admin |
+| PATCH | `/panelistschedule/update/{scheduleId}` | Update an existing panelist schedule | Admin |
+| DELETE | `/panelistschedule/delete/{scheduleId}&{panelistId}` | Delete a panelist schedule by schedule ID and panelist ID | Admin |
+
+#### Program Head
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/programhead` | Retrieve all program heads | Admin |
+| GET | `/programhead/{id}` | Retrieve a program head by ID | Faculty |
+| POST | `/programhead/create` | Create a new program head | Admin |
+| POST | `/programhead/update/{id}` | Update program head information | Admin |
+| POST | `/programhead/delete/{id}` | Delete a program head by ID | Admin |
+
+#### Research Group
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/researchgroup` | Retrieve all research groups | Faculty, Admin |
+| GET | `/researchgroup/{id}` | Retrieve a research group by ID | Faculty, Admin |
+| POST | `/researchgroup/create` | Create a new research group | Admin |
+| PATCH | `/researchgroup/update/{id}` | Update research group information | Admin |
+| DELETE | `/researchgroup/delete/{id}` | Delete a research group by ID | Admin |
+
+#### Review Workflow
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/review` | Assign faculty reviewer to thesis | Admin |
+| GET | `/review/{id}` | Get reviews assigned to current faculty | Faculty, Admin |
+| POST | `/review/create` | Submit a review decision | Faculty, Admin |
+| PATCH | `/review/update/{id}` | Update the review decision | Faculty |
+| DELETE | `/review/delete/{id}` | Delete a review by ID | Faculty, Admin |
+
+#### Schedule
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/schedule` | Retrieve all schedules | Admin |
+| GET | `/schedule/{id}` | Retrieve a schedule by ID | Student, Faculty, Admin |
+| POST | `/schedule/create` | Create a new schedule | Faculty, Admin |
+| PATCH | `/schedule/update/{id}` | Update schedule information | Faculty, Admin |
+| DELETE | `/schedule/delete/{id}` | Delete a schedule by ID | Faculty, Admin |
+
+
+#### Submission Management 
+| Method | Endpoint | Description | Access |
+|---------|----------|-------------|--------|
+| GET | `/submission` | List all submissions | Admin | 
+| GET | `/submission/{studentNumber}/{thesisId}` | List all Submissions | Student, Admin, Faculty, ProgramHead | 
+| GET | `/submission/{id}` | Get submission details | Admin, Student, Faculty, ProgramHead | 
+| POST | `/submission/create` | Create Submission | Student | 
+| PUT | `/submission/update/{id}` | Update Submission detail (esp. Notes) | Student
+| DELETE | `/submission/delete/{id}`| Delete Submission entry | Admin, Student |
+
+#### Thesis Management
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/thesis` | List all theses (paginated) | All authenticated |
+| GET | `/thesis/{id}` | Get thesis detail | All authenticated |
+| POST | `/thesis/submit` | Upload and submit a thesis PDF | Student |
+| POST | `/thesis/ingest` | Ingest an approved thesis into the MonteAI knowledge base using Pinecone | Admin |
+| PUT | `/thesis/update/details/{id}` | Update the details of a thesis by ID | Student |
+| PATCH | `/thesis/update/status/{id}` | Update thesis status | Admin |
+| DELETE | `/thesis/delete/{id}` | Delete thesis | Admin |
+| GET | `/thesis/{id}/download-url` | Generate and retrieve a download URL for a thesis file | Student |
+
+#### Search & Discovery
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/search?q={query}` | Semantic search via Pinecone | All authenticated |
+| GET | `/search/filter` | Filter by author, date, status | All authenticated |
+
+
 
 #### User Management
 | Method | Endpoint | Description | Access |
@@ -843,13 +932,7 @@ https://api.monteai.edu.ph/api/v1
 | PATCH | `/users/{id}/update` | Update User Info | Admin |
 | DELETE | `/users/{id}/delete` | Delete User  | Admin |
 
-#### Faculty Management
-| Method| | Endpoint | Description | Access |
-|---------|----------|-------------|--------|
-| GET | `/faculties` | List all faculty staffs | Admin
-| GET | `/faculties/{id}` | Get faculty details | Admin |
-| PATCH | `/faculties/{id}/assign` | Assign faculty as panelist | Admin |
-| DELETE | `/faculties/{id}/revoke` | Revoke Panelist Permission | Admin | 
+
 
 #### Students Management 
 | Method | Endpoint | Description | Access |
@@ -859,22 +942,9 @@ https://api.monteai.edu.ph/api/v1
 | PATCH | `/students/{id}` | Update user credential | Student
 | DELETE | `/students{id}`| Delete user account | Admin, Student |
 
-#### Submission Management 
-| Method | Endpoint | Description | Access |
-|---------|----------|-------------|--------|
-| GET | `/submission` | List all submissions | Admin | 
-| GET | `/submission/{studentNumber}/{thesisId}` | List all Submissions | Student, Admin, Faculty, ProgramHead | 
-| GET | `/submission/{id}` | Get submission details | Admin, Student, Faculty, ProgramHead | 
-| POST | `/submission/create` | Create Submission | Student | 
-| PATCH | `/submission/update/{id}` | Update Submission detail (esp. Notes) | Student
-| DELETE | `/submission/delete/{id}`| Delete Submission entry | Admin, Student |
 
-#### Review Workflow
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| POST | `/reviews/assign` | Assign faculty reviewer to thesis | Admin |
-| GET | `/reviews/my` | Get reviews assigned to current faculty | Faculty |
-| POST | `/reviews/{thesisId}` | Submit a review decision | Faculty |
+
+
 
 ### 8.3 Authentication Flow
 
