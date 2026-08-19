@@ -147,6 +147,7 @@ export function AnnouncementsPanel({ role, userInstitute }: AnnouncementsPanelPr
 
         {(listPermissions.canCreate || listPermissions.canEdit) && (
           <PostAnnouncementPanel
+          key={`${isPostAnnouncementOpen}-${editingAnnouncement?.subject ?? "new"}`}
             open={isPostAnnouncementOpen}
             initialValues={
               editingAnnouncement
@@ -282,6 +283,7 @@ export function AnnouncementsPanel({ role, userInstitute }: AnnouncementsPanelPr
 
       {(listPermissions.canCreate || listPermissions.canEdit) && (
         <PostAnnouncementPanel
+        key={`${isPostAnnouncementOpen}-${editingAnnouncement?.subject ?? "new"}`}
           open={isPostAnnouncementOpen}
           initialValues={
             editingAnnouncement
