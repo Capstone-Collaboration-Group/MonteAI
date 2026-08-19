@@ -1,7 +1,8 @@
 // packages/ui/src/components/Chat/ChatView.tsx
 import { useRef, useEffect } from "react";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import type { ChatMessageResponseDto } from "@monteai/types";
+import { ChatMessageSkeleton } from "./skeletons";
 
 export interface ChatViewProps {
   messages: ChatMessageResponseDto[];
@@ -48,12 +49,7 @@ export function ChatView({
             </div>
           ))}
 
-          {isSending && (
-            <div className="mr-auto flex items-center gap-2 text-xs text-on-surface-variant">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              MonteAI is thinking...
-            </div>
-          )}
+          {isSending && <ChatMessageSkeleton />}
 
           <div ref={bottomRef} />
         </div>
@@ -61,7 +57,10 @@ export function ChatView({
 
       {/* ── Input bar ── */}
       <form
-        onSubmit={(e) => { e.preventDefault(); onSend(); }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSend();
+        }}
         className="border-t border-outline-variant bg-surface-container-low px-6 py-4"
       >
         <div className="relative mx-auto max-w-2xl">

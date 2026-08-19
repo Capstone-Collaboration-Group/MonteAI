@@ -4,7 +4,6 @@ import {
   PageHeader,
   Badge,
   EmptyState,
-  Spinner,
   Avatar,
   StatCardGrid,
   type StatCardItem,
@@ -24,6 +23,7 @@ import type {
 } from "@monteai/types";
 import { fullNameHelper } from "@monteai/utils";
 import { PanelistDetailPanel } from "./PanelistDetailPanel";
+import { PanelistViewSkeleton } from "./skeletons";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,7 +89,9 @@ function panelistColumns(): DataTableColumn<PanelistRow>[] {
       label: "Status",
       render: (row) => (
         <Badge variant={row.isAssigned ? "defense" : "critical"} dot size="sm">
-          {row.isAssigned ? `Assigned (${row.assignments.length})` : "Unassigned"}
+          {row.isAssigned
+            ? `Assigned (${row.assignments.length})`
+            : "Unassigned"}
         </Badge>
       ),
     },
@@ -105,9 +107,13 @@ export function PanelistView({
   hasError = false,
   onCreateNew,
 }: PanelistViewProps) {
+  if (isLoading) {
+    return <PanelistViewSkeleton />;
+  }
+
   const [activeTab, setActiveTab] = useState<Tab>("assigned");
-  const [search, setSearch]       = useState("");
-  const [selected, setSelected]   = useState<PanelistResponseDto | null>(null);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<PanelistResponseDto | null>(null);
 
   // ── Lookup map — mirrors ScheduleCalendar's panelistsById pattern ──────────
   const schedulesById = useMemo(() => {
@@ -120,21 +126,32 @@ export function PanelistView({
   const allRows = useMemo<PanelistRow[]>(
     () =>
       panelists.map((p) => ({
-        id:           p.id,
-        name:         fullNameHelper(p.firstName, p.middleInitial, p.lastName, p.suffix),
-        email:        p.email,
-        role:         p.role,
-        institute:    p.institute ?? "",
+        id: p.id,
+        name: fullNameHelper(
+          p.firstName,
+          p.middleInitial,
+          p.lastName,
+          p.suffix,
+        ),
+        email: p.email,
+        role: p.role,
+        institute: p.institute ?? "",
         panelistType: p.panelistType,
-        assignments:  p.assignments,
-        isAssigned:   p.isAssigned,
-        _raw:         p,
+        assignments: p.assignments,
+        isAssigned: p.isAssigned,
+        _raw: p,
       })),
-    [panelists]
+    [panelists],
   );
 
-  const assignedRows   = useMemo(() => allRows.filter((r) => r.isAssigned),  [allRows]);
-  const unassignedRows = useMemo(() => allRows.filter((r) => !r.isAssigned), [allRows]);
+  const assignedRows = useMemo(
+    () => allRows.filter((r) => r.isAssigned),
+    [allRows],
+  );
+  const unassignedRows = useMemo(
+    () => allRows.filter((r) => !r.isAssigned),
+    [allRows],
+  );
 
   // ── Search ─────────────────────────────────────────────────────────────────
   const filteredRows = useMemo<PanelistRow[]>(() => {
@@ -147,25 +164,40 @@ export function PanelistView({
         r.email.toLowerCase().includes(q) ||
         r.institute.toLowerCase().includes(q) ||
         r.role.toLowerCase().includes(q) ||
-        r.assignments.some((a) => a.groupName.toLowerCase().includes(q))
+        r.assignments.some((a) => a.groupName.toLowerCase().includes(q)),
     );
   }, [activeTab, assignedRows, unassignedRows, search]);
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const stats: StatCardItem[] = [
-    { icon: Users,       label: "Total Panelists",      value: panelists.length,      accent: "bg-primary/10 text-primary" },
-    { icon: CheckCircle, label: "Assigned Panelists",   value: assignedRows.length,   accent: "bg-status-approved/10 text-status-approved" },
-    { icon: Clock,       label: "Unassigned Panelists", value: unassignedRows.length, accent: "bg-blue-100 text-blue-700" },
+    {
+      icon: Users,
+      label: "Total Panelists",
+      value: panelists.length,
+      accent: "bg-primary/10 text-primary",
+    },
+    {
+      icon: CheckCircle,
+      label: "Assigned Panelists",
+      value: assignedRows.length,
+      accent: "bg-status-approved/10 text-status-approved",
+    },
+    {
+      icon: Clock,
+      label: "Unassigned Panelists",
+      value: unassignedRows.length,
+      accent: "bg-blue-100 text-blue-700",
+    },
   ];
 
-  const columns  = panelistColumns();
-  const tabLabel = activeTab === "assigned" ? "panelist" : "unassigned panelist";
+  const columns = panelistColumns();
+  const tabLabel =
+    activeTab === "assigned" ? "panelist" : "unassigned panelist";
 
   return (
     <PageLayout direction="row" className="overflow-hidden">
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
-
           {/* ── Page header ───────────────────────────────────────────────── */}
           <PageHeader
             eyebrow="People management"
@@ -176,7 +208,9 @@ export function PanelistView({
                   <Input
                     placeholder="Search by name, email, or institute…"
                     value={search}
-                    onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
+                    onChange={(e) =>
+                      setSearch((e.target as HTMLInputElement).value)
+                    }
                     className="rounded-full border-outline-variant bg-surface-container-low"
                   />
                 </div>
@@ -200,13 +234,24 @@ export function PanelistView({
           <Tabs
             value={activeTab}
             variant="pills"
-            onValueChange={(val) => { setActiveTab(val as Tab); setSearch(""); }}
+            onValueChange={(val) => {
+              setActiveTab(val as Tab);
+              setSearch("");
+            }}
           >
             <TabsList>
-              <TabsTrigger value="assigned" icon={CheckCircle} badge={assignedRows.length}>
+              <TabsTrigger
+                value="assigned"
+                icon={CheckCircle}
+                badge={assignedRows.length}
+              >
                 Assigned
               </TabsTrigger>
-              <TabsTrigger value="unassigned" icon={Clock} badge={unassignedRows.length}>
+              <TabsTrigger
+                value="unassigned"
+                icon={Clock}
+                badge={unassignedRows.length}
+              >
                 Unassigned
               </TabsTrigger>
             </TabsList>
@@ -214,12 +259,13 @@ export function PanelistView({
 
           {/* ── Table card ────────────────────────────────────────────────── */}
           <Card className="overflow-hidden p-0">
-
             {/* Meta bar */}
             <div className="flex flex-col gap-3 border-b border-outline-variant/60 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-on-surface">
-                  {activeTab === "assigned" ? "Assigned Panelists" : "Unassigned Panelists"}
+                  {activeTab === "assigned"
+                    ? "Assigned Panelists"
+                    : "Unassigned Panelists"}
                 </h3>
                 <p className="text-sm text-on-surface-variant">
                   {activeTab === "assigned"
@@ -229,19 +275,14 @@ export function PanelistView({
               </div>
               {search && (
                 <p className="text-xs text-on-surface-variant">
-                  Showing {filteredRows.length} result{filteredRows.length !== 1 ? "s" : ""} for{" "}
+                  Showing {filteredRows.length} result
+                  {filteredRows.length !== 1 ? "s" : ""} for{" "}
                   <span className="font-semibold text-primary">"{search}"</span>
                 </p>
               )}
             </div>
 
             {/* Loading */}
-            {isLoading && (
-              <div className="flex items-center justify-center py-20">
-                <Spinner size="lg" label="Loading panelists…" />
-              </div>
-            )}
-
             {/* Error */}
             {!isLoading && hasError && (
               <div className="p-8">
