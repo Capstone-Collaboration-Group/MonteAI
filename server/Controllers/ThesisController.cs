@@ -42,6 +42,9 @@ namespace server.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> SubmitThesis([FromForm] SubmitThesisDto dto)
         {
+            if (dto.File == null)
+                return BadRequest("File is required");
+
             await using var stream = dto.File.OpenReadStream();
 
             var blobUrl = await _blobService.UploadAsync(

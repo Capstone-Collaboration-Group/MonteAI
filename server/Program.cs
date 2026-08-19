@@ -23,6 +23,7 @@ using server.Middleware;
 using server.Services;
 using server.Services.AI;
 using server.Services.Interfaces;
+using server.Services.Theses;
 
 
 Log.Logger = new LoggerConfiguration()
