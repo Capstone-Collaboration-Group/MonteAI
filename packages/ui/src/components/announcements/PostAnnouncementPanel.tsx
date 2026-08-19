@@ -1,5 +1,5 @@
 import { ChevronDown, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "../Button";
 import { Dropdown } from "../common/Dropdown";
 import { DropdownItem } from "../common/DropdownItem";
@@ -46,40 +46,24 @@ const BLANK = {
 };
 
 export function PostAnnouncementPanel({ open, initialValues, onClose, onSubmit }: PostAnnouncementPanelProps) {
-  const [subject, setSubject] = useState(BLANK.subject);
-  const [date, setDate] = useState(getTodayString());
-  const [author, setAuthor] = useState(BLANK.author);
-  const [category, setCategory] = useState(BLANK.category);
-  const [institute, setInstitute] = useState<Institute | "">(BLANK.institute);
-  const [instituteOpen, setInstituteOpen] = useState(false);
-  const [priority, setPriority] = useState<Priority>(BLANK.priority);
-  const [body, setBody] = useState(BLANK.body);
+  const [subject, setSubject] = useState(initialValues?.subject ?? BLANK.subject);
+const [date, setDate] = useState(initialValues?.date ?? getTodayString());
+const [author, setAuthor] = useState(initialValues?.author ?? BLANK.author);
+const [category, setCategory] = useState(initialValues?.category ?? BLANK.category);
+const [institute, setInstitute] = useState<Institute | "">(
+  initialValues?.institute ?? BLANK.institute
+);
+const [instituteOpen, setInstituteOpen] = useState(false);
+const [priority, setPriority] = useState<Priority>(
+  initialValues?.priority ?? BLANK.priority
+);
+const [body, setBody] = useState(initialValues?.body ?? BLANK.body);
 
   const isEditing = Boolean(initialValues);
 
   // Whenever the panel opens, load either the announcement being edited
   // or a blank form for creating a new one.
-  useEffect(() => {
-    if (!open) return;
-
-    if (initialValues) {
-      setSubject(initialValues.subject);
-      setDate(initialValues.date);
-      setAuthor(initialValues.author);
-      setCategory(initialValues.category);
-      setInstitute(initialValues.institute);
-      setPriority(initialValues.priority);
-      setBody(initialValues.body);
-    } else {
-      setSubject(BLANK.subject);
-      setDate(getTodayString());
-      setAuthor(BLANK.author);
-      setCategory(BLANK.category);
-      setInstitute(BLANK.institute);
-      setPriority(BLANK.priority);
-      setBody(BLANK.body);
-    }
-  }, [open, initialValues]);
+  
 
   const handleSubmit = () => {
     if (!institute) return;

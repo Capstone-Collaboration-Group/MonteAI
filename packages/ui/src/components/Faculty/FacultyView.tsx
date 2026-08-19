@@ -164,30 +164,10 @@ export function FacultyView({
   const activePH = programHeads.filter((ph) => ph.isActive !== false).length;
 
   const stats: StatCardItem[] = [
-    {
-      icon: Users,
-      label: "Total Faculty",
-      value: faculties.length,
-      accent: "bg-primary/10 text-primary",
-    },
-    {
-      icon: Users,
-      label: "Active Faculty",
-      value: activeFaculty,
-      accent: "bg-status-approved/10 text-status-approved",
-    },
-    {
-      icon: GraduationCap,
-      label: "Program Heads",
-      value: programHeads.length,
-      accent: "bg-blue-100 text-blue-700",
-    },
-    {
-      icon: GraduationCap,
-      label: "Active Program Heads",
-      value: activePH,
-      accent: "bg-secondary-container/40 text-on-secondary",
-    },
+    { icon: Users,         label: "Total Faculty",       value: faculties.length,    accent: "bg-primary/10 text-primary" },
+    { icon: Users,         label: "Active Faculty",       value: activeFaculty,       accent: "bg-status-approved/10 text-status-approved" },
+    { icon: GraduationCap, label: "Program Heads",        value: programHeads.length, accent: "bg-blue-100 text-blue-700" },
+    { icon: GraduationCap, label: "Active Program Heads", value: activePH,            accent: "bg-green-100 text-green-700" },
   ];
 
   const columns = memberColumns(
