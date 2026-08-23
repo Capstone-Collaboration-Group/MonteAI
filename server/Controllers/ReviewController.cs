@@ -1,8 +1,6 @@
 ﻿using System;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using server.Models.DTOs.Review;
-using server.Models.DTOs.User;
 using server.Services.Interfaces;
     
 namespace server.Controllers 

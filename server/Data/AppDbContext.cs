@@ -22,6 +22,7 @@ namespace server.Data
 
         public DbSet<Announcement> Announcements { get; set; }
 
+        public DbSet<ThesisVersion> ThesisVersions { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -151,6 +152,29 @@ namespace server.Data
                       .WithOne(s => s.Thesis)
                       .HasForeignKey(s => s.ThesisId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ThesisVersion>(entity =>
+            {
+                entity.ToTable("ThesisVersions");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id)
+                      .HasDefaultValueSql("NEWID()");
+
+                entity.Property(e => e.VersionNumber)
+                      .IsRequired();
+                entity.Property(e => e.FilePath)
+                      .IsRequired()
+                      .HasMaxLength(2048);
+
+                entity.Property(e => e.UploadedAt)
+                      .IsRequired()
+                      .HasDefaultValueSql("GETUTCDATE()");
+                entity.HasOne(e => e.Thesis)
+                      .WithMany()
+                      .HasForeignKey(e => e.ThesisId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
             });
 
             modelBuilder.Entity<Submission>(entity =>
