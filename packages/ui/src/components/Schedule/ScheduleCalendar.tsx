@@ -6,6 +6,7 @@ import { ScheduleDetailPanel } from "./ScheduleDetailPanel";
 import { layoutDaySchedules } from "./scheduleLayout";
 import { PageLayout, Select } from "../common";
 import { Button } from "../Button";
+import { ScheduleCalendarSkeleton } from "./skeletons";
 
 type ViewType = "day" | "week" | "month";
 
@@ -15,10 +16,19 @@ interface ScheduleCalendarProps {
   onCreateNew?: () => void;
 }
 
-export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: ScheduleCalendarProps) {
+export function ScheduleCalendar({
+  schedules,
+  isLoading,
+  onCreateNew,
+}: ScheduleCalendarProps) {
+  if (isLoading) {
+    return <ScheduleCalendarSkeleton />;
+  }
+
   const [view, setView] = useState<ViewType>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleResponseDto | null>(null);
+  const [selectedSchedule, setSelectedSchedule] =
+    useState<ScheduleResponseDto | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>("");
 
   const availableRooms = useMemo(() => {
@@ -52,7 +62,9 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
 
   const schedulesByDay = (dayIndex: number) => {
     const dayDate = weekDates[dayIndex];
-    return filteredSchedules.filter((s) => new Date(s.date).toDateString() === dayDate.toDateString());
+    return filteredSchedules.filter(
+      (s) => new Date(s.date).toDateString() === dayDate.toDateString(),
+    );
   };
 
   const shiftWeek = (delta: number) => {
@@ -62,7 +74,7 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
   };
 
   const dayLabels = ["MON", "TUE", "WED", "THU", "FRI"];
-  
+
   // 1. Updated Time Formatting to drop the ":00" and leading zeros
   const hours = Array.from({ length: 12 }, (_, i) => {
     const hour = 7 + i;
@@ -86,23 +98,26 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
       <main className="flex-1 flex flex-col">
         <header className="flex items-center justify-between px-6 h-16 border-b border-outline-variant bg-surface relative z-20">
           <div className="flex items-center gap-4">
-            <h2 className="text-headline-sm font-headline-sm text-on-surface">Defense Schedule</h2>
+            <h2 className="text-headline-sm font-headline-sm text-on-surface">
+              Defense Schedule
+            </h2>
             <div className="flex border border-outline-variant rounded-lg overflow-hidden">
               {(["day", "week", "month"] as ViewType[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-4 py-1.5 font-label-md text-label-md capitalize transition-colors ${view === v
+                  className={`px-4 py-1.5 font-label-md text-label-md capitalize transition-colors ${
+                    view === v
                       ? "bg-primary text-white"
                       : "bg-surface-container-high text-on-surface hover:bg-surface-container"
-                    }`}
+                  }`}
                 >
                   {v}
                 </button>
               ))}
             </div>
 
-            <div className="w-40"> 
+            <div className="w-40">
               <Select
                 options={roomOptions}
                 value={selectedRoom}
@@ -145,21 +160,27 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
         </header>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-          {isLoading ? (
-            <p className="p-6 text-sm text-on-surface-variant">Loading schedule…</p>
-          ) : (
+          {
             <>
               <div className="schedule-grid border-b border-outline-variant sticky top-0 bg-surface z-20 text-center">
                 <div className="p-4 border-r border-outline-variant" />
                 {dayLabels.map((day, idx) => {
                   const date = weekDates[idx];
-                  const isToday = date.toDateString() === new Date().toDateString();
+                  const isToday =
+                    date.toDateString() === new Date().toDateString();
                   return (
-                    <div key={day} className="p-4 border-r border-outline-variant">
-                      <p className={`text-label-sm font-label-sm ${isToday ? "text-primary" : "text-outline"}`}>
+                    <div
+                      key={day}
+                      className="p-4 border-r border-outline-variant"
+                    >
+                      <p
+                        className={`text-label-sm font-label-sm ${isToday ? "text-primary" : "text-outline"}`}
+                      >
                         {day}
                       </p>
-                      <p className={`text-headline-sm font-headline-sm ${isToday ? "text-primary" : ""}`}>
+                      <p
+                        className={`text-headline-sm font-headline-sm ${isToday ? "text-primary" : ""}`}
+                      >
                         {date.getDate()}
                       </p>
                     </div>
@@ -169,11 +190,13 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
 
               <div className="relative">
                 <div className="schedule-grid">
-                  
                   {/* 2. TIME COLUMN: Outlook Style */}
                   <div className="col-span-1 border-r border-outline-variant bg-surface z-10">
                     {hours.map((hour) => (
-                      <div key={hour} className="time-row relative border-t border-outline-variant/40 first:border-t-0">
+                      <div
+                        key={hour}
+                        className="time-row relative border-t border-outline-variant/40 first:border-t-0"
+                      >
                         {/* Text pinned to top-right under the solid line */}
                         <span className="absolute top-1 right-2 text-xs font-medium text-on-surface-variant">
                           {hour}
@@ -185,12 +208,17 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
                   </div>
 
                   {/* 3. CALENDAR GRID: Includes Background Grid Lines */}
-                  <div className="col-span-5 relative" style={{ height: `${hours.length * 60}px` }}>
-                    
+                  <div
+                    className="col-span-5 relative"
+                    style={{ height: `${hours.length * 60}px` }}
+                  >
                     {/* Background lines spanning the whole grid */}
                     <div className="absolute inset-0 z-0 flex flex-col pointer-events-none">
                       {hours.map((_, i) => (
-                        <div key={i} className="h-[60px] w-full border-t border-outline-variant/40 first:border-t-0 relative">
+                        <div
+                          key={i}
+                          className="h-[60px] w-full border-t border-outline-variant/40 first:border-t-0 relative"
+                        >
                           <div className="absolute top-[30px] w-full border-t border-dashed border-outline-variant/30" />
                         </div>
                       ))}
@@ -199,14 +227,22 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
                     {/* Foreground Columns & Cards */}
                     <div className="absolute inset-0 z-10 grid grid-cols-5 h-full">
                       {Array.from({ length: 5 }).map((_, dayIdx) => {
-                        const laidOut = layoutDaySchedules(schedulesByDay(dayIdx));
+                        const laidOut = layoutDaySchedules(
+                          schedulesByDay(dayIdx),
+                        );
                         return (
-                          <div key={dayIdx} className="relative border-r border-outline-variant last:border-r-0">
+                          <div
+                            key={dayIdx}
+                            className="relative border-r border-outline-variant last:border-r-0"
+                          >
                             {laidOut.map(({ schedule, col, totalCols }) => (
                               <DefenseCard
                                 key={schedule.scheduleId}
                                 schedule={schedule}
-                                isActive={selectedSchedule?.scheduleId === schedule.scheduleId}
+                                isActive={
+                                  selectedSchedule?.scheduleId ===
+                                  schedule.scheduleId
+                                }
                                 onClick={() => setSelectedSchedule(schedule)}
                                 col={col}
                                 totalCols={totalCols}
@@ -216,16 +252,18 @@ export function ScheduleCalendar({ schedules, isLoading, onCreateNew }: Schedule
                         );
                       })}
                     </div>
-
                   </div>
                 </div>
               </div>
             </>
-          )}
+          }
         </div>
       </main>
 
-      <ScheduleDetailPanel schedule={selectedSchedule} onClose={() => setSelectedSchedule(null)} />
+      <ScheduleDetailPanel
+        schedule={selectedSchedule}
+        onClose={() => setSelectedSchedule(null)}
+      />
 
       {onCreateNew && (
         <Button

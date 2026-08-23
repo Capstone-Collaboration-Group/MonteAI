@@ -2,7 +2,7 @@ import { useFaculties } from "@monteai/hooks";
 import { useProgramHeads } from "@monteai/hooks";
 import type { FacultyService } from "@monteai/api";
 import type { ProgramHeadService } from "@monteai/api";
-import { FacultyView } from "../components/Faculty/FacultyView";
+import { FacultyView, FacultyViewSkeleton } from "../components/Faculty";
 
 interface FacultyPageProps {
   facultyService: FacultyService;
@@ -10,7 +10,11 @@ interface FacultyPageProps {
   onCreateNew?: () => void;
 }
 
-export function FacultyPage({ facultyService, programHeadService, onCreateNew }: FacultyPageProps) {
+export function FacultyPage({
+  facultyService,
+  programHeadService,
+  onCreateNew,
+}: FacultyPageProps) {
   const {
     data: faculties = [],
     isLoading: loadingFaculty,
@@ -22,6 +26,10 @@ export function FacultyPage({ facultyService, programHeadService, onCreateNew }:
     isLoading: loadingPH,
     error: phError,
   } = useProgramHeads(programHeadService);
+
+  if (loadingFaculty || loadingPH) {
+    return <FacultyViewSkeleton />;
+  }
 
   return (
     <FacultyView

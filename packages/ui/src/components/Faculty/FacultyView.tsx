@@ -1,10 +1,8 @@
 import { useState, useMemo } from "react";
 import {
   PageHeader,
- 
   Badge,
   EmptyState,
-  Spinner,
   Avatar,
   StatCardGrid,
   type StatCardItem,
@@ -13,12 +11,16 @@ import {
   TabsTrigger,
   DataTable,
   type DataTableColumn,
-} from "../common"; 
+} from "../common";
 import { Card, Input } from "../../index";
 import { Users, GraduationCap, Search, Building2 } from "lucide-react";
-import type { FacultyResponseDto, ProgramHeadResponseDto } from "@monteai/types";
+import type {
+  FacultyResponseDto,
+  ProgramHeadResponseDto,
+} from "@monteai/types";
 import { fullNameHelper } from "@monteai/utils";
-import { MemberRow } from "@monteai/types";
+import type { MemberRow } from "@monteai/types";
+import { FacultyViewSkeleton } from "./skeletons";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,7 +72,9 @@ function memberColumns(extraLabel: string): DataTableColumn<MemberRow>[] {
       key: "extra",
       label: extraLabel,
       render: (row) => (
-        <span className="text-sm text-on-surface-variant">{row.extra || "—"}</span>
+        <span className="text-sm text-on-surface-variant">
+          {row.extra || "—"}
+        </span>
       ),
     },
     {
@@ -94,6 +98,10 @@ export function FacultyView({
   hasError = false,
   onCreateNew,
 }: FacultyViewProps) {
+  if (isLoading) {
+    return <FacultyViewSkeleton />;
+  }
+
   const [activeTab, setActiveTab] = useState<Tab>("faculty");
   const [search, setSearch] = useState("");
 
@@ -102,28 +110,38 @@ export function FacultyView({
     () =>
       faculties.map((f) => ({
         id: f.id,
-        name: fullNameHelper(f.firstName, f.middleInitial, f.lastName, f.suffix),
+        name: fullNameHelper(
+          f.firstName,
+          f.middleInitial,
+          f.lastName,
+          f.suffix,
+        ),
         email: f.email,
         role: f.role,
         institute: f.institute,
         extra: "",
         isActive: f.isActive !== false,
       })),
-    [faculties]
+    [faculties],
   );
 
   const programHeadRows = useMemo<MemberRow[]>(
     () =>
       programHeads.map((ph) => ({
         id: ph.id,
-        name: fullNameHelper(ph.firstName, ph.middleInitial, ph.lastName, ph.suffix),
+        name: fullNameHelper(
+          ph.firstName,
+          ph.middleInitial,
+          ph.lastName,
+          ph.suffix,
+        ),
         email: ph.email,
         role: ph.role,
         institute: ph.institute,
         extra: ph.programHandled,
         isActive: ph.isActive !== false,
       })),
-    [programHeads]
+    [programHeads],
   );
 
   // ── Search ─────────────────────────────────────────────────────────────────
@@ -137,7 +155,7 @@ export function FacultyView({
         r.email.toLowerCase().includes(q) ||
         r.institute.toLowerCase().includes(q) ||
         r.role.toLowerCase().includes(q) ||
-        r.extra.toLowerCase().includes(q)
+        r.extra.toLowerCase().includes(q),
     );
   }, [activeTab, facultyRows, programHeadRows, search]);
 
@@ -149,15 +167,16 @@ export function FacultyView({
     { icon: Users,         label: "Total Faculty",       value: faculties.length,    accent: "bg-primary/10 text-primary" },
     { icon: Users,         label: "Active Faculty",       value: activeFaculty,       accent: "bg-status-approved/10 text-status-approved" },
     { icon: GraduationCap, label: "Program Heads",        value: programHeads.length, accent: "bg-blue-100 text-blue-700" },
-    { icon: GraduationCap, label: "Active Program Heads", value: activePH,            accent: "bg-secondary-container/40 text-on-secondary" },
+    { icon: GraduationCap, label: "Active Program Heads", value: activePH,            accent: "bg-green-100 text-green-700" },
   ];
 
-  const columns = memberColumns(activeTab === "faculty" ? "Designation" : "Program Handled");
+  const columns = memberColumns(
+    activeTab === "faculty" ? "Designation" : "Program Handled",
+  );
 
   return (
     <div className="min-h-screen bg-surface-container-low/60 p-6 lg:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-
         {/* ── Page header ─────────────────────────────────────────────────── */}
         <PageHeader
           eyebrow="People management"
@@ -168,7 +187,9 @@ export function FacultyView({
                 <Input
                   placeholder="Search by name, email, or institute…"
                   value={search}
-                  onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
+                  onChange={(e) =>
+                    setSearch((e.target as HTMLInputElement).value)
+                  }
                   className="rounded-full border-outline-variant bg-surface-container-low"
                 />
               </div>
@@ -192,13 +213,20 @@ export function FacultyView({
         <Tabs
           value={activeTab}
           variant="pills"
-          onValueChange={(val) => { setActiveTab(val as Tab); setSearch(""); }}
+          onValueChange={(val) => {
+            setActiveTab(val as Tab);
+            setSearch("");
+          }}
         >
           <TabsList>
             <TabsTrigger value="faculty" icon={Users} badge={faculties.length}>
               Faculty
             </TabsTrigger>
-            <TabsTrigger value="program-head" icon={GraduationCap} badge={programHeads.length}>
+            <TabsTrigger
+              value="program-head"
+              icon={GraduationCap}
+              badge={programHeads.length}
+            >
               Program Heads
             </TabsTrigger>
           </TabsList>
@@ -206,7 +234,6 @@ export function FacultyView({
 
         {/* ── Table card ──────────────────────────────────────────────────── */}
         <Card className="overflow-hidden p-0">
-
           {/* Meta bar */}
           <div className="flex flex-col gap-3 border-b border-outline-variant/60 p-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -221,19 +248,14 @@ export function FacultyView({
             </div>
             {search && (
               <p className="text-xs text-on-surface-variant">
-                Showing {filteredRows.length} result{filteredRows.length !== 1 ? "s" : ""} for{" "}
+                Showing {filteredRows.length} result
+                {filteredRows.length !== 1 ? "s" : ""} for{" "}
                 <span className="font-semibold text-primary">"{search}"</span>
               </p>
             )}
           </div>
 
           {/* Loading */}
-          {isLoading && (
-            <div className="flex items-center justify-center py-20">
-              <Spinner size="lg" label="Loading members…" />
-            </div>
-          )}
-
           {/* Error */}
           {!isLoading && hasError && (
             <div className="p-8">

@@ -24,25 +24,25 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider auth={auth}>
       <Toaster />
-    <BrowserRouter>
-      <Routes>
-        {/* Public — no sidebar */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
+      <BrowserRouter>
+        <Routes>
+          {/* Public — no sidebar */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/announcements" element={<Announcements />} />
 
-        {/* Authenticated — sidebar layout, gated by Firebase auth state */}
-        <Route element={<ProtectedRoute />}>
-          <Route element={<AppLayout />}>
-            <Route path="/home" element={<Home />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/thesis" element={<div>Thesis page</div>} />
-            <Route path="/submit" element={<SubmitThesis />} />
-            <Route path="/schedule" element={<Schedule />} />
+          {/* Authenticated — sidebar layout, gated by Firebase auth state */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/home" element={<Home />} />
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/thesis" element={<div>Thesis page</div>} />
+              <Route path="/submit" element={<SubmitThesis />} />
+              <Route path="/schedule" element={<Schedule />} />
+            </Route>
           </Route>
-        </Route>
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

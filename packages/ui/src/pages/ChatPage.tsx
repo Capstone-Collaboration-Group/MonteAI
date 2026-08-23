@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import type { ChatService } from "@monteai/api";
 import type { ChatMessageResponseDto } from "@monteai/types";
 import { ChatView } from "../components/Chat/ChatView";
+import { ChatPageSkeleton } from "../components/Chat/skeletons";
 
 const MOCK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // TODO: replace with real useAuth()
 
@@ -50,8 +51,8 @@ export function ChatPage({ chatService }: ChatPageProps) {
         content,
       });
       console.log("assistantMessage returned:", assistantMessage);
-console.log("role:", assistantMessage?.role);
-console.log("content:", assistantMessage?.content);
+      console.log("role:", assistantMessage?.role);
+      console.log("content:", assistantMessage?.content);
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
       console.error("Chat send failed:", err);
@@ -62,15 +63,17 @@ console.log("content:", assistantMessage?.content);
 
   // Auto-send initial prompt when navigating from another page
   useEffect(() => {
-    const initialPrompt =
-      (location.state as { initialPrompt?: string } | null)?.initialPrompt;
+    const initialPrompt = (location.state as { initialPrompt?: string } | null)
+      ?.initialPrompt;
     if (initialPrompt && !hasAutoSent.current) {
       hasAutoSent.current = true;
       send(initialPrompt);
     }
   }, [location.state]);
 
-  return (
+  return isSending ? (
+    <ChatPageSkeleton />
+  ) : (
     <ChatView
       messages={messages}
       input={input}

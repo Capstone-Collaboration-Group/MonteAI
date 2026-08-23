@@ -5,7 +5,7 @@ namespace server.Models.DTOs.Thesis
     public class SubmitThesisDto
     {
         [Required]
-        public IFormFile File { get; set; } = null;
+        public IFormFile? File { get; set; } = null;
         [Required]
         [MaxLength(255)]
         

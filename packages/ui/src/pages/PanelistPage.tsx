@@ -1,7 +1,7 @@
 import { usePanelistSchedules } from "@monteai/hooks";
 import { useSchedules } from "@monteai/hooks";
 import type { PanelistScheduleService, ScheduleService } from "@monteai/api";
-import { PanelistView } from "../components/Panelist/PanelistView";
+import { PanelistView, PanelistViewSkeleton } from "../components/Panelist";
 
 interface PanelistPageProps {
   panelistScheduleService: PanelistScheduleService;
@@ -10,7 +10,11 @@ interface PanelistPageProps {
   onCreateNew?: () => void;
 }
 
-export function PanelistPage({ panelistScheduleService, scheduleService, onCreateNew }: PanelistPageProps) {
+export function PanelistPage({
+  panelistScheduleService,
+  scheduleService,
+  onCreateNew,
+}: PanelistPageProps) {
   const {
     data: panelists = [],
     isLoading: loadingPanelists,
@@ -18,10 +22,12 @@ export function PanelistPage({ panelistScheduleService, scheduleService, onCreat
   } = usePanelistSchedules(panelistScheduleService);
 
   // Schedule pool — used to enrich each assignment with room venue / full schedule info
-  const {
-    data: schedules = [],
-    isLoading: loadingSchedules,
-  } = useSchedules(scheduleService);
+  const { data: schedules = [], isLoading: loadingSchedules } =
+    useSchedules(scheduleService);
+
+  if (loadingPanelists || loadingSchedules) {
+    return <PanelistViewSkeleton />;
+  }
 
   return (
     <PanelistView
