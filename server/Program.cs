@@ -191,6 +191,8 @@ try
             policy.WithOrigins(
                 "http://localhost:8080",
                 "http://localhost:5173",
+                "http://localhost:5174",
+                "https://localhost:5174",
                 "https://localhost:8080",
                 "https://localhost:5173",
                 "https://monteskolar.pnm.edu.ph"
