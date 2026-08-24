@@ -5,11 +5,15 @@ import type { ThesisService } from "@monteai/api";
 import { toThesisSummary } from "@monteai/types";
 import { ThesisCatalog, ThesisCatalogSkeleton } from "../components/Thesis";
 
+type ThesisAction = "approve" | "reject" | "revision";
+
 interface ThesisCatalogPageProps {
   thesisService: ThesisService;
   onViewDetails?: (thesisId: string) => void;
   onSelectThesis?: (thesisId: string) => void;
- onThesisAction?: (thesisId: string, action: "approve" | "reject" | "revision") => void;
+  onThesisAction?: (thesisId: string, action: ThesisAction) => void;
+  /** Which moderation actions this viewer is allowed to take. Omit/empty for read-only roles (Student). */
+  allowedActions?: ThesisAction[];
   onFilterClick?: () => void;
 }
 
@@ -18,19 +22,12 @@ export function ThesisCatalogPage({
   onViewDetails,
   onSelectThesis,
   onThesisAction,
+  allowedActions = [],
   onFilterClick,
 }: ThesisCatalogPageProps) {
-  const result = useTheses(thesisService);
+  const { theses: rawTheses, isLoading } = useTheses(thesisService);
 
-const { theses: rawTheses, isLoading } = result;
-  
-
-  const theses = useMemo(() => {
-    const mapped = rawTheses.map(toThesisSummary);
-    console.log('[DEBUG] mapped theses:', mapped);
-    return mapped;
-}, [rawTheses]);
-
+  const theses = useMemo(() => rawTheses.map(toThesisSummary), [rawTheses]);
   const featuredThesis = theses[0];
 
   const counts = useMemo(() => {
@@ -42,9 +39,8 @@ const { theses: rawTheses, isLoading } = result;
   const healthStats = useMemo(() => {
     const total = theses.length;
     const approved = theses.filter((t) => t.status === "approved").length;
-    const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
     return {
-      approvalRate,
+      approvalRate: total > 0 ? Math.round((approved / total) * 100) : 0,
       yearLabel: new Date().getFullYear().toString(),
     };
   }, [theses]);
@@ -62,8 +58,9 @@ const { theses: rawTheses, isLoading } = result;
       isLoading={isLoading}
       onViewDetails={onViewDetails}
       onSelectThesis={onSelectThesis}
-      onThesisAction={onThesisAction}
-
+      onThesisAction={allowedActions.length ? onThesisAction : undefined}
+      allowedActions={allowedActions}
+      onFilterClick={onFilterClick}
     />
   );
 }

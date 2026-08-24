@@ -16,15 +16,15 @@ namespace server.Repositories
         public async Task<ThesisVersion?> GetVersionById(Guid versionId)
             => await db.ThesisVersions.FindAsync(versionId);
 
-        public async Task<ThesisVersion?> GetLatestVersion(Guid thesisId)
-        {
+        //public async Task<ThesisVersion?> GetLatestVersion(Guid thesisId)
+        //{
 
-        }
+        //}
 
-        public async Task<int> GetNextVersionNumber(Guid thesisId)
-        {
+        //public async Task<int> GetNextVersionNumber(Guid thesisId)
+        //{
 
-        }
+        //}
         public async Task<bool> CreateThesisVersion(ThesisVersion thesisVersion)
         {
             await db.ThesisVersions.AddAsync(thesisVersion);

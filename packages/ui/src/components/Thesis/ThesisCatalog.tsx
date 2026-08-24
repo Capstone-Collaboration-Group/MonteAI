@@ -7,8 +7,9 @@ import { SubmissionHealthCard } from "./SubmissionHealthCard";
 import { ThesisListView } from "./ThesisListView";
 import { PageHeader, PageLayout} from "../common";
 import { Input } from "../Input";
-import { Select } from "../common";
 
+
+type ThesisAction = "approve" | "reject" | "revision";
 
 type StatusFilter = "None" | ThesisStatus;
 
@@ -20,9 +21,9 @@ interface ThesisCatalogProps {
   isLoading?: boolean;
   onViewDetails?: (thesisId: string) => void;
   onSelectThesis?: (thesisId: string) => void;
-  onThesisAction?: (thesisId: string, action: "approve" | "reject" | "revision") => void;
+  onThesisAction?: (thesisId: string, action: ThesisAction) => void;
+  allowedActions?: ThesisAction[];   // fixed name
 }
-
 const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision", "indexed"];
 
 export function ThesisCatalog({
@@ -34,6 +35,7 @@ export function ThesisCatalog({
   onViewDetails,
   onSelectThesis,
   onThesisAction,
+  allowedActions = [],  
 }: ThesisCatalogProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("None");
   const [search, setSearch] = useState("");
@@ -103,6 +105,7 @@ export function ThesisCatalog({
           theses={filteredTheses}
           onSelect={onViewDetails ?? onSelectThesis}
           onAction={onThesisAction}
+          allowedActions={allowedActions}
         />
       </div>
     </PageLayout>

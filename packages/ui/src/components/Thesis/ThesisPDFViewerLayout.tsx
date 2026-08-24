@@ -16,7 +16,7 @@ import { Button } from "../Button";
 import { PageLayout } from "../common";
 import "globals";
 import { ThesisPDFViewerSkeleton } from "./skeletons";
-import { ViewerRole } from "../../pages/ThesisPDFViewer";
+import type { ViewerRole } from "../../pages/ThesisPDFViewer";
 import { ThesisStatusTimeline } from "../Thesis/ThesisStatusTime"
 interface ThesisPDFViewerLayoutProps {
   thesis: ThesisResponseDto |  null;

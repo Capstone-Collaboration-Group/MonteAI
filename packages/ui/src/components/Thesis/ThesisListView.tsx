@@ -16,24 +16,24 @@ interface ThesisAction {
 
 const ACTIONS_BY_STATUS: Record<ThesisStatus, ThesisAction[]> = {
   pending: [
-    { label: "Approve",          action: "approve",  className: "text-status-approved hover:bg-status-approved/10" },
+    { label: "Approve", action: "approve", className: "text-status-approved hover:bg-status-approved/10" },
     { label: "Request Revision", action: "revision", className: "text-amber-600 hover:bg-amber-600/10" },
-    { label: "Reject",           action: "reject",   className: "text-error hover:bg-error/10" },
+    { label: "Reject", action: "reject", className: "text-error hover:bg-error/10" },
   ],
   revision: [
     { label: "Approve", action: "approve", className: "text-status-approved hover:bg-status-approved/10" },
-    { label: "Reject",  action: "reject",  className: "text-error hover:bg-error/10" },
+    { label: "Reject", action: "reject", className: "text-error hover:bg-error/10" },
   ],
   approved: [
     { label: "Request Revision", action: "revision", className: "text-amber-600 hover:bg-amber-600/10" },
-    { label: "Reject",           action: "reject",   className: "text-error hover:bg-error/10" },
+    { label: "Reject", action: "reject", className: "text-error hover:bg-error/10" },
   ],
   rejected: [
-    { label: "Approve",          action: "approve",  className: "text-status-approved hover:bg-status-approved/10" },
+    { label: "Approve", action: "approve", className: "text-status-approved hover:bg-status-approved/10" },
     { label: "Request Revision", action: "revision", className: "text-amber-600 hover:bg-amber-600/10" },
   ],
   indexed: [
-    { label: "Reject",           action: "reject",   className: "text-error hover:bg-error/10" },
+    { label: "Reject", action: "reject", className: "text-error hover:bg-error/10" },
     { label: "Request Revision", action: "revision", className: "text-amber-600 hover:bg-amber-600/10" },
   ],
 };
@@ -43,6 +43,7 @@ interface ThesisListViewProps {
   onSelect?: (thesisId: string) => void;
   onAction?: (thesisId: string, action: ThesisActionType) => void;
   defaultView?: "list" | "grid";
+  allowedActions?: ThesisActionType[];
 }
 
 function formatDate(iso: string) {
@@ -56,19 +57,21 @@ function formatDate(iso: string) {
 function ActionMenu({
   thesis,
   onAction,
+  allowedActions,
 }: {
   thesis: ThesisSummary;
   onAction?: (thesisId: string, action: ThesisActionType) => void;
+  allowedActions: ThesisActionType[];
 }) {
-  const actions = ACTIONS_BY_STATUS[thesis.status.toLowerCase() as ThesisStatus] ?? [];
-  
+  const actions = (ACTIONS_BY_STATUS[thesis.status.toLowerCase() as ThesisStatus] ?? [])
+    .filter((a) => allowedActions.includes(a.action));   // ← gate by role here
+
   if (actions.length === 0) return null;
 
   return (
     <Dropdown
       placement="bottom-right"
       trigger={
-        // Replaced raw button with reusable Button (ghost variant)
         <Button
           variant="ghost"
           aria-label={`Actions for ${thesis.title}`}
@@ -100,6 +103,7 @@ export function ThesisListView({
   onSelect,
   onAction,
   defaultView = "list",
+  allowedActions = [],
 }: ThesisListViewProps) {
   const [view, setView] = useState<"list" | "grid">(defaultView);
 
@@ -109,18 +113,17 @@ export function ThesisListView({
         <h3 className="font-serif text-lg font-semibold text-on-surface">
           Manuscript Registry
         </h3>
-        
+
         <div className="flex items-center gap-1 rounded-lg bg-surface-container p-1">
           <Button
             variant="ghost"
             aria-label="Grid view"
             aria-pressed={view === "grid"}
             onClick={() => setView("grid")}
-            className={`!rounded-md !p-1.5 ${
-              view === "grid" 
-                ? "bg-surface text-primary shadow-sm hover:bg-surface hover:text-primary" 
+            className={`!rounded-md !p-1.5 ${view === "grid"
+                ? "bg-surface text-primary shadow-sm hover:bg-surface hover:text-primary"
                 : "text-on-surface-variant hover:bg-surface-container-high"
-            }`}
+              }`}
           >
             <LayoutGrid className="h-4 w-4" />
           </Button>
@@ -129,11 +132,10 @@ export function ThesisListView({
             aria-label="List view"
             aria-pressed={view === "list"}
             onClick={() => setView("list")}
-            className={`!rounded-md !p-1.5 ${
-              view === "list" 
-                ? "bg-surface text-primary shadow-sm hover:bg-surface hover:text-primary" 
+            className={`!rounded-md !p-1.5 ${view === "list"
+                ? "bg-surface text-primary shadow-sm hover:bg-surface hover:text-primary"
                 : "text-on-surface-variant hover:bg-surface-container-high"
-            }`}
+              }`}
           >
             <List className="h-4 w-4" />
           </Button>
@@ -172,7 +174,7 @@ export function ThesisListView({
                   {formatDate(thesis.submittedDate)}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <ActionMenu thesis={thesis} onAction={onAction} />
+                  <ActionMenu thesis={thesis} onAction={onAction} allowedActions={allowedActions} />
                 </td>
               </tr>
             ))}

@@ -14,6 +14,7 @@ import SubmitThesis from "./pages/SubmitThesis";
 import Login from "./pages/Login";
 import Announcements from "./pages/Announcements";
 import ThesisViewer from "./pages/ThesisViewer";
+import Theses from "./pages/ThesesPage";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -31,17 +32,26 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/announcements" element={<Announcements />} />
+
+          
+          
+          
 
           {/* Authenticated — sidebar layout, gated by Firebase auth state */}
           <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
+
+          <Route element={<AppLayout />}>
               <Route path="/home" element={<Home />} />
               <Route path="/chat" element={<Chat />} />
-              <Route path="/thesis" element={<div>Thesis page</div>} />
+              <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
               <Route path="/submit" element={<SubmitThesis />} />
               <Route path="/schedule" element={<Schedule />} />
-            </Route>
+              <Route path="/theses" element={<Theses />} />
+              <Route path="/announcements" element={<Announcements />} />
+          </Route>
+
+          
+            
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />
