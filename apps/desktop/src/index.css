@@ -23,7 +23,7 @@ body {
 /* Schedule Grid */
 .schedule-grid {
   display: grid;
-  grid-template-columns: 80px repeat(5, 1fr);
+  grid-template-columns: 80px repeat(6, 1fr);
 }
 
 .time-row {
