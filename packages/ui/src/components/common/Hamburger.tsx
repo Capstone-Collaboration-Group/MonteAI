@@ -30,25 +30,25 @@ export function HamburgerButton({
       onClick={onToggle}
       aria-label={isOpen ? "Close panel" : "Open panel"}
       aria-expanded={isOpen}
-      className={`group relative flex shrink-0 flex-col items-center justify-center rounded-md transition-colors hover:bg-[#F3F1E9] ${button} ${className}`}
+      className={`group relative flex shrink-0 flex-col items-center justify-center rounded-md transition-colors hover:bg-surface-container-low ${button} ${className}`}
       {...props}
     >
       <div className={`flex flex-col items-center ${gap}`}>
         {/* Top bar */}
         <span
-          className={`block rounded-full bg-[#4A5750] transition-all duration-300 group-hover:bg-[#16342B] ${bar} ${
+          className={`block rounded-full bg-on-surface-variant transition-all duration-300 group-hover:bg-primary ${bar} ${
             isOpen ? "translate-y-[7px] rotate-45" : ""
           }`}
         />
         {/* Middle bar */}
         <span
-          className={`block rounded-full bg-[#4A5750] transition-all duration-300 group-hover:bg-[#16342B] ${bar} ${
+          className={`block rounded-full bg-on-surface-variant transition-all duration-300 group-hover:bg-primary ${bar} ${
             isOpen ? "opacity-0 scale-x-0" : ""
           }`}
         />
         {/* Bottom bar */}
         <span
-          className={`block rounded-full bg-[#4A5750] transition-all duration-300 group-hover:bg-[#16342B] ${bar} ${
+          className={`block rounded-full bg-on-surface-variant transition-all duration-300 group-hover:bg-primary ${bar} ${
             isOpen ? "-translate-y-[7px] -rotate-45" : ""
           }`}
         />
@@ -56,7 +56,7 @@ export function HamburgerButton({
 
       {/* Optional label below */}
       {label && (
-        <span className="mt-1 text-[10px] font-medium text-[#8A9089] group-hover:text-[#16342B]">
+        <span className="mt-1 text-[10px] font-medium text-outline group-hover:text-primary">
           {label}
         </span>
       )}

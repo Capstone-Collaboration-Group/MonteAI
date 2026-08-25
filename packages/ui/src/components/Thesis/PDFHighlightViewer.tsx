@@ -1,7 +1,10 @@
 // packages/ui/src/components/Thesis/PDFHighlightViewer.tsx
 import { useState, useCallback, useRef } from "react";
 import { Document, Page } from "react-pdf";
-import type { AnnotationResponseDto, CreateAnnotationDto } from "@monteai/types";
+import type {
+  AnnotationResponseDto,
+  CreateAnnotationDto,
+} from "@monteai/types";
 import { ChevronLeft, ChevronRight, MessageSquarePlus } from "lucide-react";
 import { Spinner } from "../common/Spinner";
 
@@ -52,7 +55,7 @@ function parsePosition(positionJson: string): HighlightPosition | null {
 function getRectsFromSelection(
   selection: Selection,
   pageEl: Element,
-  scale: number
+  scale: number,
 ): HighlightRect[] {
   const pageRect = pageEl.getBoundingClientRect();
   const rects: HighlightRect[] = [];
@@ -94,18 +97,18 @@ function AnnotationPopup({
 
   return (
     <div
-      className="absolute z-50 w-64 rounded-xl border border-[#EDEAE0] bg-white p-3 shadow-lg"
+      className="absolute z-50 w-64 rounded-xl border border-outline-variant bg-white p-3 shadow-lg"
       style={{ left: x, top: y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <p className="mb-2 text-xs font-semibold text-[#1F2A24]">Add Comment</p>
+      <p className="mb-2 text-xs font-semibold text-on-surface">Add Comment</p>
       <textarea
         autoFocus
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         placeholder="Write your review comment…"
         rows={3}
-        className="w-full resize-none rounded-lg border border-[#EDEAE0] bg-[#FAF8F1] px-3 py-2 text-xs text-[#1F2A24] placeholder-[#8A9089] focus:outline-none focus:ring-1 focus:ring-[#16342B]"
+        className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
       />
       <div className="mt-2 flex gap-2">
         <button
@@ -114,14 +117,14 @@ function AnnotationPopup({
             if (comment.trim()) onConfirm(comment.trim());
           }}
           disabled={!comment.trim() || isCreating}
-          className="flex-1 rounded-lg bg-[#16342B] py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1F2A24] disabled:opacity-50"
+          className="flex-1 rounded-lg bg-primary py-1.5 text-xs font-semibold text-white transition-colors hover:bg-on-surface disabled:opacity-50"
         >
           {isCreating ? "Saving…" : "Save"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 rounded-lg border border-[#EDEAE0] py-1.5 text-xs font-medium text-[#4A5750] transition-colors hover:bg-[#F3F1E9]"
+          className="flex-1 rounded-lg border border-outline-variant py-1.5 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
         >
           Cancel
         </button>
@@ -141,7 +144,9 @@ function HighlightOverlay({
   pageNumber: number;
   scale: number;
 }) {
-  const pageAnnotations = annotations.filter((a) => a.pageNumber === pageNumber);
+  const pageAnnotations = annotations.filter(
+    (a) => a.pageNumber === pageNumber,
+  );
 
   return (
     <>
@@ -190,14 +195,15 @@ export function PDFHighlightViewer({
     ({ numPages }: { numPages: number }) => {
       setNumPages(numPages);
     },
-    []
+    [],
   );
 
   const handleMouseUp = useCallback(() => {
     if (!canAnnotate) return;
 
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
+    if (!selection || selection.isCollapsed || !selection.toString().trim())
+      return;
 
     const pageEl = pageRef.current;
     if (!pageEl) return;
@@ -238,7 +244,7 @@ export function PDFHighlightViewer({
       });
       setPending(null);
     },
-    [pending, onAddAnnotation]
+    [pending, onAddAnnotation],
   );
 
   const handleCancel = useCallback(() => {
@@ -246,21 +252,21 @@ export function PDFHighlightViewer({
   }, []);
 
   return (
-    <div className="relative flex h-full w-full flex-col bg-[#F3F1E9]">
+    <div className="relative flex h-full w-full flex-col bg-surface-container-low">
       {/* ── Toolbar ── */}
-      <div className="flex items-center justify-between border-b border-[#EDEAE0] bg-white px-4 py-2">
+      <div className="flex items-center justify-between border-b border-outline-variant bg-white px-4 py-2">
         {/* Page nav */}
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => onPageChange(Math.max(1, currentPage - 1))}
             disabled={currentPage <= 1}
-            className="rounded-md p-1.5 text-[#4A5750] transition-colors hover:bg-[#F3F1E9] disabled:opacity-40"
+            className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-low disabled:opacity-40"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm text-[#4A5750]">
-            <span className="font-semibold text-[#1F2A24]">{currentPage}</span>
+          <span className="text-sm text-on-surface-variant">
+            <span className="font-semibold text-on-surface">{currentPage}</span>
             {" / "}
             {numPages}
           </span>
@@ -268,7 +274,7 @@ export function PDFHighlightViewer({
             type="button"
             onClick={() => onPageChange(Math.min(numPages, currentPage + 1))}
             disabled={currentPage >= numPages}
-            className="rounded-md p-1.5 text-[#4A5750] transition-colors hover:bg-[#F3F1E9] disabled:opacity-40"
+            className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-low disabled:opacity-40"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -277,7 +283,7 @@ export function PDFHighlightViewer({
         <div className="flex items-center gap-3">
           {/* Annotate hint */}
           {canAnnotate && (
-            <span className="flex items-center gap-1.5 text-xs text-[#8A9089]">
+            <span className="flex items-center gap-1.5 text-xs text-outline">
               <MessageSquarePlus className="h-3.5 w-3.5" />
               Select text to annotate
             </span>
@@ -288,17 +294,17 @@ export function PDFHighlightViewer({
             <button
               type="button"
               onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}
-              className="rounded-md px-2 py-1 text-xs font-medium text-[#4A5750] transition-colors hover:bg-[#F3F1E9]"
+              className="rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
             >
               − Zoom
             </button>
-            <span className="w-12 text-center text-xs text-[#8A9089]">
+            <span className="w-12 text-center text-xs text-outline">
               {Math.round(scale * 100)}%
             </span>
             <button
               type="button"
               onClick={() => setScale((s) => Math.min(3, s + 0.2))}
-              className="rounded-md px-2 py-1 text-xs font-medium text-[#4A5750] transition-colors hover:bg-[#F3F1E9]"
+              className="rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
             >
               + Zoom
             </button>
@@ -329,13 +335,15 @@ export function PDFHighlightViewer({
             onLoadSuccess={onDocumentLoadSuccess}
             loading={
               <div className="flex h-64 items-center justify-center">
-                <Spinner className="h-8 w-8 text-[#16342B]" />
+                <Spinner className="h-8 w-8 text-primary" />
               </div>
             }
             error={
               <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
-                <p className="text-sm font-medium text-red-600">Failed to load PDF.</p>
-                <p className="text-xs text-[#8A9089]">
+                <p className="text-sm font-medium text-red-600">
+                  Failed to load PDF.
+                </p>
+                <p className="text-xs text-outline">
                   Check the file URL or your network connection.
                 </p>
               </div>
@@ -362,7 +370,7 @@ export function PDFHighlightViewer({
       {/* Creating overlay */}
       {isCreating && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/50">
-          <Spinner className="h-6 w-6 text-[#16342B]" />
+          <Spinner className="h-6 w-6 text-primary" />
         </div>
       )}
     </div>

@@ -4,9 +4,9 @@
 
 @layer base {
   :root {
-    --accent: #aa3bff;
-    --bg: #fff;
-    --text: #000;
+    --accent: var(--primary);
+    --bg: var(--surface);
+    --text: var(--on-surface);
   }
 
   body {

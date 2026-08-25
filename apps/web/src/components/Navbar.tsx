@@ -13,7 +13,7 @@ export default function Navbar({ onLoginClick }: NavbarProps) {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#f1f1f1]/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-50 w-full bg-surface-container-low/95 backdrop-blur-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-5 lg:px-10">
         <Link
           to="/"
@@ -33,8 +33,8 @@ export default function Navbar({ onLoginClick }: NavbarProps) {
                 aria-current={active ? "page" : undefined}
                 className={
                   active
-                    ? "border-b-2 border-[#006400] pb-1 text-sm font-bold text-[#006400]"
-                    : "text-sm font-bold text-[#3f4a3a] transition hover:text-[#006400]"
+                    ? "border-b-2 border-primary pb-1 text-sm font-bold text-primary"
+                    : "text-sm font-bold text-on-surface-variant transition hover:text-primary"
                 }
               >
                 {item.label}
@@ -46,14 +46,14 @@ export default function Navbar({ onLoginClick }: NavbarProps) {
         <div className="flex items-center gap-3">
           <Link
             to="/login"
-            className="flex min-w-[100px] items-center justify-center rounded-full border border-[#006400] bg-white px-5 py-3 text-sm font-semibold text-[#1f1f1f] shadow-sm transition hover:bg-[#e8f6e8]"
+            className="flex min-w-[100px] items-center justify-center rounded-full border border-primary bg-white px-5 py-3 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-low"
           >
             Login
           </Link>
 
           <Link
             to="/register"
-            className="flex min-w-[120px] items-center justify-center rounded-full bg-[#006400] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1a5c1a]"
+            className="flex min-w-[120px] items-center justify-center rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90"
           >
             Register
           </Link>

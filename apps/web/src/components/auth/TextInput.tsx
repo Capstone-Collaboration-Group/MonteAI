@@ -18,7 +18,7 @@ export default function TextInput({
   return (
     <div className="flex w-full flex-col gap-2">
       {/* Label */}
-      <label htmlFor={name} className="text-sm font-semibold text-[#1B1B1C]">
+      <label htmlFor={name} className="text-sm font-semibold text-on-surface">
         {label}
       </label>
 
@@ -36,18 +36,18 @@ export default function TextInput({
           w-full
           rounded-xl
           border
-          border-[#D9D9D9]
+          border-outline-variant
           bg-white
           px-4
           text-base
-          text-[#1B1B1C]
+          text-on-surface
           outline-none
           transition-all
           duration-200
-          placeholder:text-[#9CA3AF]
-          focus:border-[#006400]
+          placeholder:text-outline
+          focus:border-primary
           focus:ring-2
-          focus:ring-[#006400]/20
+          focus:ring-primary/20
         "
       />
     </div>

@@ -1,6 +1,17 @@
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, CalendarDays, Eye, EyeOff, GraduationCap, Lock, Loader2, Mail, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  CalendarDays,
+  Eye,
+  EyeOff,
+  GraduationCap,
+  Lock,
+  Loader2,
+  Mail,
+  UserRound,
+} from "lucide-react";
 import LeftPanel from "../components/auth/LeftPanel";
 import Modal from "../components/auth/Modal";
 import { Button, Card, Input } from "@monteai/ui";
@@ -19,7 +30,7 @@ function Field({ label, icon: Icon, children }: FieldProps) {
   return (
     <label className="space-y-2">
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-        <Icon className="h-4 w-4 text-[#006400]" />
+        <Icon className="h-4 w-4 text-primary" />
         {label}
       </span>
       {children}
@@ -43,10 +54,15 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const navigate = useNavigate();
 
-  const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
@@ -56,7 +72,10 @@ export default function Register() {
     setMessage(null);
 
     if (form.password.length < 8) {
-      setMessage({ type: "error", text: "Password must be at least 8 characters long." });
+      setMessage({
+        type: "error",
+        text: "Password must be at least 8 characters long.",
+      });
       return;
     }
 
@@ -67,8 +86,14 @@ export default function Register() {
 
     try {
       setLoading(true);
-      const userCredential = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
-      await updateProfile(userCredential.user, { displayName: form.fullName.trim() });
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        form.email.trim(),
+        form.password,
+      );
+      await updateProfile(userCredential.user, {
+        displayName: form.fullName.trim(),
+      });
 
       const [firstName, ...rest] = form.fullName.trim().split(/\s+/);
       const lastName = rest.pop() ?? firstName;
@@ -94,10 +119,16 @@ export default function Register() {
       } as unknown as RegisterFormDto;
 
       await authService.register(payload);
-      setMessage({ type: "success", text: "Registration complete. You can continue to your dashboard." });
+      setMessage({
+        type: "success",
+        text: "Registration complete. You can continue to your dashboard.",
+      });
       window.setTimeout(() => navigate("/home"), 900);
     } catch (error) {
-      const text = error instanceof Error ? error.message : "Unable to complete registration right now.";
+      const text =
+        error instanceof Error
+          ? error.message
+          : "Unable to complete registration right now.";
       setMessage({ type: "error", text });
     } finally {
       setLoading(false);
@@ -107,7 +138,10 @@ export default function Register() {
   return (
     <Modal onClose={() => navigate(-1)}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <button onClick={() => navigate(-1)} className="flex w-fit items-center gap-2 text-sm font-semibold text-[#006400] transition hover:opacity-80">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex w-fit items-center gap-2 text-sm font-semibold text-primary transition hover:opacity-80"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to home
         </button>
@@ -157,11 +191,13 @@ export default function Register() {
                       name="institute"
                       value={form.institute}
                       onChange={handleChange}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#006400] focus:ring-2 focus:ring-[#006400]/20"
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     >
                       <option>Institute of Computing Studies</option>
                       <option>Institute of Teaching Education</option>
-                      <option>Institute of Business and Entrepreneurship</option>
+                      <option>
+                        Institute of Business and Entrepreneurship
+                      </option>
                     </select>
                   </Field>
 
@@ -170,7 +206,7 @@ export default function Register() {
                       name="program"
                       value={form.program}
                       onChange={handleChange}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#006400] focus:ring-2 focus:ring-[#006400]/20"
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     >
                       <option>BS Information Technology</option>
                       <option>BS Computer Science</option>
@@ -184,7 +220,7 @@ export default function Register() {
                     name="year"
                     value={form.year}
                     onChange={handleChange}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#006400] focus:ring-2 focus:ring-[#006400]/20"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="1">1st Year</option>
                     <option value="2">2nd Year</option>
@@ -209,7 +245,11 @@ export default function Register() {
                         onClick={() => setShowPassword((prev) => !prev)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                   </Field>
@@ -229,27 +269,42 @@ export default function Register() {
                         onClick={() => setShowConfirmPassword((prev) => !prev)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
                       >
-                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                   </Field>
                 </div>
 
                 {message ? (
-                  <div className={`rounded-xl border px-4 py-3 text-sm ${message.type === "success" ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+                  <div
+                    className={`rounded-xl border px-4 py-3 text-sm ${message.type === "success" ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}
+                  >
                     {message.text}
                   </div>
                 ) : null}
 
-                <Button type="submit" className="w-full justify-center gap-2 py-3" disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                <Button
+                  type="submit"
+                  className="w-full justify-center gap-2 py-3"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
                   {loading ? "Creating account..." : "Create account"}
                 </Button>
               </form>
 
               <p className="mt-5 text-sm text-slate-600">
                 Already have an account?{" "}
-                <Link to="/" className="font-semibold text-[#006400] hover:underline">
+                <Link
+                  to="/"
+                  className="font-semibold text-primary hover:underline"
+                >
                   Return to login
                 </Link>
               </p>

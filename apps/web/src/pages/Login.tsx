@@ -14,7 +14,7 @@ export default function Login() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <button
           onClick={() => navigate(-1)}
-          className="flex w-fit items-center gap-2 text-sm font-semibold text-[#006400] transition hover:opacity-80"
+          className="flex w-fit items-center gap-2 text-sm font-semibold text-primary transition hover:opacity-80"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to home
@@ -25,10 +25,7 @@ export default function Login() {
             <LeftPanel />
 
             <div className="p-6 sm:p-8 lg:p-10">
-              <LoginForm
-                auth={auth}
-                onSuccess={() => navigate("/home")}
-              />
+              <LoginForm auth={auth} onSuccess={() => navigate("/home")} />
             </div>
           </div>
         </Card>
