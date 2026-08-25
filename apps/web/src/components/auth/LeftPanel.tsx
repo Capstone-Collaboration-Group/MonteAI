@@ -11,20 +11,20 @@ export default function LeftPanel() {
       />
 
       {/* Title */}
-      <h1 className="mt-8 text-5xl font-extrabold text-[#111111]">
+      <h1 className="mt-8 text-5xl font-extrabold text-on-surface">
         MonteSkolar
       </h1>
 
       {/* Subtitle */}
-      <h2 className="mt-2 text-2xl font-bold text-[#111111]">
+      <h2 className="mt-2 text-2xl font-bold text-on-surface">
         Online Thesis Library
       </h2>
 
       {/* Red Line */}
-      <div className="mt-4 h-1 w-36 rounded-full bg-[#D62828]" />
+      <div className="mt-4 h-1 w-36 rounded-full bg-error" />
 
       {/* Hero Description */}
-      <p className="mt-6 text-lg leading-8 text-[#444444]">
+      <p className="mt-6 text-lg leading-8 text-on-surface-variant">
         Your AI-Powered platform for discovering, organizing, and accessing
         quality thesis anytime, anywhere.
       </p>

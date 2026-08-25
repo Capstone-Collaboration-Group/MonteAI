@@ -22,8 +22,7 @@ export function AccountSettings() {
   });
 
   const handleChange =
-    (field: keyof Profile) =>
-    (event: React.ChangeEvent<HTMLInputElement>) => {
+    (field: keyof Profile) => (event: React.ChangeEvent<HTMLInputElement>) => {
       setProfile((current) => ({
         ...current,
         [field]: event.target.value,
@@ -65,9 +64,7 @@ export function AccountSettings() {
 
             {/* Email */}
             <label className="block space-y-2">
-              <span className="text-sm font-medium text-on-surface">
-                Email
-              </span>
+              <span className="text-sm font-medium text-on-surface">Email</span>
 
               <Input
                 type="email"
@@ -92,55 +89,55 @@ export function AccountSettings() {
 
             {/* Institute */}
             <div className="space-y-2">
-  <label
-    htmlFor="institute"
-    className="block text-sm font-medium text-on-surface"
-  >
-    Institute
-  </label>
+              <label
+                htmlFor="institute"
+                className="block text-sm font-medium text-on-surface"
+              >
+                Institute
+              </label>
 
-  <select
-    id="institute"
-    value={profile.Institute}
-    onChange={(event) =>
-      setProfile((current) => ({
-        ...current,
-        Institute: event.target.value,
-      }))
-    }
-    className="w-full rounded-xl border border-outline/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-[#0D7856] focus:ring-2 focus:ring-[#0D7856]/20"
-  >
-    <option value="" disabled>
-      Select your Institute
-    </option>
+              <select
+                id="institute"
+                value={profile.Institute}
+                onChange={(event) =>
+                  setProfile((current) => ({
+                    ...current,
+                    Institute: event.target.value,
+                  }))
+                }
+                className="w-full rounded-xl border border-outline/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary-container focus:ring-2 focus:ring-primary-container/20"
+              >
+                <option value="" disabled>
+                  Select your Institute
+                </option>
 
-    <option value="ICS">ICS</option>
-    <option value="ITE">ITE</option>
-    <option value="IBE">IBE</option>
-  </select>
-</div>
+                <option value="ICS">ICS</option>
+                <option value="ITE">ITE</option>
+                <option value="IBE">IBE</option>
+              </select>
+            </div>
           </div>
 
           {/* Profile Picture */}
           <div className="flex w-full flex-col items-center gap-4 md:w-44 md:shrink-0">
             <span className="text-sm font-medium text-on-surface">
-                Profile Picture
+              Profile Picture
             </span>
-            
+
             <Avatar
-            name={profile.name || "User"}
-            size="xl"
-            className="h-24 w-24 text-2xl ring-4 ring-[#0D7856]/15"
-              />
-              
-              <Button
+              name={profile.name || "User"}
+              size="xl"
+              className="h-24 w-24 text-2xl ring-4 ring-primary-container/15"
+            />
+
+            <Button
               type="button"
               variant="primary"
               className="w-full max-w-[140px]"
             >
-                Change Photo
+              Change Photo
             </Button>
-            </div>
+          </div>
         </div>
       </div>
 

@@ -17,9 +17,7 @@ export function NotificationSettings() {
   return (
     <Card className="overflow-hidden p-0">
       <div className="border-b border-outline/10 px-6 py-5">
-        <h2 className="text-lg font-semibold text-on-surface">
-          Notifications
-        </h2>
+        <h2 className="text-lg font-semibold text-on-surface">Notifications</h2>
 
         <p className="mt-1 text-sm text-on-surface-variant">
           Choose which notifications you want to receive.
@@ -105,14 +103,12 @@ function NotificationToggle({
       <div>
         <p className="text-sm font-semibold text-on-surface">{label}</p>
 
-        <p className="mt-1 text-sm text-on-surface-variant">
-          {description}
-        </p>
+        <p className="mt-1 text-sm text-on-surface-variant">{description}</p>
       </div>
 
       <span
         className={`relative h-6 w-11 rounded-full ${
-          checked ? "bg-[#0D7856]" : "bg-outline/40"
+          checked ? "bg-primary-container" : "bg-outline/40"
         }`}
       >
         <span

@@ -17,12 +17,7 @@ import { NotificationSettings } from "./NotificationSettings";
 import { SecuritySettings } from "./SecuritySettings";
 
 type SettingsSection =
-  | "account"
-  | "research"
-  | "ai"
-  | "appearance"
-  | "notifications"
-  | "security";
+  "account" | "research" | "ai" | "appearance" | "notifications" | "security";
 
 const settingsItems: {
   id: SettingsSection;
@@ -99,10 +94,7 @@ export function SettingsPanel() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
-      <PageHeader
-        eyebrow="System preferences"
-        title="Settings"
-      />
+      <PageHeader eyebrow="System preferences" title="Settings" />
 
       <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
         {/* Settings Navigation */}
@@ -119,7 +111,7 @@ export function SettingsPanel() {
                   onClick={() => setActiveSection(item.id)}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
                     isActive
-                      ? "bg-[#0D7856]/10 text-[#0D7856]"
+                      ? "bg-primary-container/10 text-primary-container"
                       : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
                   }`}
                 >
@@ -141,9 +133,7 @@ export function SettingsPanel() {
         </aside>
 
         {/* Active Settings Panel */}
-        <main className="min-w-0">
-          {renderSettings()}
-        </main>
+        <main className="min-w-0">{renderSettings()}</main>
       </div>
     </div>
   );

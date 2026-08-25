@@ -122,14 +122,12 @@ function Toggle({
     >
       <div>
         <p className="text-sm font-semibold text-on-surface">{label}</p>
-        <p className="mt-1 text-sm text-on-surface-variant">
-          {description}
-        </p>
+        <p className="mt-1 text-sm text-on-surface-variant">{description}</p>
       </div>
 
       <span
         className={`relative h-6 w-11 rounded-full ${
-          checked ? "bg-[#0D7856]" : "bg-outline/40"
+          checked ? "bg-primary-container" : "bg-outline/40"
         }`}
       >
         <span

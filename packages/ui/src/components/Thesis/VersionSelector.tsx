@@ -30,9 +30,9 @@ export function VersionSelector({
       trigger={
         <button
           type="button"
-          className="flex items-center gap-2 rounded-lg border border-[#EDEAE0] bg-white px-3 py-2 text-sm font-medium text-[#4A5750] transition-colors hover:bg-[#F3F1E9] hover:text-[#16342B]"
+          className="flex items-center gap-2 rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary"
         >
-          <History className="h-4 w-4 text-[#8A9089]" />
+          <History className="h-4 w-4 text-outline" />
           {activeVersion
             ? `Version ${activeVersion.versionNumber}`
             : "Select version"}
@@ -44,14 +44,14 @@ export function VersionSelector({
           key={v.id}
           type="button"
           onClick={() => onVersionChange(v.id)}
-          className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-[#F3F1E9] ${
+          className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-surface-container-low ${
             activeVersion?.id === v.id
-              ? "font-semibold text-[#16342B]"
-              : "text-[#4A5750]"
+              ? "font-semibold text-primary"
+              : "text-on-surface-variant"
           }`}
         >
           <span className="block font-medium">Version {v.versionNumber}</span>
-          <span className="block text-xs text-[#8A9089]">
+          <span className="block text-xs text-outline">
             {formatDate(v.uploadedAt)}
             {v.changeNote ? ` · ${v.changeNote}` : ""}
           </span>

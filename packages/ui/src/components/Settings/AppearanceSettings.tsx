@@ -15,9 +15,7 @@ export function AppearanceSettings() {
   return (
     <Card className="overflow-hidden p-0">
       <div className="border-b border-outline/10 px-6 py-5">
-        <h2 className="text-lg font-semibold text-on-surface">
-          Appearance
-        </h2>
+        <h2 className="text-lg font-semibold text-on-surface">Appearance</h2>
 
         <p className="mt-1 text-sm text-on-surface-variant">
           Customize how MONTESKOLAR looks on your device.
@@ -26,9 +24,7 @@ export function AppearanceSettings() {
 
       <div className="space-y-5 p-6">
         <label className="space-y-2">
-          <span className="text-sm font-medium text-on-surface">
-            Theme
-          </span>
+          <span className="text-sm font-medium text-on-surface">Theme</span>
 
           <select
             value={appearance.theme}
@@ -68,9 +64,7 @@ export function AppearanceSettings() {
 
           <span
             className={`relative h-6 w-11 rounded-full ${
-              appearance.compactMode
-                ? "bg-[#0D7856]"
-                : "bg-outline/40"
+              appearance.compactMode ? "bg-primary-container" : "bg-outline/40"
             }`}
           >
             <span

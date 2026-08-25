@@ -36,14 +36,36 @@ export default function LoginForm({ auth, onSuccess }: LoginFormProps) {
 
   return (
     <section className="flex w-full flex-1 max-w-md flex-col lg:max-w-none">
-      <h2 className="text-4xl font-bold text-[#1B1B1C]">Welcome Back</h2>
-      <p className="mt-2 text-base text-gray-500">Sign in to continue to MonteSkolar.</p>
+      <h2 className="text-4xl font-bold text-on-surface">Welcome Back</h2>
+      <p className="mt-2 text-base text-gray-500">
+        Sign in to continue to MonteSkolar.
+      </p>
 
-      <form onSubmit={handleLogin} className="mt-6 flex w-full flex-col gap-6 sm:mt-10">
-        <TextInput label="Email" name="email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <PasswordInput label="Password" name="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <form
+        onSubmit={handleLogin}
+        className="mt-6 flex w-full flex-col gap-6 sm:mt-10"
+      >
+        <TextInput
+          label="Email"
+          name="email"
+          type="email"
+          placeholder="Enter your email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <PasswordInput
+          label="Password"
+          name="password"
+          placeholder="Enter your password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" disabled={isSubmitting} className="h-12 rounded-xl bg-[#006400] font-semibold text-white transition-all hover:bg-[#004d00] disabled:opacity-60">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="h-12 rounded-xl bg-primary font-semibold text-white transition-all hover:bg-primary/90 disabled:opacity-60"
+        >
           {isSubmitting ? "Signing in..." : "Login"}
         </button>
       </form>

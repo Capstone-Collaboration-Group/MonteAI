@@ -17,9 +17,9 @@ import { PageLayout } from "../common";
 import "globals";
 import { ThesisPDFViewerSkeleton } from "./skeletons";
 import type { ViewerRole } from "../../pages/ThesisPDFViewer";
-import { ThesisStatusTimeline } from "../Thesis/ThesisStatusTime"
+import { ThesisStatusTimeline } from "../Thesis/ThesisStatusTime";
 interface ThesisPDFViewerLayoutProps {
-  thesis: ThesisResponseDto |  null;
+  thesis: ThesisResponseDto | null;
   role: ViewerRole;
   versions: ThesisVersion[];
   activeVersion: ThesisVersion | null;
@@ -65,7 +65,7 @@ export function ThesisPDFViewerLayout({
   return (
     <PageLayout>
       {/* ── Top Bar ── */}
-      <header className="flex items-center justify-between border-b border-[#EDEAE0] bg-white px-6 py-4">
+      <header className="flex items-center justify-between border-b border-outline-variant bg-white px-6 py-4">
         <div className="flex items-center gap-4">
           {onBack && (
             <Button
@@ -78,8 +78,8 @@ export function ThesisPDFViewerLayout({
               <span className="text-sm font-medium">Back</span>
             </Button>
           )}
-          <div className="h-5 w-px bg-[#EDEAE0]" />
-          <h1 className="font-sans text-lg font-semibold text-[#1F2A24]">
+          <div className="h-5 w-px bg-outline-variant" />
+          <h1 className="font-sans text-lg font-semibold text-on-surface">
             Thesis Review
           </h1>
         </div>
@@ -100,7 +100,7 @@ export function ThesisPDFViewerLayout({
             </span>
           )}
 
-         <Button
+          <Button
             type="button"
             onClick={onGenerateProceedings}
             disabled={isGenerating}
@@ -118,22 +118,20 @@ export function ThesisPDFViewerLayout({
 
       {/* ── Body ── */}
       {isLoading ? (
-        <ThesisPDFViewerSkeleton onBack={onBack}/>
+        <ThesisPDFViewerSkeleton onBack={onBack} />
       ) : !activeVersion ? (
-        <div className="flex flex-1 items-center justify-center text-[#8A9089]">
+        <div className="flex flex-1 items-center justify-center text-outline">
           No thesis version available.
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
-
           {thesis && (
             <ThesisStatusTimeline
               thesis={thesis}
               role={role}
               isCollapsed={timelineCollapsed}
               onToggle={() => setTimelineCollapsed((p) => !p)}
-            /> 
-
+            />
           )}
           <main className="flex-1 overflow-hidden">
             <PDFHighlightViewer
@@ -147,7 +145,7 @@ export function ThesisPDFViewerLayout({
             />
           </main>
 
-          <aside className="w-80 shrink-0 overflow-y-auto border-l border-[#EDEAE0] bg-white">
+          <aside className="w-80 shrink-0 overflow-y-auto border-l border-outline-variant bg-white">
             <AnnotationSidebar
               annotations={annotations}
               unresolvedCount={unresolvedCount}
