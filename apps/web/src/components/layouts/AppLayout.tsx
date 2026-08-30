@@ -16,6 +16,7 @@ import CdmLogo from "../../assets/cdm-logo.png";
 import { useUserProfile, queryClient } from "@monteai/hooks";
 import { profileService } from "../../lib/firebaseServices";
 import { auth } from "../../lib/firebase";
+import { useEffect } from "react";
 
 function AppSidebar() {
   const navigate = useNavigate();
@@ -23,6 +24,10 @@ function AppSidebar() {
   // 1. Fetch the dynamic user profile
   const { profile, isLoading } = useUserProfile(profileService);
 
+  // I'LL REMOVE THIS SOON JUST FOR TESTING
+  useEffect(() => { 
+    auth.currentUser?.getIdToken().then(token => console.log("TOKEN:", token));
+  }, []);
   // 2. Handle secure sign out
   const handleLogout = async () => {
     try {

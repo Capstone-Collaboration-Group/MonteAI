@@ -11,3 +11,5 @@ export const apiClient = createApiClient({
 });
 
 export const profileService = createProfileService(apiClient);
+
+export { auth }
