@@ -1,4 +1,5 @@
 ﻿using server.Models.DTOs.Thesis;
+using server.Models.Entities;
 
 namespace server.Services.Interfaces
 {
@@ -17,6 +18,20 @@ namespace server.Services.Interfaces
         Task<bool> UpdateStatusAsync(Guid id, UpdateThesisStatusDto updateStatusDto);
 
         Task<bool> DeleteAsync(Guid id);
+
+        // ThesisVersion services
+
+        Task<IEnumerable<ThesisVersionResponseDto>> GetByVersionsAsync(Guid thesisId);
+
+        Task<ThesisVersionResponseDto?> GetByVersionIdAsync(Guid versionId);
+
+        Task<ThesisVersionResponseDto?> GetLatestThesisIdAsync(Guid thesisId);
+
+        Task<int> GetNextVersionNumber(Guid thesisId);
+
+        Task<bool> CreateThesisVersion(CreateThesisVersionDto thesisVersionDto, string uploadedById);
+
+        Task<bool> DeleteThesisVersion(Guid thesisId);
 
 
     }
