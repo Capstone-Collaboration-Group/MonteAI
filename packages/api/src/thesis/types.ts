@@ -27,8 +27,8 @@ export interface ThesisService {
 
     // versions
     getVersions(thesisId: string): Promise<ThesisVersion[]>;
-    getVersionFile(thesisId: string, versionId: string): Promise<ThesisResponseDto>;
-
+    getVersionFile(versionId: string): Promise<{ url: string } | null>;
+    
     // Proceedings
     generateProceedings(thesisId: string): Promise<Blob>;
 }

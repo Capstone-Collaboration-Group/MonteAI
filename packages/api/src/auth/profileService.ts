@@ -8,7 +8,7 @@ export type ProfileService = {
 export function createProfileService(client:AxiosInstance): ProfileService { 
     return { 
         async getCurrentProfile() { 
-            const { data } = await client.get<AuthUser>("/v1/Auth/me");
+            const { data } = await client.get<AuthUser>("Auth/me");
             return data;
         },
     };
