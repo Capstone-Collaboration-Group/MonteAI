@@ -164,8 +164,13 @@ namespace server.Data
                 entity.Property(e => e.VersionNumber)
                       .IsRequired();
                 entity.Property(e => e.FilePath)
-                      .IsRequired()
                       .HasMaxLength(2048);
+
+                entity.Property(e => e.UploadedById)
+                      .IsRequired()
+                      .HasMaxLength(128);
+                entity.Property(e => e.ChangeNote)
+                      .HasMaxLength(500);
 
                 entity.Property(e => e.UploadedAt)
                       .IsRequired()
