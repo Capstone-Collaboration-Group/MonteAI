@@ -49,6 +49,7 @@ namespace server.Controllers
         public async Task<IActionResult> GetCurrentUser()
         {
             var uid = User.FindFirstValue("user_id") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("Your token is {uid}", uid);
             if (string.IsNullOrEmpty(uid))
                 return Unauthorized(new { Message = "No user ID found in token." });
 
