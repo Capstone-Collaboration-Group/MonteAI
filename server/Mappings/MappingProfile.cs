@@ -28,6 +28,16 @@ namespace server.Mappings
             CreateMap<ThesisChunkDto, Chunk>()
                 .ForCtorParam(nameof(Chunk.RelevanceScore), opt => opt.MapFrom(_ => (string?)null));
 
+            //ThesisVersion Mappings
+            CreateMap<ThesisVersion, ThesisVersionResponseDto>();
+            CreateMap<CreateThesisVersionDto, ThesisVersion>()
+                .ForMember(dest => dest.VersionNumber, opt => opt.Ignore())
+                .ForMember(dest => dest.UploadedById, opt => opt.Ignore())
+                .ForMember(dest => dest.UploadedAt, opt => opt.Ignore());
+            CreateMap<UpdateThesisVersionDto, ThesisVersion>()
+                .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
+
+
             //User Mappings
             CreateMap<Student, UserResponseDto>();
             CreateMap<Faculty, UserResponseDto>();

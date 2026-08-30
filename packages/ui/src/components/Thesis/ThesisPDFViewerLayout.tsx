@@ -23,6 +23,7 @@ interface ThesisPDFViewerLayoutProps {
   role: ViewerRole;
   versions: ThesisVersion[];
   activeVersion: ThesisVersion | null;
+  fileUrl: string | null;
   annotations: AnnotationResponseDto[];
   unresolvedCount: number;
   resolvedCount: number;
@@ -44,6 +45,7 @@ export function ThesisPDFViewerLayout({
   role,
   versions,
   activeVersion,
+  fileUrl,
   annotations,
   unresolvedCount,
   resolvedCount,
@@ -60,7 +62,7 @@ export function ThesisPDFViewerLayout({
   onBack,
 }: ThesisPDFViewerLayoutProps) {
   // currentPage lives here so both sidebar and PDF viewer can read/write it
-  const [currentPage, setCurrentPage] = useState(1);
+ const [currentPage, setCurrentPage] = useState(1);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   return (
     <PageLayout>
@@ -119,7 +121,7 @@ export function ThesisPDFViewerLayout({
       {/* ── Body ── */}
       {isLoading ? (
         <ThesisPDFViewerSkeleton onBack={onBack} />
-      ) : !activeVersion ? (
+      ) : !activeVersion || !fileUrl ? (
         <div className="flex flex-1 items-center justify-center text-outline">
           No thesis version available.
         </div>
@@ -135,7 +137,7 @@ export function ThesisPDFViewerLayout({
           )}
           <main className="flex-1 overflow-hidden">
             <PDFHighlightViewer
-              fileUrl={activeVersion.filePath}
+              fileUrl={fileUrl}
               annotations={annotations}
               isCreating={isCreating}
               canAnnotate={canAnnotate}

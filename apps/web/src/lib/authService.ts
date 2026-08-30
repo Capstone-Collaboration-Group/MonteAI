@@ -1,5 +1,4 @@
-// apps/web/src/lib/authService.ts
 import { createAuthService } from "@monteai/api";
-import { apiClient } from "./firebaseServices";
+import { apiClient, auth } from "./firebaseServices"; // import auth
 
-export const authService = createAuthService(apiClient);
+export const authService = createAuthService(apiClient, auth);

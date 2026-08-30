@@ -227,15 +227,13 @@ export const mockThesisService: ThesisService = {
         return versionsMap.get(thesisId) ?? [];
     },
 
-    async getVersionFile(thesisId, versionId) {
-        await delay(150);
-        const versions = versionsMap.get(thesisId) ?? [];
+    async getVersionFile(versionId: string) {
+    await delay(150);
+    for (const versions of versionsMap.values()) {
         const version = versions.find((v) => v.id === versionId);
-        // Return the parent thesis DTO with the version's filePath spliced in
-        // (matches what LiveThesisService returns from the real endpoint)
-        const thesis = thesesMap.get(thesisId);
-        if (!thesis || !version) return null as unknown as ThesisResponseDto;
-        return { ...thesis, filePath: version.filePath };
+        if (version) return { url: version.filePath };
+    }
+    return null;
     },
 
     // Annotations

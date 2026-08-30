@@ -190,3 +190,18 @@ export function useThesis(thesisService: ThesisService, thesisId: string) {
         thesis: query.data ?? null,
     };
 }
+
+
+// useTheses.ts
+export function useVersionFileUrl(thesisService: ThesisService, versionId: string) {
+    const query = useQuery({
+        queryKey: ["thesis-version-url", versionId],
+        queryFn: () => {
+            console.log("[useVersionFileUrl] fetching for", versionId);
+            return thesisService.getVersionFile(versionId);
+        },
+        enabled: !!versionId,
+        staleTime: 10 * 60 * 1000,
+    });
+    return { ...query, fileUrl: query.data?.url ?? null };
+}

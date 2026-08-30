@@ -1,5 +1,6 @@
 // packages/api/src/auth/authService.ts
 import type { AxiosInstance } from "axios";
+import { signOut, type Auth} from "firebase/auth";
 import type {
   LoginDto,
   LoginResponseDto,
@@ -16,9 +17,10 @@ export interface AuthService {
   resendOtp(email: string): Promise<boolean>;
   forgotPassword(dto: ForgotPasswordDto): Promise<boolean>;
   resetPassword(dto: ResetPasswordDto): Promise<boolean>;
+  logout(): Promise<void>;
 }
 
-export function createAuthService(client: AxiosInstance): AuthService {
+export function createAuthService(client: AxiosInstance, auth: Auth): AuthService {
   return {
     async login(dto) {
       const { data } = await client.post<LoginResponseDto>("/auth/login", dto);
@@ -44,5 +46,10 @@ export function createAuthService(client: AxiosInstance): AuthService {
       const { data } = await client.post<boolean>("/auth/reset-password", dto);
       return data;
     },
+    async logout() {
+      await client.post("/auth/logout");  // notifies the backend
+      await signOut(auth);               // clears Firebase session client-side
+    },
+    
   };
 }

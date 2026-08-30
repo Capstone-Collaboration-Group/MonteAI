@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
 using Pinecone;
@@ -171,18 +172,37 @@ try
     builder.Services.AddSingleton<IBlobService, BlobService>();
 
     builder.Services.AddScoped<IPineconeService, PineconeService>();
-
-
-
-
-
-
     builder.Services.AddControllers()
         .AddJsonOptions(o =>
             o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen();
+    builder.Services.AddSwaggerGen(options =>
+    {
+        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = ParameterLocation.Header,
+            Description = "Enter your Firebase token only — no need to type 'Bearer'"
+        });
+        options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+    });
 
     builder.Services.AddCors(options =>
     {
