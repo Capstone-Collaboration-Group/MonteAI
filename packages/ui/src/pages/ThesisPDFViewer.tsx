@@ -1,4 +1,3 @@
-// packages/ui/src/pages/ThesisPDFViewer.tsx
 import { useState, useCallback } from "react";
 import type { ThesisService } from "@monteai/api";
 import type { CreateAnnotationDto, ResolveAnnotationDto } from "@monteai/types";
@@ -10,6 +9,7 @@ import {
   useDeleteAnnotation,
   useGenerateProceedings,
   useThesis,
+  useVersionFileUrl,
 } from "@monteai/hooks";
 import { ThesisPDFViewerLayout } from "../components/Thesis";
 
@@ -43,6 +43,15 @@ export function ThesisPDFViewerPage({
   );
 
   const activeVersionId = selectedVersionId ?? latestVersion?.id ?? null;
+  const activeVersion = versions.find((v) => v.id === activeVersionId) ?? latestVersion;
+
+
+  // Resolve the signed download URL for whichever version is active.
+  // activeVersion.filePath is the raw blob path and isn't directly fetchable by the browser.
+  const { fileUrl, isLoading: urlLoading } = useVersionFileUrl(
+    thesisService,
+    activeVersionId ?? ""
+  );
 
   const { annotations, unresolvedCount, resolvedCount, isLoading: annotationsLoading } =
     useAnnotations(thesisService, thesisId, activeVersionId ?? "");
@@ -82,18 +91,17 @@ export function ThesisPDFViewerPage({
     generateProceedings(thesisId);
   }, [thesisId, generateProceedings]);
 
-  const activeVersion = versions.find((v) => v.id === activeVersionId) ?? latestVersion;
-
   return (
     <ThesisPDFViewerLayout
       thesis={thesis ?? null}
       role={role}
       versions={versions}
       activeVersion={activeVersion ?? null}
+      fileUrl={fileUrl}
       annotations={annotations}
       unresolvedCount={unresolvedCount}
       resolvedCount={resolvedCount}
-      isLoading={versionsLoading || annotationsLoading}
+      isLoading={versionsLoading || annotationsLoading || urlLoading}
       isGenerating={isGenerating}
       isCreating={isCreating}
       isResolving={isResolving}
