@@ -12,23 +12,17 @@ namespace server.Models.Entities
         [Required]
         public Guid ThesisId { get; set; }
 
+        public int VersionNumber { get; set; }
 
         [Required]
-        [Range(1, int.MaxValue, ErrorMessage = "Version number must be at least 1.")]
-        public int VersionNumber { get; set; } = 0;
-
-        [Required]
-        [MaxLength(2048)]
+        [MaxLength(2048)] 
         public string FilePath { get; set; } = string.Empty;
+        public string? UploadedById { get; set; }
+        public DateTime UploadedAt { get; set; }
 
-        [Required]
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public DateTime UploadedAt { get; set; } = DateTime.Now;
-
+        [MaxLength(500)]
+        public string? ChangeNote { get; set; }
 
         public Thesis Thesis { get; set; } = null!;
-
-        public ICollection<Review> Reviews { get; set; } = new List<Review>();
-
     }
 }
