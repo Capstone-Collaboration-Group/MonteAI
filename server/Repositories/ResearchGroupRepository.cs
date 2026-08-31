@@ -23,7 +23,8 @@ namespace server.Repositories
 
         public async Task<bool> CreateResearchGroupAsync(ResearchGroup researchGroup)
         {
-            var existing = await _db.ResearchGroups.FindAsync(researchGroup.Id);
+            var existing = await _db.ResearchGroups.Where(rg => rg.GroupName == researchGroup.GroupName)
+                                .FirstOrDefaultAsync();
             if (existing != null) return false;
 
             await _db.ResearchGroups.AddAsync(researchGroup);
