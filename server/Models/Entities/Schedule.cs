@@ -29,6 +29,7 @@ namespace server.Models.Entities
         public ICollection<PanelistSchedule> Panelists { get; set; } = [];
 
 
+
    
     }
 }

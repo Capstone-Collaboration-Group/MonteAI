@@ -24,5 +24,7 @@ namespace server.Models.Entities
         public virtual ICollection<Student> Students { get; set; } = [];
         public Faculty?  Adviser { get; set; }
 
+        public ICollection<Schedule> Schedules { get; set; } = [];
+
     }
 }
