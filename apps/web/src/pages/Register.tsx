@@ -12,9 +12,7 @@ import {
   Mail,
   UserRound,
 } from "lucide-react";
-import LeftPanel from "../components/auth/LeftPanel";
-import Modal from "../components/auth/Modal";
-import { Button, Card, Input } from "@monteai/ui";
+import { LeftPanel, Modal, Button, Card, Input } from "@monteai/ui";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import type { RegisterFormDto } from "@monteai/types";
 import { auth } from "../lib/firebase";

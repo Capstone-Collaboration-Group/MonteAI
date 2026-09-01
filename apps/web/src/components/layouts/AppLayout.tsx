@@ -14,7 +14,7 @@ import CdmLogo from "../../assets/cdm-logo.png";
 
 // Import your global hooks and initialized services
 import { useUserProfile, queryClient } from "@monteai/hooks";
-import { profileService } from "../../lib/firebaseServices";
+import { profileService } from "../../lib/authService";
 import { auth } from "../../lib/firebase";
 import { useEffect } from "react";
 

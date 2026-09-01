@@ -1,10 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import LeftPanel from "../components/auth/LeftPanel";
-import Modal from "../components/auth/Modal";
-import { Card } from "@monteai/ui";
+import { LeftPanel, Modal, Card, LoginForm} from "@monteai/ui";
 import { auth } from "../lib/firebase";
-import LoginForm from "../components/auth/LoginForm";
+
 
 export default function Login() {
   const navigate = useNavigate();
