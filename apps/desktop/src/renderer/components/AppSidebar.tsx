@@ -1,6 +1,7 @@
 import { Sidebar } from "@monteai/ui/index";
 import {
-  NavLink
+  NavLink,
+  useNavigate
 } from "react-router-dom";
 import { LayoutDashboard,
     Users,
@@ -11,7 +12,20 @@ import { LayoutDashboard,
     Settings as SettingsIcon,
      Megaphone,
      View} from "lucide-react";
+import { auth } from "../lib/firebaseServices";
+import { queryClient } from "@monteai/hooks";
 export default function AppSidebar() {
+
+  const navigate = useNavigate();
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      queryClient.clear(); // Wipe the TanStack query cache to prevent data leaks
+      navigate("/"); // Send them back to the landing page
+    } catch (error) {
+      console.error("Failed to sign out", error);
+    }
+  };
   return (
     <Sidebar>
       <Sidebar.Header className="gap-2.5">
@@ -98,7 +112,7 @@ export default function AppSidebar() {
         </NavLink>
       </Sidebar.Footer>
       <Sidebar.Footer className="border-none">
-        <NavLink to="/logout">
+        <NavLink to="/about">
           {({ isActive }) => (
             <Sidebar.Item
               icon={<Info className="h-4 w-4" />}
@@ -115,6 +129,7 @@ export default function AppSidebar() {
               icon={<LogOut className="h-4 w-4" />}
               label="Logout"
               active={isActive}
+              onClick={handleLogout}
             />
           )}
         </NavLink>
