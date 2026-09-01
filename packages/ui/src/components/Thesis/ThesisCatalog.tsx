@@ -1,15 +1,12 @@
 // packages/ui/src/components/Thesis/ThesisCatalog.tsx
 import { useState } from "react";
-import type { ThesisSummary, SubmissionHealthStatus, ThesisCatalogCounts, ThesisStatus } from "@monteai/types";
+import type { ThesisSummary, SubmissionHealthStatus, ThesisCatalogCounts, ThesisStatus, ThesisActionType } from "@monteai/types";
 
 import { FeaturedThesisCard } from "./FeaturedThesisCard";
 import { SubmissionHealthCard } from "./SubmissionHealthCard";
 import { ThesisListView } from "./ThesisListView";
 import { PageHeader, PageLayout} from "../common";
 import { Input } from "../Input";
-
-
-type ThesisAction = "approve" | "reject" | "revision";
 
 type StatusFilter = "None" | ThesisStatus;
 
@@ -21,8 +18,8 @@ interface ThesisCatalogProps {
   isLoading?: boolean;
   onViewDetails?: (thesisId: string) => void;
   onSelectThesis?: (thesisId: string) => void;
-  onThesisAction?: (thesisId: string, action: ThesisAction) => void;
-  allowedActions?: ThesisAction[];   // fixed name
+  onThesisAction?: (thesisId: string, action: ThesisActionType) => void;
+  allowedActions?: ThesisActionType[];   // fixed name
 }
 const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision", "indexed"];
 
@@ -49,7 +46,7 @@ export function ThesisCatalog({
     return (
       item.title.toLowerCase().includes(q) ||
       item.institute.toLowerCase().includes(q) ||
-      item.authors.some((a) => a.toLowerCase().includes(q))
+      item.authors?.some((a) => a.toLowerCase().includes(q))
     );
   });
 

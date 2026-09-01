@@ -1,0 +1,10 @@
+export { default as CdMLogo } from './cdm-logo.png';
+export { default as CloseIcon } from './close.svg';
+export { default as EyeClosedIcon } from './eye-closed.svg';
+export { default as EyeOpenIcon } from "./eye-open.svg";
+export { default as HeroIcon } from "./hero.png";
+export { default as Icon2 } from "./icon-2.svg";
+export { default as Icon3 } from "./icon-3.svg";
+export { default as Icon4 } from "./icon-4.svg";
+export { default as Document } from "./image.svg"
+export { default as RegisterHero } from "./register-hero.png";
