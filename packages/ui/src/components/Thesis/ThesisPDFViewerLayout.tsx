@@ -16,7 +16,6 @@ import { VersionSelector } from "./VersionSelector";
 import { PDFHighlightViewer } from "./PDFHighlightViewer";
 import { Button } from "../Button";
 import { PageLayout } from "../common";
-import "globals";
 import { ThesisPDFViewerSkeleton } from "./skeletons";
 import type { ViewerRole } from "../../pages/ThesisPDFViewer";
 import { ThesisStatusTimeline } from "../Thesis/ThesisStatusTime";
@@ -191,6 +190,7 @@ export function ThesisPDFViewerLayout({
   scheduledBy={scheduledBy ?? ""}
   thesis={{
     id: thesis.id,  
+    groupId: thesis.groupId,
     title: thesis.title ?? "",
     author: thesis.authors?.[0] ?? "",
     institute: thesis.institute ?? "",

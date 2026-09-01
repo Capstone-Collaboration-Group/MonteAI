@@ -17,6 +17,7 @@ export interface UpdateThesisStatusDto {
 
 export interface ThesisResponseDto {
   id: string;
+  groupId: string;
   title?: string;
   abstract?: string;
   filePath: string;
@@ -50,6 +51,7 @@ export type ThesisActionType = "approve" | "reject" | "revision" | "schedule";
 
 export interface ThesisSummary { 
   id: string;
+  groupId: string;
   title: string;
   authors: string[];
   status: ThesisStatus
@@ -68,6 +70,7 @@ export interface SubmissionHealthStatus {
 export function toThesisSummary(dto: ThesisResponseDto): ThesisSummary { 
   return { 
     id: dto.id,
+    groupId: dto.groupId,
     title: dto.title ?? "Untitled",
     authors: dto.authors,
     institute: dto.institute ?? "-",

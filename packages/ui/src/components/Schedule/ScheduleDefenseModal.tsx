@@ -4,13 +4,12 @@ import { Button } from "../Button";
 import type { CreateScheduleDto, PanelistCandidate } from "@monteai/types";
 import { getPanelistDisplayName, getPanelistInitials } from "@monteai/types";
 
-// ── Remove old local Panelist interface entirely ──────────────────────────────
-
 interface ScheduleDefenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   thesis: {
     id: string;
+    groupId: string;
     title: string;
     author: string;
     institute: string;
@@ -130,7 +129,7 @@ export function ScheduleDefenseModal({
   function handleConfirm() {
     const payload: CreateScheduleDto = {
       scheduledBy,
-      groupId: thesis.id,
+      groupId: thesis.groupId,
       date: defenseDate,
       startTime,
       endingTime: endTime,
@@ -140,6 +139,8 @@ export function ScheduleDefenseModal({
         panelistType: p.panelistType,
       })),
     };
+    console.log(`id is ${thesis.id}`);
+    console.log(`groupId is ${thesis.groupId}`);
     onConfirm(payload);
     onClose();
   }

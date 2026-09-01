@@ -1,12 +1,18 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace server.Models.Entities
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum PanelistType
     {
+        [EnumMember(Value =("faculty"))]
         Faculty,
+        [EnumMember(Value =("program-head"))]
         ProgramHead,
+        [EnumMember(Value =("admin"))]
         Admin
     }
     public class PanelistSchedule

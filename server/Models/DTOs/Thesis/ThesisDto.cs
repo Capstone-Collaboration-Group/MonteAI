@@ -51,6 +51,7 @@ namespace server.Models.DTOs.Thesis
         public DateTime? RejectedAt { get; set; }
         public DateTime? IndexedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public Guid? GroupId { get; set; }
 
         //The entity doesn't have this property, it's just populated from fetching the service. 
         public DateTime? ScheduledAt { get; set; }

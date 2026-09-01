@@ -46,6 +46,8 @@ namespace server.Services.Theses
 
                 if (schedule is not null)
                 {
+                    dto.GroupId = schedule.GroupId;
+                    Console.WriteLine(dto.GroupId.ToString());
                     dto.ScheduledAt = schedule.Date.ToDateTime(schedule.StartTime);
                     dto.ScheduledVenue = schedule.RoomVenue;
                 }
