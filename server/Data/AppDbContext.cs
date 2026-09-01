@@ -152,6 +152,13 @@ namespace server.Data
                       .WithOne(s => s.Thesis)
                       .HasForeignKey(s => s.ThesisId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+                entity.Property(e => e.GroupId)
+                      .IsRequired(false);
+                entity.HasOne(e => e.ResearchGroup)
+                      .WithMany()
+                      .HasForeignKey(e => e.GroupId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<ThesisVersion>(entity =>
@@ -238,7 +245,7 @@ namespace server.Data
                       .HasMaxLength(256);
 
                 entity.HasOne(e => e.ResearchGroup)
-                      .WithMany()
+                      .WithMany(rg => rg.Schedules)
                       .HasForeignKey(e => e.GroupId)
                       .OnDelete(DeleteBehavior.SetNull);
 
