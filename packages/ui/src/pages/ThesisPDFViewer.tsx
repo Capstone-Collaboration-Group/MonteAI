@@ -1,5 +1,11 @@
 import { useState, useCallback } from "react";
-import type { ThesisService } from "@monteai/api";
+import type {
+  ThesisService,
+  FacultyService,
+  ProgramHeadService,
+  AdminService,
+  ScheduleService,
+} from "@monteai/api";
 import type { CreateAnnotationDto, ResolveAnnotationDto } from "@monteai/types";
 import {
   useThesisVersions,
@@ -10,6 +16,9 @@ import {
   useGenerateProceedings,
   useThesis,
   useVersionFileUrl,
+  usePanelistPool,
+  useCreateSchedule,
+  useAuth,
 } from "@monteai/hooks";
 import { ThesisPDFViewerLayout } from "../components/Thesis";
 
@@ -19,6 +28,10 @@ export type ViewerRole = "adviser" | "program_head" | "student";
 interface ThesisPDFViewerProps {
   thesisId: string;
   thesisService: ThesisService;
+  facultyService: FacultyService;
+  programHeadService: ProgramHeadService;
+  adminService: AdminService;
+  scheduleService: ScheduleService;
   role?: ViewerRole;
   onBack?: () => void;
 }
@@ -28,6 +41,10 @@ const ANNOTATOR_ROLES: ViewerRole[] = ["adviser", "program_head"];
 export function ThesisPDFViewerPage({
   thesisId,
   thesisService,
+  facultyService,
+  programHeadService,
+  adminService,
+  scheduleService,
   role = "student",
   onBack,
 }: ThesisPDFViewerProps) {
@@ -91,6 +108,15 @@ export function ThesisPDFViewerPage({
     generateProceedings(thesisId);
   }, [thesisId, generateProceedings]);
 
+  const { data: panelistPool } = usePanelistPool(
+    facultyService,
+    programHeadService,
+    adminService
+  );
+  const { mutate: createSchedule } = useCreateSchedule(scheduleService);
+  const { user } = useAuth();
+  const scheduledBy = user?.displayName ?? user?.email ?? "";
+
   return (
     <ThesisPDFViewerLayout
       thesis={thesis ?? null}
@@ -112,6 +138,11 @@ export function ThesisPDFViewerPage({
       onDelete={handleDelete}
       onGenerateProceedings={handleGenerateProceedings}
       onBack={onBack}
+      panelistPool={panelistPool ?? []}
+      scheduledBy={scheduledBy}
+      onConfirmSchedule={(payload) => {
+        createSchedule(payload);
+      }}
     />
   );
 }

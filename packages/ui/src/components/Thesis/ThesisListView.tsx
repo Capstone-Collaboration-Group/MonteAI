@@ -6,7 +6,7 @@ import { StatusBadge } from "./StatusBadge";
 import { Dropdown } from "../common/Dropdown";
 import { Button } from "../Button"; // <-- Imported your reusable Button
 
-export type ThesisActionType = "approve" | "reject" | "revision";
+export type ThesisActionType = "approve" | "reject" | "revision" | "schedule";
 
 interface ThesisAction {
   label: string;
@@ -16,6 +16,11 @@ interface ThesisAction {
 
 const ACTIONS_BY_STATUS: Record<ThesisStatus, ThesisAction[]> = {
   pending: [
+    { label: "Approve", action: "approve", className: "text-status-approved hover:bg-status-approved/10" },
+    { label: "Request Revision", action: "revision", className: "text-amber-600 hover:bg-amber-600/10" },
+    { label: "Reject", action: "reject", className: "text-error hover:bg-error/10" },
+  ],
+  scheduled: [
     { label: "Approve", action: "approve", className: "text-status-approved hover:bg-status-approved/10" },
     { label: "Request Revision", action: "revision", className: "text-amber-600 hover:bg-amber-600/10" },
     { label: "Reject", action: "reject", className: "text-error hover:bg-error/10" },
@@ -121,8 +126,8 @@ export function ThesisListView({
             aria-pressed={view === "grid"}
             onClick={() => setView("grid")}
             className={`!rounded-md !p-1.5 ${view === "grid"
-                ? "bg-surface text-primary shadow-sm hover:bg-surface hover:text-primary"
-                : "text-on-surface-variant hover:bg-surface-container-high"
+              ? "bg-surface text-primary shadow-sm hover:bg-surface hover:text-primary"
+              : "text-on-surface-variant hover:bg-surface-container-high"
               }`}
           >
             <LayoutGrid className="h-4 w-4" />
@@ -133,8 +138,8 @@ export function ThesisListView({
             aria-pressed={view === "list"}
             onClick={() => setView("list")}
             className={`!rounded-md !p-1.5 ${view === "list"
-                ? "bg-surface text-primary shadow-sm hover:bg-surface hover:text-primary"
-                : "text-on-surface-variant hover:bg-surface-container-high"
+              ? "bg-surface text-primary shadow-sm hover:bg-surface hover:text-primary"
+              : "text-on-surface-variant hover:bg-surface-container-high"
               }`}
           >
             <List className="h-4 w-4" />
@@ -174,7 +179,9 @@ export function ThesisListView({
                   {formatDate(thesis.submittedDate)}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <ActionMenu thesis={thesis} onAction={onAction} allowedActions={allowedActions} />
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <ActionMenu thesis={thesis} onAction={onAction} allowedActions={allowedActions} />
+                  </div>
                 </td>
               </tr>
             ))}

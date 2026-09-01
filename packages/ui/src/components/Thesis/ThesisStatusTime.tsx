@@ -29,6 +29,7 @@ function buildTimeline(thesis: ThesisResponseDto): TimelineStep[] {
   const steps = [
     { key: "submitted", label: "Submitted", date: thesis.submittedAt },
     { key: "pending", label: "Pending", date: thesis.submittedAt },
+    { key: "scheduled", label: "Scheduled", date: thesis.scheduledAt },
     { key: "revision", label: "Under Review", date: thesis.reviewedAt },
     { key: "approved", label: "Approved", date: thesis.approvedAt },
     { key: "rejected", label: "Rejected", date: thesis.rejectedAt },
@@ -45,6 +46,7 @@ function buildTimeline(thesis: ThesisResponseDto): TimelineStep[] {
   const ORDER = [
     "submitted",
     "pending",
+    "scheduled",
     "revision",
     "approved",
     "indexed",

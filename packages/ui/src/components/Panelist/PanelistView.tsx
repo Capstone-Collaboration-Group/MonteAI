@@ -107,9 +107,7 @@ export function PanelistView({
   hasError = false,
   onCreateNew,
 }: PanelistViewProps) {
-  if (isLoading) {
-    return <PanelistViewSkeleton />;
-  }
+ 
 
   const [activeTab, setActiveTab] = useState<Tab>("assigned");
   const [search, setSearch] = useState("");
@@ -143,6 +141,8 @@ export function PanelistView({
       })),
     [panelists],
   );
+
+  
 
   const assignedRows = useMemo(
     () => allRows.filter((r) => r.isAssigned),
@@ -193,6 +193,10 @@ export function PanelistView({
   const columns = panelistColumns();
   const tabLabel =
     activeTab === "assigned" ? "panelist" : "unassigned panelist";
+
+     if (isLoading) {
+    return <PanelistViewSkeleton />;
+  }
 
   return (
     <PageLayout direction="row" className="overflow-hidden">

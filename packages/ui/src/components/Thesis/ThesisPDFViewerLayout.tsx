@@ -1,12 +1,14 @@
 // packages/ui/src/components/Thesis/ThesisPDFViewerLayout.tsx
 import { useState } from "react";
-import { ArrowLeft, FileDown } from "lucide-react";
+import { ArrowLeft, Calendar, FileDown } from "lucide-react";
 import type {
   ThesisVersion,
   AnnotationResponseDto,
   CreateAnnotationDto,
   ResolveAnnotationDto,
   ThesisResponseDto,
+  PanelistCandidate,
+  CreateScheduleDto,
 } from "@monteai/types";
 import { Spinner } from "../common/Spinner";
 import { AnnotationSidebar } from "./AnnotationSidebar";
@@ -18,6 +20,8 @@ import "globals";
 import { ThesisPDFViewerSkeleton } from "./skeletons";
 import type { ViewerRole } from "../../pages/ThesisPDFViewer";
 import { ThesisStatusTimeline } from "../Thesis/ThesisStatusTime";
+import { ScheduleDefenseModal } from "../Schedule";
+
 interface ThesisPDFViewerLayoutProps {
   thesis: ThesisResponseDto | null;
   role: ViewerRole;
@@ -38,6 +42,9 @@ interface ThesisPDFViewerLayoutProps {
   onDelete: (annotationId: string) => void;
   onGenerateProceedings: () => void;
   onBack?: () => void;
+  panelistPool?: PanelistCandidate[];
+  scheduledBy?: string;
+  onConfirmSchedule?: (data: CreateScheduleDto) => void;
 }
 
 export function ThesisPDFViewerLayout({
@@ -60,10 +67,14 @@ export function ThesisPDFViewerLayout({
   onDelete,
   onGenerateProceedings,
   onBack,
+  panelistPool,
+  scheduledBy,
+  onConfirmSchedule
 }: ThesisPDFViewerLayoutProps) {
-  // currentPage lives here so both sidebar and PDF viewer can read/write it
- const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+
   return (
     <PageLayout>
       {/* ── Top Bar ── */}
@@ -92,7 +103,7 @@ export function ThesisPDFViewerLayout({
             activeVersion={activeVersion}
             onVersionChange={(id) => {
               onVersionChange(id);
-              setCurrentPage(1); // reset to page 1 on version switch
+              setCurrentPage(1);
             }}
           />
 
@@ -102,6 +113,17 @@ export function ThesisPDFViewerLayout({
             </span>
           )}
 
+          {/* ── Schedule For Defense ── */}
+          <Button
+            type="button"
+            onClick={() => setScheduleModalOpen(true)}
+            className="flex items-center gap-2 text-sm"
+          >
+            <Calendar className="h-4 w-4" />
+            Schedule For Defense
+          </Button>
+
+          {/* ── Generate Proceedings ── */}
           <Button
             type="button"
             onClick={onGenerateProceedings}
@@ -159,6 +181,26 @@ export function ThesisPDFViewerLayout({
             />
           </aside>
         </div>
+      )}
+
+      {/* ── Schedule Defense Modal ── */}
+      {thesis && (
+        <ScheduleDefenseModal
+  isOpen={scheduleModalOpen}
+  onClose={() => setScheduleModalOpen(false)}
+  scheduledBy={scheduledBy ?? ""}
+  thesis={{
+    id: thesis.id,  
+    title: thesis.title ?? "",
+    author: thesis.authors?.[0] ?? "",
+    institute: thesis.institute ?? "",
+    section: thesis.uploadedById,   // closest available field — swap if you have a better one
+  }}
+  panelistPool={panelistPool ?? []}
+  onConfirm={(payload) => {
+    onConfirmSchedule?.(payload)
+  }}
+/>
       )}
     </PageLayout>
   );
