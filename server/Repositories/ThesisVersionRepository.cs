@@ -46,17 +46,19 @@ namespace server.Repositories
 
         public async Task<bool> DeleteAllExceptLatestAsync(Guid thesisId)
         {
-            var latest = await db.ThesisVersions.FindAsync(thesisId);
+            var latest = await db.ThesisVersions
+                .Where(v => v.ThesisId == thesisId)
+                .OrderByDescending(v => v.VersionNumber)
+                .FirstOrDefaultAsync();
 
             if (latest is null) return false;
 
             var old = await db.ThesisVersions
-                        .Where(v => v.ThesisId == thesisId && v.Id != latest.Id)
-                        .ToListAsync();
+                .Where(v => v.ThesisId == thesisId && v.Id != latest.Id)
+                .ToListAsync();
 
             db.ThesisVersions.RemoveRange(old);
             await db.SaveChangesAsync();
-
             return true;
 
         }

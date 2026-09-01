@@ -14,15 +14,17 @@ namespace server.Services.Theses
     {
         private readonly IThesisRepository _thesisRepo;
         private readonly IThesisVersionRepository _thesisVersionRepo;
+        private readonly IScheduleRepository _scheduleRepository;
         private readonly ILogger<ThesisService> _logger;
         private readonly IMapper _mapper;
         private readonly IPineconeService _pineconeService;
         private readonly IBlobService _blobService;
 
-        public ThesisService(IThesisRepository repo, IThesisVersionRepository thesisVersionRepo, ILogger<ThesisService> logger, IMapper mapper, IPineconeService pineconeService, IBlobService blobService)
+        public ThesisService(IThesisRepository repo, IThesisVersionRepository thesisVersionRepo, IScheduleRepository scheduleRepository, ILogger<ThesisService> logger, IMapper mapper, IPineconeService pineconeService, IBlobService blobService)
         {
             _thesisRepo = repo;
             _thesisVersionRepo = thesisVersionRepo;
+            _scheduleRepository = scheduleRepository;
             _logger = logger;
             _mapper = mapper;
             _pineconeService = pineconeService;
@@ -33,8 +35,23 @@ namespace server.Services.Theses
         {
             var result = await _thesisRepo.GetFirst20ThesisAsync();
 
-            var dtos = _mapper.Map<IEnumerable<ThesisResponseDto>>(result);
+            var dtos = result.Select(thesis =>
+            {
+                var dto = _mapper.Map<ThesisResponseDto>(thesis);
 
+                // Pick the latest schedule for this group if multiple exist
+                var schedule = thesis.ResearchGroup?.Schedules
+                    .OrderByDescending(s => s.Date)
+                    .FirstOrDefault();
+
+                if (schedule is not null)
+                {
+                    dto.ScheduledAt = schedule.Date.ToDateTime(schedule.StartTime);
+                    dto.ScheduledVenue = schedule.RoomVenue;
+                }
+
+                return dto;
+            });
             _logger.LogInformation("Nandito ka yowww");
 
             return dtos;
@@ -48,9 +65,7 @@ namespace server.Services.Theses
 
             var dto = _mapper.Map<ThesisResponseDto>(result);
             _logger.LogInformation("Thesis with Id: {id} successfully fetched", result.Id);
-
             return dto;
-            
         }
         public async Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto)
         {

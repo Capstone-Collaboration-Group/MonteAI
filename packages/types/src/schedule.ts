@@ -7,7 +7,7 @@ export interface CreatePanelistEntryDto {
 }
 
 export interface CreateScheduleDto {
-  scheduledBy: string;
+  scheduledBy?: string;
   groupId?: string;
   date: string;
   startTime: string;

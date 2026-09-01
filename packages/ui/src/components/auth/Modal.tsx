@@ -8,7 +8,7 @@ type ModalProps = {
 
 const ANIM_DURATION = 300; // ms
 
-export default function Modal({ children, onClose }: ModalProps) {
+export function Modal({ children, onClose }: ModalProps) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
 

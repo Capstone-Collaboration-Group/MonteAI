@@ -1,6 +1,6 @@
-import cdmLogo from "../../assets/cdm-logo.png";
+import cdmLogo from '../../assets/cdm-logo.png'
 
-export default function LeftPanel() {
+export function LeftPanel() {
   return (
     <section className="flex w-full max-w-[420px] flex-col items-start justify-center px-6 py-6">
       {/* CDM Logo */}

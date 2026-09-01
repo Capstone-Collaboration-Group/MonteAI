@@ -3,7 +3,7 @@ import { AuthProvider, QueryClientProvider, queryClient } from "@monteai/hooks";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import AppLayout from "./components/layouts/AppLayout";
 import LandingPage from "./pages/LandingPage";
-import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { ProtectedRoute } from "@monteai/ui";
 import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import { auth } from "./lib/firebase";
@@ -15,6 +15,7 @@ import Login from "./pages/Login";
 import Announcements from "./pages/Announcements";
 import ThesisViewer from "./pages/ThesisViewer";
 import Theses from "./pages/ThesesPage";
+import { profileService } from "./lib/authService";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -34,11 +35,8 @@ const App = () => (
           <Route path="/login" element={<Login />} />
 
           
-          
-          
-
           {/* Authenticated — sidebar layout, gated by Firebase auth state */}
-          <Route element={<ProtectedRoute />}>
+          <Route element={<ProtectedRoute profileService={profileService}/>}>
 
           <Route element={<AppLayout />}>
               <Route path="/home" element={<Home />} />
@@ -50,8 +48,6 @@ const App = () => (
               <Route path="/announcements" element={<Announcements />} />
           </Route>
 
-          
-            
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

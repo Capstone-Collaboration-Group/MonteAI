@@ -10,7 +10,7 @@ type PasswordInputProps = {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
-export default function PasswordInput({
+export function PasswordInput({
   label,
   name,
   placeholder,

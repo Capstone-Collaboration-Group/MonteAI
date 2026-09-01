@@ -25,7 +25,7 @@ namespace server.Models.DTOs.Schedule
 
         public string? AdditionalInformation { get; set; }
         [Required]
-        [MinLength(1, ErrorMessage = "At least one panelist is required for a defense schedule")]
+        [MinLength(1, ErrorMessage = "At least 3 panelist is required for a defense schedule")]
         public List<CreatePanelistEntryDto> Panelists { get; set; } = [];
     }
 

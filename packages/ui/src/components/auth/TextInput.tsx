@@ -7,7 +7,7 @@ type TextInputProps = {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
-export default function TextInput({
+export function TextInput({
   label,
   name,
   type = "text",

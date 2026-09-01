@@ -29,7 +29,8 @@ export interface ThesisResponseDto {
   rejectedAt?: string;
   indexedAt?: string;
   updatedAt: string;
-
+  scheduledAt: string;
+  scheduledVenue: string;
   authors: string[];
   institute?: string;
 }
@@ -41,10 +42,11 @@ export interface ThesisCatalogCounts {
   archived: number;
 }
 
-export type ThesisResponseListDto = ThesisResponseDto[];
 
 
-export type ThesisStatus = "pending" | "approved" | "rejected" | "revision" | "indexed";
+export type ThesisStatus = "pending" | "approved" | "scheduled" | "rejected" | "revision" | "indexed";
+
+export type ThesisActionType = "approve" | "reject" | "revision" | "schedule";
 
 export interface ThesisSummary { 
   id: string;

@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { signInWithEmailAndPassword, type Auth } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import TextInput from "./TextInput";
-import PasswordInput from "./PasswordInput";
+import {TextInput} from "./TextInput";
+import {PasswordInput} from "./PasswordInput";
 
 type LoginFormProps = {
   auth: Auth;
   onSuccess?: () => void;
 };
 
-export default function LoginForm({ auth, onSuccess }: LoginFormProps) {
+export function LoginForm({ auth, onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

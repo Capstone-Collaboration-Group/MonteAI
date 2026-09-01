@@ -547,6 +547,9 @@ namespace server.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("IndexedAt")
                         .HasColumnType("datetime2");
 
@@ -588,6 +591,8 @@ namespace server.Migrations
                         .HasColumnType("nvarchar(128)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GroupId");
 
                     b.ToTable("Theses", (string)null);
                 });
@@ -689,7 +694,7 @@ namespace server.Migrations
             modelBuilder.Entity("server.Models.Entities.Schedule", b =>
                 {
                     b.HasOne("server.Models.Entities.ResearchGroup", "ResearchGroup")
-                        .WithMany()
+                        .WithMany("Schedules")
                         .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
@@ -726,6 +731,16 @@ namespace server.Migrations
                     b.Navigation("Thesis");
                 });
 
+            modelBuilder.Entity("server.Models.Entities.Thesis", b =>
+                {
+                    b.HasOne("server.Models.Entities.ResearchGroup", "ResearchGroup")
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("ResearchGroup");
+                });
+
             modelBuilder.Entity("server.Models.Entities.ThesisVersion", b =>
                 {
                     b.HasOne("server.Models.Entities.Thesis", "Thesis")
@@ -739,6 +754,8 @@ namespace server.Migrations
 
             modelBuilder.Entity("server.Models.Entities.ResearchGroup", b =>
                 {
+                    b.Navigation("Schedules");
+
                     b.Navigation("Students");
                 });
 

@@ -98,10 +98,7 @@ export function FacultyView({
   hasError = false,
   onCreateNew,
 }: FacultyViewProps) {
-  if (isLoading) {
-    return <FacultyViewSkeleton />;
-  }
-
+  
   const [activeTab, setActiveTab] = useState<Tab>("faculty");
   const [search, setSearch] = useState("");
 
@@ -173,6 +170,11 @@ export function FacultyView({
   const columns = memberColumns(
     activeTab === "faculty" ? "Designation" : "Program Handled",
   );
+
+  if (isLoading) {
+    return <FacultyViewSkeleton />;
+  }
+
 
   return (
     <div className="min-h-screen bg-surface-container-low/60 p-6 lg:p-8">
