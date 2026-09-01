@@ -46,6 +46,8 @@ export interface ThesisCatalogCounts {
 
 export type ThesisStatus = "pending" | "approved" | "scheduled" | "rejected" | "revision" | "indexed";
 
+export type ThesisActionType = "approve" | "reject" | "revision" | "schedule";
+
 export interface ThesisSummary { 
   id: string;
   title: string;
