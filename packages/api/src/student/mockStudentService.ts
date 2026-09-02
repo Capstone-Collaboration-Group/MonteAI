@@ -31,6 +31,7 @@ function buildSeed(): StudentResponseDto[] {
         leaderId: "student-1",
         createdAt: "2025-01-10T08:00:00.000Z",
         updatedAt: "2025-01-10T08:00:00.000Z",
+        institute: 'Institute of Computing Studies'
       },
       position: "Leader",
       institute: "Institute of Computing Studies",
@@ -58,6 +59,7 @@ function buildSeed(): StudentResponseDto[] {
         leaderId: "student-2",
         createdAt: "2025-01-15T09:30:00.000Z",
         updatedAt: "2025-01-15T09:30:00.000Z",
+        institute: "Institute of Business and Entrepreneurship"
       },
       position: "Member",
       institute: "Institute of Computing Studies",

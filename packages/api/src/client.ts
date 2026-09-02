@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance, isAxiosError,  Axios } from "axios";
+import axios, { type AxiosInstance, isAxiosError } from "axios";
 import type { AxiosRequestConfig } from "axios";
 export interface ApiClientConfig {
   baseURL: string;

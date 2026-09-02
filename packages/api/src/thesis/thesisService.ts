@@ -16,8 +16,9 @@ import type { ThesisService } from "./types";
 
 
 export class LiveThesisService implements ThesisService {
-    constructor(private readonly client: AxiosInstance) {
-        this.client = client
+    private readonly client: AxiosInstance
+    constructor(client: AxiosInstance) {
+        this.client = client;
      }
     // async getThesis
     async getThesis(thesisId: string): Promise<ThesisResponseDto | null> {

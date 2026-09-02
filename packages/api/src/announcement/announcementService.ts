@@ -6,10 +6,13 @@ import {
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
 
-import { AnnouncementService } from "./types";
+import type { AnnouncementService } from "./types";
 
 export class LiveAnnouncementService implements AnnouncementService { 
-    constructor(private readonly client: AxiosInstance) {}
+    private readonly client: AxiosInstance;
+    constructor(client: AxiosInstance) { 
+        this.client = client;
+    }
 
     async getAnnouncements(): Promise<AnnouncementResponseDto[] | []> { 
         try { 

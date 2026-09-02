@@ -12,25 +12,34 @@
     "dev:desktop": "pnpm --filter desktop start",
     "build:web": "pnpm --filter web build",
     "build:desktop": "pnpm --filter desktop make",
-    "lint": "eslint . && pnpm --filter desktop lint && pnpm --filter mobile lint"
+    "lint": "eslint . && pnpm --filter desktop lint && pnpm --filter mobile lint",
+    "typecheck": "pnpm -r run typecheck",
+    "typecheck:apps": "pnpm --filter web --filter mobile --filter desktop run typecheck",
+    "typecheck:packages": "pnpm --filter @monteai/api --filter @monteai/ui --filter @monteai/hooks --filter @monteai/types --filter @monteai/utils run typecheck",
+    "typecheck:all": "pnpm run typecheck:packages && pnpm run typecheck:apps",
+    "precommit": "pnpm run typecheck:all && pnpm run lint",
+    "prepare": "husky"
   },
   "type": "module",
-
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.33.2",
-   "pnpm": {
+  "pnpm": {
     "overrides": {
       "pdfjs-dist": "4.4.168"
     }
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.69.0",
+    "@typescript-eslint/parser": "^8.69.0",
     "eslint": "^10.7.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
+    "husky": "^9.1.7",
+    "typescript": "5.8.3",
     "typescript-eslint": "^8.64.0"
   }
 }

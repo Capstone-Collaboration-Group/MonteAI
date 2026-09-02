@@ -8,7 +8,10 @@ import type { SubmissionService } from "./types";
 import { handle404 } from "@monteai/utils";
 
 export class LiveSubmissionService implements SubmissionService  { 
-    constructor (private readonly client: AxiosInstance) {}
+    private readonly client: AxiosInstance;
+    constructor (client: AxiosInstance) {
+        this.client = client;
+    }
 
     async getSubmissions(): Promise<SubmissionResponseDto[] | []> {
         try { 

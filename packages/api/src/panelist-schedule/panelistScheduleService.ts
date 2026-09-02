@@ -9,7 +9,10 @@ import { handle404 } from "@monteai/utils";
 import type { PanelistScheduleService } from "./types";
 
 export class LivePanelistScheduleService implements PanelistScheduleService {
-    constructor(private readonly client: AxiosInstance) {}
+    private readonly client: AxiosInstance;
+    constructor(client: AxiosInstance) {
+        this.client = client;
+    }
 
     // GET /panelistschedule/details — enriched person data with assignments
     async getPanelistSchedules(): Promise<PanelistResponseDto[]> {

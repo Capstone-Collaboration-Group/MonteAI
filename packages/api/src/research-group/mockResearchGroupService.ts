@@ -18,24 +18,29 @@ function buildSeed(): ResearchGroupResponseDto[] {
     {
       id: "research-group-1",
       groupName: "Group Alpha",
+      institute: 'ics',
       researchTitle: "AI-Driven Student Performance Prediction",
       adviserId: "faculty-1",
       leaderId: "student-1",
       createdAt: "2025-01-10T08:00:00.000Z",
       updatedAt: "2025-01-10T08:00:00.000Z",
+      
     },
     {
       id: "research-group-2",
       groupName: "Group Beta",
+      institute: 'ics',
       researchTitle: "Smart Attendance Monitoring System",
       adviserId: "faculty-2",
       leaderId: "student-2",
       createdAt: "2025-01-15T09:30:00.000Z",
       updatedAt: "2025-01-15T09:30:00.000Z",
+      
     },
     {
       id: "research-group-3",
       groupName: "Group Gamma",
+      institute: 'ics',
       researchTitle: "Blockchain-Based Academic Records Management",
       adviserId: "faculty-3",
       leaderId: "student-3",
@@ -67,10 +72,11 @@ export const mockResearchGroupService: ResearchGroupService = {
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-
+    const institute = 'ibe';
     const researchGroup: ResearchGroupResponseDto = {
       id,
       groupName: dto.groupName,
+      institute: institute,
       researchTitle: dto.researchTitle,
       adviserId: dto.adviserId,
       leaderId: dto.leaderId,

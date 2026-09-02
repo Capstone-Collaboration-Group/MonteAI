@@ -1,4 +1,4 @@
-import { Toaster, NotFound, SettingsPage } from "@monteai/ui";
+import { Toaster, NotFound } from "@monteai/ui";
 import { AuthProvider, QueryClientProvider, queryClient } from "@monteai/hooks";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import AppLayout from "./components/layouts/AppLayout";
