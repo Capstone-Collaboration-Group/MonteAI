@@ -1,10 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 
-type NavbarProps = {
-  onLoginClick?: () => void;
-};
-
-export default function Navbar({ onLoginClick }: NavbarProps) {
+export default function Navbar() {
   const location = useLocation();
 
   const navItems = [
