@@ -1,4 +1,4 @@
-import { SubmissionHealthStatus } from "@monteai/types";
+import type { SubmissionHealthStatus } from "@monteai/types";
 
 interface SubmissionHealthCardProps {
   stats: SubmissionHealthStatus;

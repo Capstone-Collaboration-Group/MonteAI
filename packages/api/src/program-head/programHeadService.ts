@@ -6,11 +6,13 @@ import {
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
 
-import { ProgramHeadService } from "./types";
+import type { ProgramHeadService } from "./types";
 
 export class LiveProgramHeadService implements ProgramHeadService {
-    constructor(private readonly client: AxiosInstance) {}
-
+    private readonly client: AxiosInstance
+    constructor(client: AxiosInstance) {
+        this.client = client;
+    }
     async getProgramHeads(): Promise<ProgramHeadResponseDto[] | []> {
         try {
             const { data } = await this.client.get<ProgramHeadResponseDto[]>(`programhead`);

@@ -4,11 +4,14 @@ import type {
     UpdateScheduleDto,
     ScheduleResponseDto
 } from "@monteai/types";
-import { ScheduleService } from "./types";
+import type { ScheduleService } from "./types";
 import { handle404 } from "@monteai/utils";
 
 export class LiveScheduleService implements ScheduleService { 
-    constructor (private readonly client: AxiosInstance) {}
+    private readonly client: AxiosInstance;
+    constructor (client: AxiosInstance) {
+        this.client = client;
+    }
 
     async getSchedules(): Promise<ScheduleResponseDto[] | []> {
         try { 

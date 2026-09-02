@@ -4,6 +4,8 @@ import type {
   ScheduleResponseDto,
   CreateScheduleDto,
   UpdateScheduleDto,
+  PanelistType,
+  PanelistScheduleResponseDto,
 } from "@monteai/types";
 
 function delay(ms: number) {
@@ -111,13 +113,13 @@ function buildSeed(): ScheduleResponseDto[] {
     const groupIndex = i % groupNames.length;
     const instituteIndex = i % institutes.length;
 
-    const panelists =
-      i % 3 === 0
-        ? [
-          { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Adviser" },
-          { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Panelist" },
-        ]
-        : [];
+   const panelists: PanelistScheduleResponseDto[] =
+  i % 3 === 0
+    ? [
+        { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Adviser" as PanelistType, createdAt: new Date().toISOString() },
+        { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Faculty" as PanelistType, createdAt: new Date().toISOString() },
+      ]
+    : [];
 
     schedules.push({
       scheduleId,
@@ -157,21 +159,25 @@ export const mockScheduleService: ScheduleService = {
     return schedules.get(scheduleId) ?? null;
   },
 
-  async createSchedule(dto: CreateScheduleDto) {
-    await delay(300);
-    const id = crypto.randomUUID();
-    schedules.set(id, {
-      scheduleId: id,
-      scheduledBy: dto.scheduledBy,
-      date: dto.date,
-      startTime: dto.startTime,
-      endingTime: dto.endingTime,
-      roomVenue: dto.roomVenue,
-      additionalInformation: dto.additionalInformation,
-      panelists: dto.panelists.map((p) => ({ scheduleId: id, ...p })),
-    });
-    return true;
-  },
+ async createSchedule(dto: CreateScheduleDto) {
+  await delay(300);
+  const id = crypto.randomUUID();
+  schedules.set(id, {
+    scheduleId: id,
+    scheduledBy: dto.scheduledBy ?? '',
+    date: dto.date,
+    startTime: dto.startTime,
+    endingTime: dto.endingTime,
+    roomVenue: dto.roomVenue,
+    additionalInformation: dto.additionalInformation ?? '',
+    panelists: dto.panelists.map((p) => ({ 
+      scheduleId: id, 
+      ...p, 
+      createdAt: new Date().toISOString()  
+    })),
+  });
+  return true;
+},
 
   async updateSchedule(scheduleId: string, dto: UpdateScheduleDto) {
     await delay(300);

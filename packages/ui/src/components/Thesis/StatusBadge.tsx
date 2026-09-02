@@ -34,7 +34,8 @@ const STATUS_CONFIG: Record<ThesisStatus, {
     bg: "bg-blue-100",
     text: "text-blue-700",
     label: "Indexed",
-  }
+  }, 
+  scheduled: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Scheduled' },
 };
 
 const FALLBACK_CONFIG = STATUS_CONFIG["pending"];

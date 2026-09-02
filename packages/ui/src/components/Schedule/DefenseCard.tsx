@@ -106,7 +106,6 @@ export function DefenseCard({
 }: DefenseCardProps) {
   const startHour = parseInt(schedule.startTime.split(":")[0]);
   const startMin = parseInt(schedule.startTime.split(":")[1]);
-  const GAP_PX = 4;
   const topOffset = (startHour - 7) * 60 + startMin + 2;
 
   const endHour = parseInt(schedule.endingTime.split(":")[0]);

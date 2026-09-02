@@ -6,10 +6,14 @@ import {
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
 
-import { ResearchGroupService } from "./types";
+import type { ResearchGroupService } from "./types";
 
 export class LiveResearchGroupService implements ResearchGroupService {
-    constructor(private readonly client: AxiosInstance) {}
+
+    private readonly client: AxiosInstance
+    constructor(client: AxiosInstance) {
+        this.client = client;
+    }
 
     async getResearchGroups(): Promise<ResearchGroupResponseDto[] | []> {
         try {

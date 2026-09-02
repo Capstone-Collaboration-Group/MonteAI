@@ -1,9 +1,9 @@
-import type { PanelistScheduleResponseDto } from "./panelist-schedule";
+import type { PanelistScheduleResponseDto, PanelistType } from "./panelist-schedule";
 import type { ResearchGroupResponseDto } from "./research-group";
 
 export interface CreatePanelistEntryDto {
   panelistId: string;
-  panelistType: string;
+  panelistType: PanelistType;
 }
 
 export interface CreateScheduleDto {

@@ -19,7 +19,8 @@ interface ThesisCatalogProps {
   onViewDetails?: (thesisId: string) => void;
   onSelectThesis?: (thesisId: string) => void;
   onThesisAction?: (thesisId: string, action: ThesisActionType) => void;
-  allowedActions?: ThesisActionType[];   // fixed name
+  allowedActions?: ThesisActionType[];
+  // onFilterClick?: () => void;
 }
 const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision", "indexed"];
 
@@ -28,11 +29,12 @@ export function ThesisCatalog({
   theses,
   healthStats,
   counts,
-  isLoading,
+
   onViewDetails,
   onSelectThesis,
   onThesisAction,
-  allowedActions = [],  
+  allowedActions = [],
+  // onFilterClick,  
 }: ThesisCatalogProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("None");
   const [search, setSearch] = useState("");

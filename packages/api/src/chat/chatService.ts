@@ -11,7 +11,10 @@ import type { ChatService } from "./types";
 import { handle404 } from "@monteai/utils";
 
 export class LiveChatService implements ChatService {
-  constructor(private readonly client: AxiosInstance) {}
+  private readonly client: AxiosInstance;
+  constructor(client: AxiosInstance) {
+    this.client = client;
+  }
 
   async createSession(dto: CreateChatSessionDto): Promise<ChatSessionResponseDto> {
     const { data } = await this.client.post<ChatSessionResponseDto>("/chat/sessions/create", dto);

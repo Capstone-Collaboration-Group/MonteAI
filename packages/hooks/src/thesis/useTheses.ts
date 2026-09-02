@@ -127,7 +127,6 @@ export function useResolveAnnotation(thesisService: ThesisService) {
     return useMutation({ 
         mutationFn: ({ 
             thesisId, 
-            versionId,
             annotationId,
             dto,
         }: { 

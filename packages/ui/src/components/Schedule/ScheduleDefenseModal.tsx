@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Modal, ModalHeader } from "../common/Modal";
 import { Button } from "../Button";
-import type { CreateScheduleDto, PanelistCandidate } from "@monteai/types";
+import type { CreateScheduleDto, PanelistCandidate, PanelistType } from "@monteai/types";
 import { getPanelistDisplayName, getPanelistInitials } from "@monteai/types";
 
 interface ScheduleDefenseModalProps {
@@ -136,7 +136,7 @@ export function ScheduleDefenseModal({
       roomVenue: venue,
       panelists: selectedPanelists.map((p) => ({
         panelistId: p.id,
-        panelistType: p.panelistType,
+        panelistType: p.panelistType as PanelistType,
       })),
     };
     console.log(`id is ${thesis.id}`);
