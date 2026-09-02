@@ -1,12 +1,12 @@
 @import "tailwindcss";
-@import "@monteai/ui/styles/globals.css";
+@import "../../../packages/ui/src/styles/globals.css";
 @source "../../../packages/ui/src/**/*.{ts,tsx}";
 
 @layer base {
   :root {
-    --accent: #aa3bff;
-    --bg: #fff;
-    --text: #000;
+    --accent: var(--primary);
+    --bg: var(--surface);
+    --text: var(--on-surface);
   }
 
   body {

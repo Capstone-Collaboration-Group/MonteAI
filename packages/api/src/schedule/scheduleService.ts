@@ -1,0 +1,49 @@
+import { type AxiosInstance } from "axios";
+import type { 
+    CreateScheduleDto, 
+    UpdateScheduleDto,
+    ScheduleResponseDto
+} from "@monteai/types";
+import { ScheduleService } from "./types";
+import { handle404 } from "@monteai/utils";
+
+export class LiveScheduleService implements ScheduleService { 
+    constructor (private readonly client: AxiosInstance) {}
+
+    async getSchedules(): Promise<ScheduleResponseDto[] | []> {
+        try { 
+            const { data } = await this.client.get<ScheduleResponseDto[] | []>(`/schedule`);
+            return data;
+        } catch (err) { 
+            return handle404(err, [])
+        }
+    }
+    async getScheduleById(scheduleId: string): Promise<ScheduleResponseDto | null> {
+        try { 
+            const { data } = await this.client.get<ScheduleResponseDto | null>(`/schedule/${scheduleId}`);
+            return data;
+        } catch (err) { 
+            return handle404(err, null);
+        }
+    }
+    async createSchedule(dto: CreateScheduleDto): Promise<boolean> {
+        const { data } = await this.client.post<boolean>(`/schedule/create`, dto);
+        return data;
+    }
+    async updateSchedule(scheduleId: string, dto: UpdateScheduleDto): Promise<boolean> {
+        try { 
+            const { data } = await this.client.patch<boolean>(`/schedule/update/${scheduleId}`, dto);
+            return data;
+        } catch (err) { 
+            return handle404(err, false);
+        }
+    }
+    async deleteSchedule(scheduleId: string): Promise<boolean> {
+        try { 
+            const { data } = await this.client.delete<boolean>(`/schedule/delete/${scheduleId}`);
+            return data;
+        } catch (err) { 
+            return handle404(err, false);
+        }
+    }
+}

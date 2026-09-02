@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "commonjs",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "resolveJsonModule": true,
+    "paths": {
+      "pdfjs-dist/legacy/build/pdf.mjs": [
+        "./node_modules/pdfjs-dist/legacy/build/pdf.d.mts"
+      ]
+    },
+    "types": ["node", "@electron-forge/plugin-vite/forge-vite-env"]
+  },
+  "include": [
+    "src/main.ts",
+    "src/preload.ts",
+    "forge.config.ts",
+    "forge.env.d.ts",
+    "vite.main.config.ts",
+    "vite.preload.config.ts",
+    "vite.renderer.config.mts"
+  ]
+}

@@ -21,8 +21,10 @@ export default function FeatureCard({
   titleNode,
 }: FeatureCardProps) {
   return (
-    <article className={`flex flex-col items-start gap-6 rounded-[48px] border border-[#becab61a] bg-white p-10 shadow-[0px_4px_20px_#0064000d] transition duration-200 hover:-translate-y-1 hover:border-[#00640033] hover:shadow-[0px_12px_40px_#0064001a] ${cardClassName}`}>
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#96f2c8]">
+    <article
+      className={`flex flex-col items-start gap-6 rounded-[48px] border border-outline-variant/10 bg-white p-10 shadow-[0px_4px_20px_var(--primary)] transition duration-200 hover:-translate-y-1 hover:border-primary/20 hover:shadow-[0px_12px_40px_var(--primary)] ${cardClassName}`}
+    >
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-container">
         <img className={iconClassName} alt={iconAlt} src={iconSrc} />
       </div>
       {titleNode}

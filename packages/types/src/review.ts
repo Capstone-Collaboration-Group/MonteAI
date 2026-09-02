@@ -1,8 +1,8 @@
 export interface CreateReviewDto {
   thesisId: string;
   reviewerId: string;
-  decision: string;
-  comments?: string;
+  decision: string; // resolved | unresolved
+  comments?: string; 
 }
 
 export interface UpdateReviewDto {
@@ -14,7 +14,9 @@ export interface ReviewResponseDto {
   id: string;
   thesisId: string;
   reviewerId: string;
-  decision: string;
+  decision: string; // resolved |  unresolved
   comments?: string;
   reviewedAt?: string;
 }
+
+export type ReviewResponseListDto = ReviewResponseDto[];

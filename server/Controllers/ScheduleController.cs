@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Mvc;
 
 using server.Models.DTOs.Schedule;
-using server.Models.Entities;
 using server.Services.Interfaces;
 
 namespace server.Controllers

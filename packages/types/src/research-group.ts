@@ -20,4 +20,7 @@ export interface ResearchGroupResponseDto {
   leaderId: string;
   createdAt: string;
   updatedAt: string;
+  institute: string;
 }
+
+export type ResearchGroupResponseListDto = ResearchGroupResponseDto[];

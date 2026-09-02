@@ -33,3 +33,5 @@ export interface FacultyResponseDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export type FacultyResponseListDto = FacultyResponseDto[];

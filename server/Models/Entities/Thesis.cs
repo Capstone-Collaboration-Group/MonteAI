@@ -30,13 +30,14 @@ namespace server.Models.Entities
 
         public string? PineconeStatus { get; set; } = "None";
 
+        public Guid? GroupId { get; set; }
+        public ResearchGroup? ResearchGroup { get; set; }
+
         public DateTime? SubmittedAt { get; set; }
         public DateTime? ReviewedAt { get; set; }
         public DateTime? ApprovedAt { get; set; }
         public DateTime? RejectedAt { get; set; }
         public DateTime? IndexedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
-
-
     }
 }

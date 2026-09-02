@@ -24,6 +24,11 @@
   --status-pending: #FFFF00;
   --status-critical: #FF0000;
   --status-defense: #008000;
+  --font-serif: 'DM Serif Display', Georgia, serif;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+}
+body { 
+  font-family: var(--font-sans);
 }
 
 .dark {
@@ -74,6 +79,51 @@
   --color-status-pending: var(--status-pending);
   --color-status-critical: var(--status-critical);
   --color-status-defense: var(--status-defense);
+  --font-serif: 'DM Serif Display', Georgia, serif;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: 80px repeat(5, 1fr); 
+  width: 100%;
+}
+
+.time-row {
+  height: 60px; 
+}
+
+@font-face { 
+  font-family: 'DM Sans';
+  src: url('./DM_Sans/DMSans-VariableFont_opsz\,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face { 
+  font-family: 'DM Sans';
+  src: url('./DM_Sans/DMSans-Italic-VariableFont_opsz\,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face { 
+  font-family: 'DM Serif Display';
+  src: url('./DM_Serif_Display//DMSerifDisplay-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face { 
+  font-family: 'DM Serif Display';
+  src: url('./DM_Serif_Display//DMSerifDisplay-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
 }
 
 @source "../../../../apps/web/src/**/*.{ts,tsx}";
+
+@source "../../../../apps/desktop/src/**/*.{ts,tsx}";

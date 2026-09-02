@@ -22,6 +22,7 @@ namespace server.Data
 
         public DbSet<Announcement> Announcements { get; set; }
 
+        public DbSet<ThesisVersion> ThesisVersions { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -151,6 +152,41 @@ namespace server.Data
                       .WithOne(s => s.Thesis)
                       .HasForeignKey(s => s.ThesisId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+                entity.Property(e => e.GroupId)
+                      .IsRequired(false);
+                entity.HasOne(e => e.ResearchGroup)
+                      .WithMany()
+                      .HasForeignKey(e => e.GroupId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ThesisVersion>(entity =>
+            {
+                entity.ToTable("ThesisVersions");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id)
+                      .HasDefaultValueSql("NEWID()");
+
+                entity.Property(e => e.VersionNumber)
+                      .IsRequired();
+                entity.Property(e => e.FilePath)
+                      .HasMaxLength(2048);
+
+                entity.Property(e => e.UploadedById)
+                      .IsRequired()
+                      .HasMaxLength(128);
+                entity.Property(e => e.ChangeNote)
+                      .HasMaxLength(500);
+
+                entity.Property(e => e.UploadedAt)
+                      .IsRequired()
+                      .HasDefaultValueSql("GETUTCDATE()");
+                entity.HasOne(e => e.Thesis)
+                      .WithMany()
+                      .HasForeignKey(e => e.ThesisId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
             });
 
             modelBuilder.Entity<Submission>(entity =>
@@ -209,7 +245,7 @@ namespace server.Data
                       .HasMaxLength(256);
 
                 entity.HasOne(e => e.ResearchGroup)
-                      .WithMany()
+                      .WithMany(rg => rg.Schedules)
                       .HasForeignKey(e => e.GroupId)
                       .OnDelete(DeleteBehavior.SetNull);
 
@@ -222,13 +258,28 @@ namespace server.Data
 
             modelBuilder.Entity<PanelistSchedule>(entity =>
             {
-                entity.ToTable("PanelistSchedules");
-                entity.HasKey(e => new { e.ScheduleId, e.PanelistId });
-                entity.Property(e => e.PanelistId)
-                      .HasMaxLength(128)
-                      .IsRequired();
-                entity.Property(e => e.PanelistType)
-                      .HasMaxLength(20);
+                  entity.ToTable("PanelistSchedules");
+
+                  entity.HasKey(e => new { e.ScheduleId, e.PanelistId });
+
+                  entity.Property(e => e.ScheduleId)
+                  .IsRequired();
+
+                  entity.Property(e => e.PanelistId)
+                        .HasMaxLength(128)
+                        .IsRequired();
+
+                  entity.Property(e => e.PanelistType)
+                        .HasConversion<string>()
+                        .HasMaxLength(20)
+                        .IsRequired();
+
+                  entity.Property(e => e.Role)
+                        .HasMaxLength(50);
+                  
+                  entity.Property(e => e.CreatedAt)
+                        .HasDefaultValueSql("GETUTCDATE()");
+
             });
 
             modelBuilder.Entity<ChatSession>(entity =>

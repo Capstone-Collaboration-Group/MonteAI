@@ -217,9 +217,19 @@ namespace server.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
                     b.Property<string>("PanelistType")
+                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.HasKey("ScheduleId", "PanelistId");
 
@@ -537,6 +547,9 @@ namespace server.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("IndexedAt")
                         .HasColumnType("datetime2");
 
@@ -579,7 +592,48 @@ namespace server.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("GroupId");
+
                     b.ToTable("Theses", (string)null);
+                });
+
+            modelBuilder.Entity("server.Models.Entities.ThesisVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("ChangeNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<Guid>("ThesisId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("UploadedById")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ThesisId");
+
+                    b.ToTable("ThesisVersions", (string)null);
                 });
 
             modelBuilder.Entity("server.Models.Entities.Announcement", b =>
@@ -640,7 +694,7 @@ namespace server.Migrations
             modelBuilder.Entity("server.Models.Entities.Schedule", b =>
                 {
                     b.HasOne("server.Models.Entities.ResearchGroup", "ResearchGroup")
-                        .WithMany()
+                        .WithMany("Schedules")
                         .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
@@ -677,8 +731,31 @@ namespace server.Migrations
                     b.Navigation("Thesis");
                 });
 
+            modelBuilder.Entity("server.Models.Entities.Thesis", b =>
+                {
+                    b.HasOne("server.Models.Entities.ResearchGroup", "ResearchGroup")
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("ResearchGroup");
+                });
+
+            modelBuilder.Entity("server.Models.Entities.ThesisVersion", b =>
+                {
+                    b.HasOne("server.Models.Entities.Thesis", "Thesis")
+                        .WithMany()
+                        .HasForeignKey("ThesisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Thesis");
+                });
+
             modelBuilder.Entity("server.Models.Entities.ResearchGroup", b =>
                 {
+                    b.Navigation("Schedules");
+
                     b.Navigation("Students");
                 });
 

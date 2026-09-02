@@ -5,13 +5,16 @@ namespace server.Models.DTOs.Thesis
     public class SubmitThesisDto
     {
         [Required]
+        public IFormFile? File { get; set; } = null;
+        [Required]
         [MaxLength(255)]
+        
         public string Title { get; set; } = string.Empty;
 
         [Required]
         public string Abstract { get; set; } = string.Empty;
 
-        [Required]
+        //[Required]
         public string FilePath { get; set; } = string.Empty;
 
         [Required]
@@ -48,5 +51,33 @@ namespace server.Models.DTOs.Thesis
         public DateTime? RejectedAt { get; set; }
         public DateTime? IndexedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public Guid? GroupId { get; set; }
+
+        //The entity doesn't have this property, it's just populated from fetching the service. 
+        public DateTime? ScheduledAt { get; set; }
+        public string? ScheduledVenue { get; set; }
+
+    }
+    public class ThesisChunkDto
+    {
+        public int ChunkIndex { get; set; }
+        public string Text { get; set; } = string.Empty;  // maps to Chunk.Text
+        public string? Title { get; set; }
+        public string? Url { get; set; }
+        public string? Authors { get; set; }
+        public string? PublicationYear { get; set; }
+        public string? Journal { get; set; }
+    }
+
+    public class IngestThesisDto
+    {
+        public Guid ThesisId { get; set; }
+        public List<ThesisChunkDto> Chunks { get; set; } = [];
+    }
+    public class IngestThesisResponseDto
+    {
+        public Guid ThesisId { get; set;}
+        public int VectorCount { get ;set;}
+        public string Status { get; set;} = string.Empty;
     }
 }
