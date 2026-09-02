@@ -6,10 +6,13 @@ import {
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
 
-import { ReviewService } from "./types";
+import type { ReviewService } from "./types";
 
 export class LiveReviewService implements ReviewService {
-    constructor(private readonly client: AxiosInstance) {}
+    private readonly client: AxiosInstance
+    constructor(client: AxiosInstance) {
+        this.client = client;
+    }
 
     async getReviews(): Promise<ReviewResponseDto[] | []> {
         try {

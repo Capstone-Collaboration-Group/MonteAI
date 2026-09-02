@@ -6,10 +6,13 @@ import {
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
 
-import { FacultyService } from "./types";
+import type { FacultyService } from "./types";
 
 export class LiveFacultyService implements FacultyService {
-    constructor(private readonly client: AxiosInstance) {}
+    private readonly client: AxiosInstance;
+    constructor(client: AxiosInstance) {
+        this.client = client;
+    }
 
     async getFaculties(): Promise<FacultyResponseDto[] | []> {
         try {

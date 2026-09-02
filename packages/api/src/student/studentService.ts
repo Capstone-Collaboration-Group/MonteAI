@@ -5,10 +5,13 @@ import  type {
     StudentResponseDto
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
-import { StudentService } from "./types";
+import type { StudentService } from "./types";
 
 export class LiveStudentService implements StudentService { 
-    constructor (private readonly client: AxiosInstance) {}
+    private readonly client: AxiosInstance
+    constructor (client: AxiosInstance) {
+        this.client = client;
+    }
 
     async getStudents(): Promise<StudentResponseDto[] | []> { 
         try { 
