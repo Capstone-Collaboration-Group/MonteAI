@@ -1,6 +1,6 @@
 import type { InputHTMLAttributes } from "react";
 
-interface RatingInputProps extends InputHTMLAttributes<HTMLInputElement> {
+interface RatingInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   label: string;
   value: number;
   max?: number;

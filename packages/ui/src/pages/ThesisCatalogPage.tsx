@@ -2,18 +2,17 @@
 import { useMemo } from "react";
 import { useTheses } from "@monteai/hooks";
 import type { ThesisService } from "@monteai/api";
-import { toThesisSummary } from "@monteai/types";
+import { ThesisActionType, toThesisSummary } from "@monteai/types";
 import { ThesisCatalog, ThesisCatalogSkeleton } from "../components/Thesis";
 
-type ThesisAction = "approve" | "reject" | "revision";
 
 interface ThesisCatalogPageProps {
   thesisService: ThesisService;
   onViewDetails?: (thesisId: string) => void;
   onSelectThesis?: (thesisId: string) => void;
-  onThesisAction?: (thesisId: string, action: ThesisAction) => void;
+  onThesisAction?: (thesisId: string, action: ThesisActionType) => void;
   /** Which moderation actions this viewer is allowed to take. Omit/empty for read-only roles (Student). */
-  allowedActions?: ThesisAction[];
+  allowedActions?: ThesisActionType[];
   onFilterClick?: () => void;
 }
 
@@ -23,7 +22,7 @@ export function ThesisCatalogPage({
   onSelectThesis,
   onThesisAction,
   allowedActions = [],
-  onFilterClick,
+  // onFilterClick, remove this comment if there will be future Filter features from the ThesisCatalog Component.
 }: ThesisCatalogPageProps) {
   const { theses: rawTheses, isLoading } = useTheses(thesisService);
 
@@ -60,7 +59,7 @@ export function ThesisCatalogPage({
       onSelectThesis={onSelectThesis}
       onThesisAction={allowedActions.length ? onThesisAction : undefined}
       allowedActions={allowedActions}
-      onFilterClick={onFilterClick}
+      // onFilterClick={onFilterClick}
     />
   );
 }
