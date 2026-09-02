@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { UserCircle } from "lucide-react";
 
 import { Button } from "../Button";
 import { Card } from "../Card";

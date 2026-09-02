@@ -29,7 +29,7 @@ export function ThesisCatalog({
   theses,
   healthStats,
   counts,
-  isLoading,
+
   onViewDetails,
   onSelectThesis,
   onThesisAction,

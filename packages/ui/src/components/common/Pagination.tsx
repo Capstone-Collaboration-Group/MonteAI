@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from "react";
 
-interface PaginationProps extends HTMLAttributes<HTMLDivElement> {
+interface PaginationProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> {
   currentPage: number;
   totalPages: number;
   onChange: (page: number) => void;

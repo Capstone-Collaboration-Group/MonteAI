@@ -30,16 +30,19 @@ function buildTheses(): ThesisResponseDto[] {
             status: "Published",
             authors: ["Charles Balaguer", "Angelica Buenaagua", "John Christian Joyo", "Reca Mae Montebon"],
             submittedAt: "2026-05-20T10:00:00.000Z",
-            reviewedAt:  "2026-06-06T13:00:00.000Z",
-            approvedAt:  "2026-06-15T15:00:00.000Z",
-            indexedAt:   "2026-06-15T15:00:00.000Z",
-            rejectedAt:  "",
-            updatedAt:   "2026-06-15T15:00:00.000Z",
+            reviewedAt: "2026-06-06T13:00:00.000Z",
+            approvedAt: "2026-06-15T15:00:00.000Z",
+            indexedAt: "2026-06-15T15:00:00.000Z",
+            rejectedAt: "",
+            updatedAt: "2026-06-15T15:00:00.000Z",
             filePath: TEST_PDF,
             uploadedById: "CharlesID",
             abstract: "Abstract Ngani",
             institute: "Institute of Computing Studies",
             pineconeStatus: "Indexed",
+            groupId: '',
+            scheduledAt: '',
+            scheduledVenue: '',
         },
         {
             id: "t2",
@@ -47,16 +50,19 @@ function buildTheses(): ThesisResponseDto[] {
             status: "Under Review",
             authors: ["Liyo Wang", "Jazon Williams Chang", "Jake Laurence Galgo"],
             submittedAt: "2026-05-24T11:00:00.000Z",
-            reviewedAt:  "2026-06-06T13:00:00.000Z",
-            approvedAt:  "",
-            indexedAt:   "",
-            rejectedAt:  "",
-            updatedAt:   "2026-06-06T13:00:00.000Z",
+            reviewedAt: "2026-06-06T13:00:00.000Z",
+            approvedAt: "",
+            indexedAt: "",
+            rejectedAt: "",
+            updatedAt: "2026-06-06T13:00:00.000Z",
             filePath: TEST_PDF,
             uploadedById: "LiyoID",
             abstract: "Abstract Ngani",
             institute: "Institute of Computing Studies",
             pineconeStatus: "None",
+            groupId: '123123',
+            scheduledAt: '',
+            scheduledVenue: '',
         },
     ];
 }
@@ -171,6 +177,9 @@ export const mockThesisService: ThesisService = {
             reviewedAt: "",
             updatedAt: new Date().toISOString(),
             submittedAt: new Date().toISOString(),
+            groupId: "",
+            scheduledAt: new Date().toISOString(),
+            scheduledVenue: ""
         } as ThesisResponseDto;
         thesesMap.set(id, newThesis);
         return newThesis;
@@ -221,19 +230,19 @@ export const mockThesisService: ThesisService = {
     // Versions
     async getVersions(thesisId) {
         await delay(150);
-         console.log("[mock] getVersions called with:", thesisId);
+        console.log("[mock] getVersions called with:", thesisId);
         console.log("[mock] versionsMap keys:", Array.from(versionsMap.keys()));
         console.log("[mock] result:", versionsMap.get(thesisId));
         return versionsMap.get(thesisId) ?? [];
     },
 
     async getVersionFile(versionId: string) {
-    await delay(150);
-    for (const versions of versionsMap.values()) {
-        const version = versions.find((v) => v.id === versionId);
-        if (version) return { url: version.filePath };
-    }
-    return null;
+        await delay(150);
+        for (const versions of versionsMap.values()) {
+            const version = versions.find((v) => v.id === versionId);
+            if (version) return { url: version.filePath };
+        }
+        return null;
     },
 
     // Annotations

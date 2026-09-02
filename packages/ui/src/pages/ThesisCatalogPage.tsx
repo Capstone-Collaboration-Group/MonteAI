@@ -2,7 +2,8 @@
 import { useMemo } from "react";
 import { useTheses } from "@monteai/hooks";
 import type { ThesisService } from "@monteai/api";
-import { ThesisActionType, toThesisSummary } from "@monteai/types";
+import { toThesisSummary } from "@monteai/types";
+import type { ThesisActionType } from "@monteai/types";
 import { ThesisCatalog, ThesisCatalogSkeleton } from "../components/Thesis";
 
 
