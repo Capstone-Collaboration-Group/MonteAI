@@ -17,7 +17,7 @@ import { createApiClient, createOtpService } from "@monteai/api";
  * `/auth/resend-otp`, and `/auth/verify-email` exist server-side.
  */
 const baseURL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://localhost:7085/api/v1";
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://192.168.100.9:5084/api/v1";
 
 const useMock =
   (process.env.EXPO_PUBLIC_USE_MOCK ?? (__DEV__ ? "true" : "false")) === "true";

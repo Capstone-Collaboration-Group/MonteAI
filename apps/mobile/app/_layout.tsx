@@ -34,8 +34,9 @@ export default function RootLayout() {
   if(!appReady) { 
     return null;
   }
-
+console.log("USE_MOCK:", process.env.EXPO_PUBLIC_USE_MOCK);
   return (
+    
     <View style={{ flex: 1}} onLayout={onLayoutRootView}>
       {stage === 'splash' ? (
   <AnimatedSplashScreen
