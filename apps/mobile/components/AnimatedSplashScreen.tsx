@@ -136,7 +136,7 @@ export default function AnimatedSplashScreen( { onGetStarted } : Props ) {
         />
       </Animated.View>
       <Animated.View style={[styles.textWrap, textStyle]}>
-        <Text style={[styles.title, { color: primaryColor }]}>MonteScholar</Text>
+        <Text style={[styles.title, { color: primaryColor }]}>MonteSkolar</Text>
       </Animated.View>
     </View>
 

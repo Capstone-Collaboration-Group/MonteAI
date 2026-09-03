@@ -532,3 +532,7 @@ appsettings.Development.json
 # firebase credential 
 monteai-firebase-credential.json
 
+#
+.ignore
+
+opencode.jsonc
