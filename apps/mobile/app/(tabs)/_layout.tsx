@@ -1,49 +1,25 @@
-import { Tabs } from 'expo-router';
 import React from 'react';
+import { Tabs } from 'expo-router';
+import { CustomTabBar } from '@/components/ui/CustomTabBar';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+const TAB_ITEMS = [
+  { key: 'home', icon: 'home', label: 'Home' },
+  { key: 'library', icon: 'menu-book', label: 'Library' },
+  { key: 'chat', icon: 'add', label: 'Chat' },
+  { key: 'announcements', icon: 'campaign', label: 'Announce' },
+  { key: 'profile', icon: 'person', label: 'Profile' },
+] as const;
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="touch"
-        options={{
-          title: 'touch',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.text.rectangle.trianglebadge.exclamationmark" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'settings',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="character.bubble.fill.ar" color={color} />,
-        }}
-      />
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <CustomTabBar items={TAB_ITEMS} activeKey={props.state.routes[props.state.index].name} onPress={(key) => props.navigation.navigate(key)} />}>
+      <Tabs.Screen name="home" options={{ title: 'Home' }} />
+      <Tabs.Screen name="library" options={{ title: 'Library' }} />
+      <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
+      <Tabs.Screen name="announcements" options={{ title: 'Announcements' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );
 }
