@@ -18,3 +18,4 @@ export * from "./user";
 export * from "./auth";
 export * from "./member-row";
 export * from "./panelist"
+export * from "./auth-guards"
