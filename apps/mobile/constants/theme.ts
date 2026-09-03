@@ -1,15 +1,13 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Design tokens for MonteSkolar mobile.
+ * Use these instead of raw numbers/strings in StyleSheet definitions.
+ * Colors still come from `@monteai/types` → `Colors` (light + dark).
  */
 
 import { Platform } from 'react-native';
 import { Colors } from '@monteai/types';
 
-// const tintColorLight = '#005d41';
-// const tintColorDark = '#7dd8b0';
-
-export { Colors }; // re-exported, single source of truth now lives in packages/types
+export { Colors }; // single source of truth lives in packages/types
 
 export const Fonts = Platform.select({
   ios: { sans: 'system-ui', serif: 'ui-serif', rounded: 'ui-rounded', mono: 'ui-monospace' },
@@ -21,3 +19,32 @@ export const Fonts = Platform.select({
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+export const Spacing = {
+  xxs: 2,
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+  xxxl: 40,
+} as const;
+
+export const Radius = {
+  sm: 4,
+  md: 8,
+  lg: 12,
+  xl: 16,
+  pill: 9999,
+} as const;
+
+export const FontSize = {
+  xs: 13,
+  sm: 14,
+  md: 16,
+  lg: 18,
+  xl: 20,
+  xxl: 28,
+  display: 35,
+} as const;
