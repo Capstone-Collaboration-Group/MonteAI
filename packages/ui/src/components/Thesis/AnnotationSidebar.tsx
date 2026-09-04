@@ -1,8 +1,19 @@
 // packages/ui/src/components/Thesis/AnnotationSidebar.tsx
 import { useState } from "react";
-import { Trash2, CheckCircle, Circle, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
-import type { AnnotationResponseDto, ResolveAnnotationDto } from "@monteai/types";
-import  { Button } from "../Button";
+import {
+  Trash2,
+  CheckCircle,
+  Circle,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+} from "lucide-react";
+import type {
+  AnnotationResponseDto,
+  ResolveAnnotationDto,
+} from "@monteai/types";
+import { Button } from "../Button";
+
 interface AnnotationSidebarProps {
   annotations: AnnotationResponseDto[];
   unresolvedCount: number;
@@ -72,7 +83,10 @@ function AnnotationCard({
           Page {annotation.pageNumber}
           <ArrowRight className="h-3 w-3" />
         </Button>
-        <span className="text-xs text-[#8A9089]">{formatDate(annotation.createdAt)}</span>
+
+        <span className="text-xs text-[#8A9089]">
+          {formatDate(annotation.createdAt)}
+        </span>
       </div>
 
       {/* Highlighted text */}
@@ -83,7 +97,9 @@ function AnnotationCard({
       )}
 
       {/* Comment */}
-      <p className="mb-3 text-sm text-[#1F2A24]">{annotation.comment}</p>
+      <p className="mb-3 break-all text-sm text-[#1F2A24]">
+        {annotation.comment}
+      </p>
 
       {/* Resolver note */}
       {annotation.isResolved && annotation.resolverNote && (
@@ -102,6 +118,7 @@ function AnnotationCard({
             rows={2}
             className="w-full resize-none rounded-lg border border-[#EDEAE0] bg-[#FAF8F1] px-3 py-2 text-xs text-[#1F2A24] placeholder-[#8A9089] focus:outline-none focus:ring-1 focus:ring-[#16342B]"
           />
+
           <button
             type="button"
             onClick={handleConfirmResolve}
@@ -125,9 +142,15 @@ function AnnotationCard({
           }`}
         >
           {annotation.isResolved ? (
-            <><CheckCircle className="h-3.5 w-3.5" /> Resolved</>
+            <>
+              <CheckCircle className="h-3.5 w-3.5" />
+              Resolved
+            </>
           ) : (
-            <><Circle className="h-3.5 w-3.5" /> Mark resolved</>
+            <>
+              <Circle className="h-3.5 w-3.5" />
+              Mark resolved
+            </>
           )}
         </button>
 
@@ -164,12 +187,20 @@ export function AnnotationSidebar({
         <h2 className="font-serif text-base font-semibold text-[#1F2A24]">
           Review Comments
         </h2>
+
         <div className="mt-1 flex gap-3 text-xs text-[#8A9089]">
           <span>
-            <span className="font-semibold text-amber-600">{unresolvedCount}</span> unresolved
+            <span className="font-semibold text-amber-600">
+              {unresolvedCount}
+            </span>{" "}
+            unresolved
           </span>
+
           <span>
-            <span className="font-semibold text-green-700">{resolvedCount}</span> resolved
+            <span className="font-semibold text-green-700">
+              {resolvedCount}
+            </span>{" "}
+            resolved
           </span>
         </div>
       </div>
@@ -177,7 +208,10 @@ export function AnnotationSidebar({
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {annotations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-sm font-medium text-[#4A5750]">No comments yet</p>
+            <p className="text-sm font-medium text-[#4A5750]">
+              No comments yet
+            </p>
+
             <p className="mt-1 text-xs text-[#8A9089]">
               Select text in the PDF to add a comment.
             </p>
@@ -203,12 +237,14 @@ export function AnnotationSidebar({
                   className="flex w-full items-center justify-between py-2 text-xs font-semibold uppercase tracking-wide text-[#8A9089] transition-colors hover:text-[#16342B]"
                 >
                   Resolved ({resolved.length})
+
                   {showResolved ? (
                     <ChevronUp className="h-3.5 w-3.5" />
                   ) : (
                     <ChevronDown className="h-3.5 w-3.5" />
                   )}
                 </button>
+
                 {showResolved && (
                   <div className="flex flex-col gap-3">
                     {resolved.map((a) => (
