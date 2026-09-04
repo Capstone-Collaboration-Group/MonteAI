@@ -1,4 +1,5 @@
 // packages/ui/src/components/Thesis/AnnotationSidebar.tsx
+
 import { useState } from "react";
 import {
   Trash2,
@@ -19,7 +20,10 @@ interface AnnotationSidebarProps {
   unresolvedCount: number;
   resolvedCount: number;
   isResolving: boolean;
-  onResolve: (annotationId: string, dto: ResolveAnnotationDto) => void;
+  onResolve: (
+    annotationId: string,
+    dto: ResolveAnnotationDto
+  ) => void;
   onDelete: (annotationId: string) => void;
   onJumpToPage: (page: number) => void;
 }
@@ -41,7 +45,10 @@ function AnnotationCard({
 }: {
   annotation: AnnotationResponseDto;
   isResolving: boolean;
-  onResolve: (annotationId: string, dto: ResolveAnnotationDto) => void;
+  onResolve: (
+    annotationId: string,
+    dto: ResolveAnnotationDto
+  ) => void;
   onDelete: (annotationId: string) => void;
   onJumpToPage: (page: number) => void;
 }) {
@@ -61,69 +68,71 @@ function AnnotationCard({
       isResolved: true,
       resolverNote: resolverNote.trim() || undefined,
     });
+
     setShowNoteInput(false);
     setResolverNote("");
   };
 
   return (
     <div
-      className={`rounded-xl border p-4 transition-colors ${
+      className={`min-w-0 rounded-xl border p-4 transition-colors ${
         annotation.isResolved
-          ? "border-[#EDEAE0] bg-[#FAF8F1] opacity-70"
-          : "border-[#E4E0D4] bg-white"
+          ? "border-outline-variant bg-surface opacity-70"
+          : "border-outline-variant bg-white"
       }`}
     >
       {/* Page tag + date */}
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <Button
           type="button"
           onClick={() => onJumpToPage(annotation.pageNumber)}
-          className="flex items-center gap-1 rounded-md bg-[#F3F1E9] px-2 py-0.5 text-xs font-medium text-[#4A5750] transition-colors hover:bg-[#EDEAE0] hover:text-[#16342B]"
+          className="flex shrink-0 items-center gap-1 rounded-md bg-surface-container-low px-2 py-0.5 text-xs font-medium text-on-surface-variant transition-colors hover:bg-outline-variant hover:text-primary"
         >
           Page {annotation.pageNumber}
           <ArrowRight className="h-3 w-3" />
         </Button>
 
-        <span className="text-xs text-[#8A9089]">
+        <span className="shrink-0 text-xs text-outline">
           {formatDate(annotation.createdAt)}
         </span>
       </div>
 
       {/* Highlighted text */}
       {annotation.highlightedText && (
-        <blockquote className="mb-2 border-l-2 border-[#B8934C] pl-3 text-xs italic text-[#4A5750]">
+        <blockquote className="mb-2 min-w-0 break-words border-l-2 border-secondary pl-3 text-xs italic text-on-surface-variant">
           "{annotation.highlightedText}"
         </blockquote>
       )}
 
       {/* Comment */}
-      <p className="mb-3 break-all text-sm text-[#1F2A24]">
+      <p className="mb-3 min-w-0 break-words text-sm text-on-surface">
         {annotation.comment}
       </p>
 
       {/* Resolver note */}
       {annotation.isResolved && annotation.resolverNote && (
-        <p className="mb-3 text-xs text-[#8A9089]">
-          <span className="font-medium">Note:</span> {annotation.resolverNote}
+        <p className="mb-3 min-w-0 break-words text-xs text-outline">
+          <span className="font-medium">Note:</span>{" "}
+          {annotation.resolverNote}
         </p>
       )}
 
       {/* Resolve note input */}
       {showNoteInput && (
-        <div className="mb-3">
+        <div className="mb-3 min-w-0">
           <textarea
             value={resolverNote}
             onChange={(e) => setResolverNote(e.target.value)}
             placeholder="Optional note on how this was addressed…"
             rows={2}
-            className="w-full resize-none rounded-lg border border-[#EDEAE0] bg-[#FAF8F1] px-3 py-2 text-xs text-[#1F2A24] placeholder-[#8A9089] focus:outline-none focus:ring-1 focus:ring-[#16342B]"
+            className="w-full min-w-0 resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
           />
 
           <button
             type="button"
             onClick={handleConfirmResolve}
             disabled={isResolving}
-            className="mt-1.5 w-full rounded-lg bg-[#16342B] py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1F2A24] disabled:opacity-60"
+            className="mt-1.5 w-full rounded-lg bg-primary py-1.5 text-xs font-semibold text-white transition-colors hover:bg-on-surface disabled:opacity-60"
           >
             {isResolving ? "Saving…" : "Mark as Resolved"}
           </button>
@@ -131,24 +140,24 @@ function AnnotationCard({
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex min-w-0 items-center justify-between gap-2">
         <button
           type="button"
           onClick={handleResolveToggle}
-          className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
+          className={`flex min-w-0 items-center gap-1.5 text-xs font-medium transition-colors ${
             annotation.isResolved
-              ? "text-[#8A9089] hover:text-[#16342B]"
+              ? "text-outline hover:text-primary"
               : "text-green-700 hover:text-green-800"
           }`}
         >
           {annotation.isResolved ? (
             <>
-              <CheckCircle className="h-3.5 w-3.5" />
+              <CheckCircle className="h-3.5 w-3.5 shrink-0" />
               Resolved
             </>
           ) : (
             <>
-              <Circle className="h-3.5 w-3.5" />
+              <Circle className="h-3.5 w-3.5 shrink-0" />
               Mark resolved
             </>
           )}
@@ -158,7 +167,7 @@ function AnnotationCard({
           type="button"
           onClick={() => onDelete(annotation.id)}
           aria-label="Delete annotation"
-          className="rounded-md p-1 text-[#8A9089] transition-colors hover:bg-red-50 hover:text-red-600"
+          className="shrink-0 rounded-md p-1 text-outline transition-colors hover:bg-error-container hover:text-error"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -182,13 +191,13 @@ export function AnnotationSidebar({
   const resolved = annotations.filter((a) => a.isResolved);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-[#EDEAE0] px-5 py-4">
-        <h2 className="font-serif text-base font-semibold text-[#1F2A24]">
+    <div className="flex h-full min-w-0 flex-col">
+      <div className="border-b border-outline-variant px-5 py-4">
+        <h2 className="font-serif text-base font-semibold text-on-surface">
           Review Comments
         </h2>
 
-        <div className="mt-1 flex gap-3 text-xs text-[#8A9089]">
+        <div className="mt-1 flex gap-3 text-xs text-outline">
           <span>
             <span className="font-semibold text-amber-600">
               {unresolvedCount}
@@ -205,19 +214,19 @@ export function AnnotationSidebar({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 min-w-0 overflow-y-auto px-4 py-4">
         {annotations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-sm font-medium text-[#4A5750]">
+            <p className="text-sm font-medium text-on-surface-variant">
               No comments yet
             </p>
 
-            <p className="mt-1 text-xs text-[#8A9089]">
+            <p className="mt-1 text-xs text-outline">
               Select text in the PDF to add a comment.
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex min-w-0 flex-col gap-3">
             {unresolved.map((a) => (
               <AnnotationCard
                 key={a.id}
@@ -230,23 +239,23 @@ export function AnnotationSidebar({
             ))}
 
             {resolved.length > 0 && (
-              <div className="mt-2">
+              <div className="mt-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => setShowResolved((p) => !p)}
-                  className="flex w-full items-center justify-between py-2 text-xs font-semibold uppercase tracking-wide text-[#8A9089] transition-colors hover:text-[#16342B]"
+                  className="flex w-full min-w-0 items-center justify-between gap-2 py-2 text-xs font-semibold uppercase tracking-wide text-outline transition-colors hover:text-primary"
                 >
-                  Resolved ({resolved.length})
+                  <span>Resolved ({resolved.length})</span>
 
                   {showResolved ? (
-                    <ChevronUp className="h-3.5 w-3.5" />
+                    <ChevronUp className="h-3.5 w-3.5 shrink-0" />
                   ) : (
-                    <ChevronDown className="h-3.5 w-3.5" />
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                   )}
                 </button>
 
                 {showResolved && (
-                  <div className="flex flex-col gap-3">
+                  <div className="flex min-w-0 flex-col gap-3">
                     {resolved.map((a) => (
                       <AnnotationCard
                         key={a.id}
