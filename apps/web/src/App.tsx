@@ -16,6 +16,7 @@ import Announcements from "./pages/Announcements";
 import ThesisViewer from "./pages/ThesisViewer";
 import Theses from "./pages/ThesesPage";
 import { profileService } from "./lib/authService";
+import SettingsPage from "./pages/SettingsPage";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="/schedule" element={<Schedule />} />
               <Route path="/theses" element={<Theses />} />
               <Route path="/announcements" element={<Announcements />} />
+              <Route path="/settings" element={<SettingsPage />} />
           </Route>
 
           </Route>
