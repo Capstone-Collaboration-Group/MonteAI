@@ -1,5 +1,5 @@
 import { usePanelistSchedules } from "@monteai/hooks";
-import type { PanelistScheduleService, ScheduleService } from "@monteai/api";
+import type { PanelistScheduleService } from "@monteai/api";
 import { PanelistView, PanelistViewSkeleton } from "../components/Panelist";
 
 interface PanelistPageProps {
