@@ -18,6 +18,7 @@ RAG-based research/thesis assistant for Colegio de Montalban. pnpm monorepo with
 - `pnpm lint` — root flat ESLint + desktop (ESLint 8, `ESLINT_USE_FLAT_CONFIG=false`) + mobile (`expo lint`). Root `eslint.config.js` deliberately ignores `apps/desktop/**` and `apps/mobile/**`; each has its own config.
 - **No tests and no CI exist.** All `test` scripts are `echo` stubs and `.github/workflows/` is empty. Verify TS via the app's `build`/`tsc -b` and `pnpm lint`.
 - Scoped commands use `pnpm --filter <name> <script>` (filter names are `web`, `mobile`, `desktop`, `@monteai/*`).
+- Husky hooks: `pre-commit` runs `pnpm typecheck`; `pre-push` runs `pnpm lint`.
 
 ## Server
 
@@ -25,6 +26,7 @@ RAG-based research/thesis assistant for Colegio de Montalban. pnpm monorepo with
 - Requires gitignored files that are absent on fresh clones: `server/appsettings.Development.json` (all API keys/connection strings) and `server/monteai-firebase-credential.json`. `Program.cs` throws `InvalidOperationException` if the Pinecone key is missing.
 - All frontends target `https://localhost:7085/api/v1` via `VITE_API_BASE_URL`.
 - Auth: default `[Authorize]` policy requires a Firebase token with a `Role` claim. Add CORS origins by editing the hardcoded `MonteSkolarPolicy` list in `Program.cs`.
+- In dev the https profile binds both `:7084` (HTTP) and `:7085` (HTTPS); HTTPS redirect is skipped so LAN devices (Expo dev builds) can hit plain HTTP.
 - Schema changes: `dotnet ef migrations add <Name>`; snapshots live in `server/Migrations`.
 - `docs/PROJECT_ARCHITECTURE.md` describes an older ONNX-on-desktop pipeline and is partly stale — trust the code over it.
 
@@ -37,7 +39,7 @@ RAG-based research/thesis assistant for Colegio de Montalban. pnpm monorepo with
 
 - Each app has its own gitignored `.env.local`. `VITE_USE_MOCK=true` swaps in mock services (see `VITE_USE_MOCK` checks in `packages/api/src/*` and each app's `lib/`); keep new services on this live/mock toggle pattern.
 - Desktop disables TLS verification in dev (`httpsAgent: { rejectUnauthorized: false }` in `handlers/approveThesis.ts`); browser clients hitting the self-signed dev cert may need manual trust.
-- Version mix is intentional: desktop pins TS ~4.5 + ESLint 8; web uses TS ~6, mobile TS ~5.9. Don't "modernize" desktop tooling casually.
+- Version mix is intentional: desktop pins TS ~4.5 + ESLint 8; web uses TS ~7, mobile TS ~5.9. Don't "modernize" desktop tooling casually.
 - `pdfjs-dist` is pinned repo-wide via the root pnpm `overrides` (4.4.168) — do not bump without checking the desktop/web PDF viewers.
 - `.npmrc` / `pnpm-workspace.yaml` set `nodeLinker: hoisted` + `shamefully-hoist=true` (required for Expo/Electron native deps) — do not change.
 
