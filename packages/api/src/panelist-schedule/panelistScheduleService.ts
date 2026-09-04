@@ -14,10 +14,10 @@ export class LivePanelistScheduleService implements PanelistScheduleService {
         this.client = client;
     }
 
-    // GET /panelistschedule/details — enriched person data with assignments
+    // GET /panelistschedule — enriched person data with assignments
     async getPanelistSchedules(): Promise<PanelistResponseDto[]> {
         try {
-            const { data } = await this.client.get<PanelistResponseDto[]>(`/panelistschedule/details`);
+            const { data } = await this.client.get<PanelistResponseDto[]>(`/panelistschedule`);
             return data;
         } catch (err) {
             return handle404(err, []);

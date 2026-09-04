@@ -14,8 +14,8 @@ namespace server.Controllers
         ILogger<PanelistScheduleController> _logger
     ): ControllerBase
     {
-        [HttpGet]
-        public async Task<IActionResult> GetAllPanelistSchedules()
+        [HttpGet("details")]
+        public async Task<IActionResult> GetAllPanelistSchedules()  
         {
             var result = await _service.GetAllAsync();
             if (result is null) return BadRequest(new { Message = "Bad Request... Try Again Later" });
