@@ -1,6 +1,6 @@
 // packages/ui/src/components/Thesis/ThesisStatusTimeline.tsx
 import { CheckCircle, Circle } from "lucide-react";
-import type { ThesisResponseDto } from "@monteai/types";
+import type { ThesisResponseDto, ViewerRole } from "@monteai/types";
 import { HamburgerButton } from "../common/Hamburger";
 
 interface TimelineStep {
@@ -63,7 +63,7 @@ function buildTimeline(thesis: ThesisResponseDto): TimelineStep[] {
 
 interface ThesisStatusTimelineProps {
   thesis: ThesisResponseDto;
-  role: "adviser" | "program_head" | "student";
+  role: ViewerRole;
   isCollapsed: boolean;
   onToggle: () => void;
 }
@@ -75,7 +75,7 @@ export function ThesisStatusTimeline({
   onToggle,
 }: ThesisStatusTimelineProps) {
   const timeline = buildTimeline(thesis);
-  const isReviewer = role === "adviser" || role === "program_head";
+  const isReviewer = role === "adviser" || role === "faculty" || role === "program_head" || role === "admin";
 
   return (
     <aside

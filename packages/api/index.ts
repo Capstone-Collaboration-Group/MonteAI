@@ -1,5 +1,6 @@
 //packages/api/src/index.ts
 
+export * from "./src/annotation"
 export * from "./src/admin"
 export * from "./src/client";
 export * from "./src/auth/tokenStorage";

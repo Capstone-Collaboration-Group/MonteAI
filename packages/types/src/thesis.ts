@@ -139,3 +139,7 @@ export interface ResolveAnnotationDto {
   resolverNote?: string;
 }
 
+// Who is looking at the PDF viewer. Adviser/faculty/program-head/admin may
+// create annotations; students only view them.
+export type ViewerRole = "adviser" | "faculty" | "program_head" | "admin" | "student";
+
