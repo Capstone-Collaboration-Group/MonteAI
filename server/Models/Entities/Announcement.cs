@@ -15,6 +15,15 @@ namespace server.Models.Entities
         public string Content { get; set; } = string.Empty;
 
         public List<string> AttachmentUrls { get; set; } = new();
+
+        [Required]
+        public string Category { get; set; } = string.Empty;
+
+        [Required]
+        public string Institute { get; set; } = string.Empty;
+
+        [Required]
+        public string Priority { get; set; } = string.Empty;
         
         public DateTime? CreatedAt { get; set; }
 
