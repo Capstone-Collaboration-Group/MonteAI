@@ -21,6 +21,10 @@ import type {
 import { fullNameHelper } from "@monteai/utils";
 import type { MemberRow } from "@monteai/types";
 import { FacultyViewSkeleton } from "./skeletons";
+import {
+  FacultyDetailPanel,
+  type FacultyMemberDetail,
+} from "./FacultyDetailPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +36,10 @@ export interface FacultyViewProps {
   isLoading?: boolean;
   hasError?: boolean;
   onCreateNew?: () => void;
+}
+
+interface FacultyRow extends MemberRow {
+  _raw: FacultyMemberDetail;
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -101,9 +109,10 @@ export function FacultyView({
   
   const [activeTab, setActiveTab] = useState<Tab>("faculty");
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<FacultyMemberDetail | null>(null);
 
   // ── Normalise into flat MemberRow shape ────────────────────────────────────
-  const facultyRows = useMemo<MemberRow[]>(
+  const facultyRows = useMemo<FacultyRow[]>(
     () =>
       faculties.map((f) => ({
         id: f.id,
@@ -118,11 +127,12 @@ export function FacultyView({
         institute: f.institute,
         extra: "",
         isActive: f.isActive !== false,
+        _raw: { ...f, kind: "faculty" },
       })),
     [faculties],
   );
 
-  const programHeadRows = useMemo<MemberRow[]>(
+  const programHeadRows = useMemo<FacultyRow[]>(
     () =>
       programHeads.map((ph) => ({
         id: ph.id,
@@ -137,12 +147,13 @@ export function FacultyView({
         institute: ph.institute,
         extra: ph.programHandled,
         isActive: ph.isActive !== false,
+        _raw: { ...ph, kind: "program-head" },
       })),
     [programHeads],
   );
 
   // ── Search ─────────────────────────────────────────────────────────────────
-  const filteredRows = useMemo<MemberRow[]>(() => {
+  const filteredRows = useMemo<FacultyRow[]>(() => {
     const source = activeTab === "faculty" ? facultyRows : programHeadRows;
     const q = search.trim().toLowerCase();
     if (!q) return source;
@@ -179,7 +190,6 @@ export function FacultyView({
   return (
     <div className="min-h-screen bg-surface-container-low/60 p-6 lg:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        {/* ── Page header ─────────────────────────────────────────────────── */}
         <PageHeader
           eyebrow="People management"
           title="Faculty & Program Heads"
@@ -207,17 +217,15 @@ export function FacultyView({
             </div>
           }
         />
-
-        {/* ── Stat cards ──────────────────────────────────────────────────── */}
         <StatCardGrid stats={stats} />
 
-        {/* ── Tab toggle ──────────────────────────────────────────────────── */}
         <Tabs
           value={activeTab}
           variant="pills"
           onValueChange={(val) => {
             setActiveTab(val as Tab);
             setSearch("");
+            setSelected(null);
           }}
         >
           <TabsList>
@@ -289,6 +297,7 @@ export function FacultyView({
               columns={columns}
               data={filteredRows}
               rowKey={(row) => row.id}
+              onRowClick={(row) => setSelected(row._raw)}
               unstyled
             />
           )}
@@ -305,6 +314,12 @@ export function FacultyView({
           )}
         </Card>
       </div>
+
+      {/* ── Detail slide-over (left → right) ─────────────────────────────── */}
+      <FacultyDetailPanel
+        member={selected}
+        onClose={() => setSelected(null)}
+      />
     </div>
   );
 }
