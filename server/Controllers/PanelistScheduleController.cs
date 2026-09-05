@@ -14,7 +14,7 @@ namespace server.Controllers
         ILogger<PanelistScheduleController> _logger
     ): ControllerBase
     {
-        [HttpGet("details")]
+        [HttpGet]
         public async Task<IActionResult> GetAllPanelistSchedules()  
         {
             var result = await _service.GetAllAsync();

@@ -14,14 +14,14 @@ public class RoleAuthorizationMiddleware
         _logger = logger;
     }
 
-    // Scoped services injected directly into InvokeAsync (not the constructor) —
+    // Scoped services injected directly into InvokeAsync (not the constructor) ï¿½
     // required since this middleware instance is a singleton but IStudentService etc. are scoped.
     public async Task InvokeAsync(
         HttpContext context,
-        IStudentService studentService
-    // , IFacultyService facultyService
-    // , IAdminService adminService
-    // , IProgramHeadService programHeadService
+        IStudentService studentService,
+        IFacultyService facultyService,
+        IAdminService adminService,
+        IProgramHeadService programHeadService
     )
     {
         if (context.User.Identity?.IsAuthenticated == true)
@@ -35,14 +35,14 @@ public class RoleAuthorizationMiddleware
                 var student = await studentService.GetByIdAsync(uid);
                 if (student != null) role = "Student";
 
-                // var faculty = await facultyService.GetByIdAsync(uid);
-                // if (faculty != null) role = "Faculty";
+                var faculty = await facultyService.GetByIdAsync(uid);
+                if (faculty != null) role = "Faculty";
 
-                // var admin = await adminService.GetByIdAsync(uid);
-                // if (admin != null) role = "Admin";
+                var admin = await adminService.GetByIdAsync(uid);
+                if (admin != null) role = "Admin";
 
-                // var programHead = await programHeadService.GetByIdAsync(uid);
-                // if (programHead != null) role = "ProgramHead";
+                var programHead = await programHeadService.GetByIdAsync(uid);
+                if (programHead != null) role = "ProgramHead";
 
                 if (role != null)
                 {

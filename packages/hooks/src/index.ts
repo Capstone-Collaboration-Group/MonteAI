@@ -5,6 +5,7 @@ export * from "./authContext";
 export * from "./useUserProfile";
 export * from "./schedule/useSchedule";
 export * from "./thesis/useTheses";
+export * from "./thesis/useAnnotationsLive";
 export * from "./faculty/useFaculty";
 export * from "./program-head/useProgramHead";
 export * from "./chat/useChat";
