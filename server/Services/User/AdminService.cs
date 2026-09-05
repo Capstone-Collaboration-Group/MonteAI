@@ -34,8 +34,6 @@ namespace server.Services.User
         {
             var result = await _repo.GetAdminByIdAsync(id);
             var dto = _mapper.Map<UserResponseDto>(result);
-
-           
             return dto;
         }
         public async Task<bool> CreateAsync(RegisterUserDto createDto)

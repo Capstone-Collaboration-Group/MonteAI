@@ -18,7 +18,8 @@ namespace server.Repositories
         public async Task<IEnumerable<Admin>> GetAllAdminsAsync() => await _db.Admins.ToListAsync();
 
         // GetAdminByIdAsync
-        public async Task<Admin?> GetAdminByIdAsync(string id) => await _db.Admins.FindAsync(id);
+        public async Task<Admin?> GetAdminByIdAsync(string id)=> await _db.Admins.FindAsync(id);
+        
 
         // CreateAdminAsync
         public async Task<bool> CreateAdminAsync(Admin admin)
