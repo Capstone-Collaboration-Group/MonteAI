@@ -31,6 +31,12 @@ namespace server.Services
         public async Task<AnnouncementResponseDto?> GetByIdAsync(Guid id)
         {
             var result = await _repo.GetAnnouncementByIdAsync(id);
+            if (result == null)
+        {
+        _logger.LogWarning("Announcement {Id} not found.", id);
+        return null;
+        }
+
             var responseDto = _mapper.Map<AnnouncementResponseDto>(result);
             _logger.LogInformation("Fetched Announcement {Id}.", responseDto.Id);
             return responseDto;

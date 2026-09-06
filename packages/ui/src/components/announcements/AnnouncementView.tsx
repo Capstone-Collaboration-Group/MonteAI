@@ -8,7 +8,7 @@ import type { Institute } from "./institutes";
 type Priority = "Normal" | "Important" | "Urgent";
 
 export type AnnouncementDetail = {
-  id: number;
+  id: string;
   subject: string;
   category: string;
   institute: Institute;
