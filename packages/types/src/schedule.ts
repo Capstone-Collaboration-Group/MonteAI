@@ -27,6 +27,12 @@ export interface UpdateScheduleDto {
   panelists?: PanelistScheduleResponseDto[];
 }
 
+export interface UpdateScheduleTimesDto {
+  date: string;
+  startTime: string;
+  endingTime: string;
+}
+
 export interface ScheduleResponseDto {
   scheduleId: string;
   scheduledBy: string;
