@@ -446,7 +446,7 @@ export function ScheduleCalendar({
 
   return (
     <PageLayout direction="row" className="w-full !bg-surface overflow-hidden">
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col h-full">
         <header className="flex items-center justify-between px-6 h-16 border-b border-outline-variant bg-surface relative z-50">           <div className="flex items-center gap-4">
             <h2 className="text-headline-sm font-headline-sm text-on-surface">Defense Schedule</h2>
             <div className="flex border border-outline-variant rounded-lg overflow-hidden">

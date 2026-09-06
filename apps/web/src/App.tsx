@@ -36,10 +36,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
 
           
-          {/* Authenticated — sidebar layout, gated by Firebase auth state */}
-          <Route element={<ProtectedRoute profileService={profileService}/>}>
-
-          <Route element={<AppLayout />}>
+           <Route element={<AppLayout />}>
               <Route path="/home" element={<Home />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
@@ -50,6 +47,10 @@ const App = () => (
               <Route path="/settings" element={<SettingsPage />} />
           </Route>
 
+          {/* Authenticated — sidebar layout, gated by Firebase auth state */}
+          <Route element={<ProtectedRoute profileService={profileService}/>}>
+
+         
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />
