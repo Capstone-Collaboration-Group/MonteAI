@@ -15,7 +15,11 @@ namespace server.Repositories
         }
         //Might want to include Panelists in this query soon
         public async Task<IEnumerable<Schedule>> GetAllSchedulesAsync() 
-            => await _db.Schedules.ToListAsync();
+            => await _db.Schedules
+                .Include(s => s.Panelists)
+                .Include(s => s.ResearchGroup)
+                    .ThenInclude(rg => rg.Leader)
+                .ToListAsync();
 
         public async Task<Schedule?> GetScheduleByIdAsync(Guid id)
             => await _db.Schedules

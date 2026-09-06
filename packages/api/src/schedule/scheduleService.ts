@@ -2,6 +2,7 @@ import { type AxiosInstance } from "axios";
 import type { 
     CreateScheduleDto, 
     UpdateScheduleDto,
+    UpdateScheduleTimesDto,
     ScheduleResponseDto
 } from "@monteai/types";
 import type { ScheduleService } from "./types";
@@ -36,6 +37,14 @@ export class LiveScheduleService implements ScheduleService {
     async updateSchedule(scheduleId: string, dto: UpdateScheduleDto): Promise<boolean> {
         try { 
             const { data } = await this.client.patch<boolean>(`/schedule/update/${scheduleId}`, dto);
+            return data;
+        } catch (err) { 
+            return handle404(err, false);
+        }
+    }
+    async updateScheduleTimes(scheduleId: string, dto: UpdateScheduleTimesDto): Promise<boolean> {
+        try { 
+            const { data } = await this.client.patch<boolean>(`/schedule/update-times/${scheduleId}`, dto);
             return data;
         } catch (err) { 
             return handle404(err, false);

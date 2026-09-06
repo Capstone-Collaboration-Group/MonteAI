@@ -116,7 +116,7 @@ namespace server.Data
                       .HasForeignKey(e => e.AdviserId)
                       .OnDelete(DeleteBehavior.SetNull);
 
-                entity.HasOne<Student>()
+                entity.HasOne(e => e.Leader)
                       .WithMany()
                       .HasForeignKey(e => e.LeaderId)
                       .OnDelete(DeleteBehavior.Restrict);

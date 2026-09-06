@@ -4,6 +4,7 @@ import type {
   ScheduleResponseDto,
   CreateScheduleDto,
   UpdateScheduleDto,
+  UpdateScheduleTimesDto,
   PanelistType,
   PanelistScheduleResponseDto,
 } from "@monteai/types";
@@ -180,6 +181,14 @@ export const mockScheduleService: ScheduleService = {
 },
 
   async updateSchedule(scheduleId: string, dto: UpdateScheduleDto) {
+    await delay(300);
+    const existing = schedules.get(scheduleId);
+    if (!existing) return false;
+    schedules.set(scheduleId, { ...existing, ...dto } as ScheduleResponseDto);
+    return true;
+  },
+
+  async updateScheduleTimes(scheduleId: string, dto: UpdateScheduleTimesDto) {
     await delay(300);
     const existing = schedules.get(scheduleId);
     if (!existing) return false;

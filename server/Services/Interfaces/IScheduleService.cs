@@ -13,6 +13,8 @@ namespace server.Services.Interfaces
 
         Task<bool> UpdateAsync(UpdateScheduleDto updateDto, Guid id);
 
+        Task<bool> UpdateTimesAsync(Guid id, UpdateScheduleTimesDto dto);
+
         Task<bool> DeleteAsync(Guid id);
 
     }

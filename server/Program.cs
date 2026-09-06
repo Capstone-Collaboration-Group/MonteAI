@@ -174,7 +174,10 @@ try
     builder.Services.AddScoped<IPineconeService, PineconeService>();
     builder.Services.AddControllers()
         .AddJsonOptions(o =>
-            o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        {
+            o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+            o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options =>
