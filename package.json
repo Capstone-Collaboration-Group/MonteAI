@@ -13,7 +13,7 @@
     "build:web": "pnpm --filter web build",
     "build:desktop": "pnpm --filter desktop make",
     "lint": "eslint . && pnpm --filter desktop lint && pnpm --filter mobile lint",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm run typecheck:all",
     "typecheck:apps": "pnpm --filter web --filter mobile --filter desktop run typecheck",
     "typecheck:packages": "pnpm --filter @monteai/api --filter @monteai/ui --filter @monteai/hooks --filter @monteai/types --filter @monteai/utils run typecheck",
     "typecheck:all": "pnpm run typecheck:packages && pnpm run typecheck:apps",

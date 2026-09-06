@@ -20,6 +20,9 @@ function buildSeed(): AnnouncementResponseDto[] {
       subject: "Welcome to MonteAI",
       content:
         "Welcome to the MonteAI Research Management System. Stay tuned for upcoming thesis schedules and announcements.",
+      category: "General",
+      institute: "MonteAI",
+      priority: "Normal",
       attachmentUrls: [],
       createdAt: "2025-01-15T08:00:00.000Z",
       lastModified: "2025-01-15T08:00:00.000Z",
@@ -34,6 +37,9 @@ function buildSeed(): AnnouncementResponseDto[] {
       subject: "Thesis Submission Deadline",
       content:
         "The deadline for thesis proposal submission is on September 15, 2025. Please upload all required documents before the deadline.",
+      category: "Thesis",
+      institute: "MonteAI",
+      priority: "Normal",
       attachmentUrls: [
         "https://example.com/files/thesis-guidelines.pdf",
       ],
@@ -50,6 +56,9 @@ function buildSeed(): AnnouncementResponseDto[] {
       subject: "Research Defense Schedule",
       content:
         "The schedule for the Midterm Research Defense has been published. Please check your assigned room and time.",
+      category: "Research",
+      institute: "MonteAI",
+      priority: "Normal",
       attachmentUrls: [],
       createdAt: "2025-02-18T09:15:00.000Z",
       lastModified: "2025-02-18T09:15:00.000Z",
@@ -79,7 +88,7 @@ export const mockAnnouncementService: AnnouncementService = {
     return announcementsMap.get(announcementId) ?? null;
   },
 
-  async createAnnouncement(dto: CreateAnnouncementDto) {
+  async createAnnouncement(dto: CreateAnnouncementDto): Promise<void>  {
     await delay(300);
 
     const id = crypto.randomUUID();
@@ -89,6 +98,9 @@ export const mockAnnouncementService: AnnouncementService = {
       id,
       subject: dto.subject,
       content: dto.content,
+      category: dto.category,
+      institute: dto.institute,
+      priority: dto.priority,
       attachmentUrls: dto.attachmentUrls,
       createdAt: dto.createdAt ?? now,
       lastModified: dto.lastModified ?? now,
@@ -101,20 +113,21 @@ export const mockAnnouncementService: AnnouncementService = {
 
     announcementsMap.set(id, newAnnouncement);
 
-    return newAnnouncement;
+    // return newAnnouncement;
   },
 
   async updateAnnouncement(
     announcementId: string,
     dto: UpdateAnnouncementDto
-  ) {
+  ): Promise<void> {
     await delay(300);
 
     const existing = announcementsMap.get(announcementId);
 
     if (!existing) {
-      return false;
+      return;
     }
+    
 
     announcementsMap.set(announcementId, {
       ...existing,
@@ -122,11 +135,11 @@ export const mockAnnouncementService: AnnouncementService = {
       lastModified: dto.lastModified ?? new Date().toISOString(),
     });
 
-    return true;
+     return;
   },
 
-  async deleteAnnouncement(announcementId: string) {
+  async deleteAnnouncement(announcementId: string): Promise<void> {
     await delay(200);
-    return announcementsMap.delete(announcementId);
+    announcementsMap.delete(announcementId);
   },
-};
+};  

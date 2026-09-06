@@ -1,6 +1,7 @@
 import { AnnouncementsPanel, INSTITUTES, type Institute } from "@monteai/ui";
 import { useUserProfile } from "@monteai/hooks";
 import { profileService } from "../lib/authServices";
+import { announcementService } from "../lib/announcementService";
 
 export default function Announcements() {
   const { profile, isLoading } = useUserProfile(profileService);
@@ -29,6 +30,7 @@ export default function Announcements() {
     <AnnouncementsPanel
       role={role}
       userInstitute={userInstitute}
+      announcementService={announcementService}
     />
   );
-}
+} 

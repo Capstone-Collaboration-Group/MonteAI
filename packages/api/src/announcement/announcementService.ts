@@ -31,25 +31,18 @@ export class LiveAnnouncementService implements AnnouncementService {
             return handle404(err, null);
         }
     }
-    async createAnnouncement(dto: CreateAnnouncementDto): Promise<AnnouncementResponseDto> { 
-        const { data } = await this.client.post<AnnouncementResponseDto>(`/announcement/create`, dto);
-        return data;
+    async createAnnouncement(dto: CreateAnnouncementDto): Promise<void> { 
+        await this.client.post<AnnouncementResponseDto>(`/announcement/create`, dto);
+        
     }
-    async updateAnnouncement(announcementId: string, dto: UpdateAnnouncementDto): Promise<boolean> { 
-        try { 
-            const { data } = await this.client.patch<boolean>(`/announcement/update/${announcementId}`, dto);
-            return data;
-        } catch (err) { 
-            return handle404(err, false);
+    async updateAnnouncement(announcementId: string, dto: UpdateAnnouncementDto): Promise<void> { 
+    
+            await this.client.patch<boolean>(`/announcement/update/${announcementId}`, dto);
         }
-    }
-    async deleteAnnouncement(announcementId: string): Promise<boolean> { 
-        try { 
-            const { data } = await this.client.delete<boolean>(`/announcement/delete/${announcementId}`);
-            return data;
-        } catch (err) { 
-            return handle404(err, false);
-        }
+
+    async deleteAnnouncement(announcementId: string): Promise<void> { 
+         await this.client.delete<boolean>(`/announcement/delete/${announcementId}`);
+    
     }
     
 }
