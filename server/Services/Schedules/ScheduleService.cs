@@ -44,7 +44,14 @@ namespace server.Services.Schedules
         }
         public async Task<bool> CreateAsync(CreateScheduleDto createDto)
         {
-            
+            // Guard: if any of these were missing from the JSON body they would
+            // silently default to DateOnly.MinValue ("0001-01-01") / TimeOnly 00:00
+            // and get stored. Reject loudly instead.
+            if (createDto.Date == default ||
+                createDto.StartTime == default ||
+                createDto.EndingTime == default)
+                return false;
+
             var createSchedule = _mapper.Map<Schedule>(createDto);
             createSchedule.Panelists = createDto.Panelists
                 .Select(p => _mapper.Map<PanelistSchedule>(p))
@@ -91,6 +98,26 @@ namespace server.Services.Schedules
             var result = await _repo.UpdateScheduleAsync(existing);
 
             return result;
+        }
+
+        public async Task<bool> UpdateTimesAsync(Guid id, UpdateScheduleTimesDto dto)
+        {
+            // Same guard as create: never write DateOnly.MinValue / TimeOnly 00:00.
+            if (dto.Date == default ||
+                dto.StartTime == default ||
+                dto.EndingTime == default)
+                return false;
+
+            var existing = await _repo.GetScheduleByIdAsync(id);
+            if (existing == null) return false;
+
+            // Explicit assignment — no AutoMapper partial-mapping, so the date
+            // can never be silently skipped or defaulted to DateOnly.MinValue.
+            existing.Date = dto.Date;
+            existing.StartTime = dto.StartTime;
+            existing.EndingTime = dto.EndingTime;
+
+            return await _repo.UpdateScheduleAsync(existing);
         }
 
         public async Task<bool> DeleteAsync(Guid id )
