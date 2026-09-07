@@ -6,6 +6,7 @@ namespace server.Services.Interfaces
     {
         Task<UserResponseDto> RegisterAsync(RegisterUserDto dto, string firebaseUid);
         Task<UserResponseDto?> GetByIdAsync(string id);
+        Task<string?> GetEmailByStudentNumberAsync(string studentNumber);
 
         Task<IEnumerable<UserResponseDto>> GetAllAsync();
 
