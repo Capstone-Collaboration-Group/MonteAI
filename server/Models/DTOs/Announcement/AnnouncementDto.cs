@@ -50,9 +50,6 @@ namespace server.Models.DTOs.Announcement
         public string Category { get; set; } = string.Empty;
 
         [Required]
-        public string Institute { get; set; } = string.Empty;
-
-        [Required]
         public string Priority { get; set; } = string.Empty;
 
         public DateTime? CreatedAt { get; set; }
@@ -70,9 +67,6 @@ namespace server.Models.DTOs.Announcement
         public List<string> AttachmentUrls { get; set; } = new(); 
         [Required]
         public string Category { get; set; } = string.Empty;
-
-        [Required]
-        public string Institute { get; set; } = string.Empty;
 
         [Required]
         public string Priority { get; set; } = string.Empty;
