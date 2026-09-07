@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
@@ -10,12 +11,19 @@ import { scheduleService } from '@/lib/scheduleService';
 import { thesisService } from '@/lib/thesisService';
 import type { ScheduleResponseDto, ThesisResponseDto } from '@monteai/types';
 
-const QUICK_ACTIONS = [
+type QuickActionRoute = '/(tabs)/library' | '/(tabs)/announcements' | '/(tabs)/schedules';
+
+const QUICK_ACTIONS: {
+  icon: React.ComponentProps<typeof MaterialIcons>['name'];
+  label: string;
+  color: string;
+  route?: QuickActionRoute;
+}[] = [
   { icon: 'upload-file', label: 'Submit\nThesis', color: '#005d41' },
-  { icon: 'menu-book', label: 'Library', color: '#005d41' },
-  { icon: 'campaign', label: 'Announce\nments', color: '#005d41' },
-  { icon: 'calendar-month', label: 'Schedules', color: '#005d41' },
-] as const;
+  { icon: 'menu-book', label: 'Library', color: '#005d41', route: '/(tabs)/library' },
+  { icon: 'campaign', label: 'Announce\nments', color: '#005d41', route: '/(tabs)/announcements' },
+  { icon: 'calendar-month', label: 'Schedules', color: '#005d41', route: '/(tabs)/schedules' },
+];
 
 function formatDate(iso: string): string {
   if (!iso) return '';
@@ -32,6 +40,7 @@ function formatDate(iso: string): string {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'onSurface');
   const body = useThemeColor({}, 'onSurfaceVariant');
@@ -81,14 +90,21 @@ export default function HomeScreen() {
         {/* Quick Actions */}
         <Text style={[s.sectionTitle, { color: heading }]}>Quick Actions</Text>
         <View style={s.actionsGrid}>
-          {QUICK_ACTIONS.map((a) => (
-            <Pressable key={a.label} style={[s.actionCard, { backgroundColor: surface, borderColor: outline }]} accessibilityRole="button">
-              <View style={[s.actionIcon, { backgroundColor: a.color + '14' }]}>
-                <MaterialIcons name={a.icon} size={24} color={a.color} />
-              </View>
-              <Text style={[s.actionLabel, { color: heading }]}>{a.label}</Text>
-            </Pressable>
-          ))}
+          {QUICK_ACTIONS.map((a) => {
+            const route = a.route;
+            return (
+              <Pressable
+                key={a.label}
+                style={[s.actionCard, { backgroundColor: surface, borderColor: outline }]}
+                accessibilityRole="button"
+                onPress={route ? () => router.push(route) : undefined}>
+                <View style={[s.actionIcon, { backgroundColor: a.color + '14' }]}>
+                  <MaterialIcons name={a.icon} size={24} color={a.color} />
+                </View>
+                <Text style={[s.actionLabel, { color: heading }]}>{a.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Upcoming Defenses */}
