@@ -30,6 +30,7 @@ export default function Announcements() {
     <AnnouncementsPanel
       role={role}
       userInstitute={userInstitute}
+      currentUserId={profile.id}
       announcementService={announcementService}
     />
   );
