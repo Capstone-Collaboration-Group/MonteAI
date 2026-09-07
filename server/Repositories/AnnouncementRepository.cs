@@ -44,7 +44,6 @@ namespace server.Repositories
             existing.Subject = announcement.Subject;
             existing.Content = announcement.Content;
             existing.Category = announcement.Category;
-            existing.Institute = announcement.Institute;
             existing.Priority = announcement.Priority;
             existing.AttachmentUrls = announcement.AttachmentUrls;
             existing.LastModified = announcement.LastModified;
