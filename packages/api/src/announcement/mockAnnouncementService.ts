@@ -99,7 +99,7 @@ export const mockAnnouncementService: AnnouncementService = {
       subject: dto.subject,
       content: dto.content,
       category: dto.category,
-      institute: dto.institute,
+      institute: "All",
       priority: dto.priority,
       attachmentUrls: dto.attachmentUrls,
       createdAt: dto.createdAt ?? now,
