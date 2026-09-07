@@ -5,6 +5,7 @@ export const GRID_START_MIN = 7 * 60; // 07:00
 export const GRID_END_MIN = 19 * 60; // 19:00
 export const GRID_SNAP_MIN = 30; // drag/resize snaps to 30-minute steps
 export const GRID_MIN_DURATION = 30; // smallest allowed schedule block
+export const GRID_PIXELS_PER_MINUTE = 1;
 
 export function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);

@@ -2,6 +2,13 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { Pin } from "lucide-react";
 import type { ScheduleResponseDto } from "@monteai/types";
 import { Avatar } from "../common/Avatar"; // Ensure this path matches your structure
+import {
+  GRID_END_MIN,
+  GRID_MIN_DURATION,
+  GRID_PIXELS_PER_MINUTE,
+  GRID_START_MIN,
+  timeToMinutes,
+} from "./scheduleTime";
 
 export type DefenseCardDragAction = "move" | "resize-start" | "resize-end";
 
@@ -116,13 +123,12 @@ export function DefenseCard({
   canEdit = false,
   onDragStart,
 }: DefenseCardProps) {
-  const startHour = parseInt(schedule.startTime.split(":")[0]);
-  const startMin = parseInt(schedule.startTime.split(":")[1]);
-  const topOffset = (startHour - 7) * 60 + startMin + 2;
-
-  const endHour = parseInt(schedule.endingTime.split(":")[0]);
-  const endMin = parseInt(schedule.endingTime.split(":")[1]);
-  const duration = (endHour - startHour) * 60 + (endMin - startMin) - 2;
+  const startMinutes = timeToMinutes(schedule.startTime);
+  const endMinutes = timeToMinutes(schedule.endingTime);
+  const visibleStart = Math.max(GRID_START_MIN, startMinutes);
+  const visibleEnd = Math.min(GRID_END_MIN, endMinutes);
+  const topOffset = visibleStart - GRID_START_MIN;
+  const duration = Math.max(GRID_MIN_DURATION, visibleEnd - visibleStart);
 
   const widthPct = 100 / totalCols;
   const leftPct = col * widthPct;
@@ -150,8 +156,8 @@ export function DefenseCard({
     <div
       className={`${themeClasses} ${dragClasses}`}
       style={{
-        top: `${topOffset}px`,
-        height: `${Math.max(48, duration)}px`,
+        top: `${topOffset * GRID_PIXELS_PER_MINUTE}px`,
+        height: `${duration * GRID_PIXELS_PER_MINUTE}px`,
         left: `calc(${leftPct}% + ${gapPx}px)`,
         width: `calc(${widthPct}% - ${gapPx * 2}px)`,
       }}
