@@ -1,10 +1,7 @@
-import {createApiClient, createAnnouncementService} from "@monteai/api";
-
-const client = createApiClient({
-    baseURL: import.meta.env.VITE_API_BASE_URL
-});
+import {createAnnouncementService} from "@monteai/api";
+import { apiClient } from "./firebaseServices";
 
 export const announcementService = createAnnouncementService(
-    client,
+    apiClient,
     import.meta.env.VITE_USE_MOCK === "true"
 );
