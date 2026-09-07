@@ -19,7 +19,7 @@ namespace server.Controllers
         private readonly ILogger<AnnouncementController> _logger;
         private readonly IAnnouncementService _service;
 
-
+         
         // Constructor
         public AnnouncementController(ILogger<AnnouncementController> logger, IAnnouncementService service) { 
             _logger = logger;
