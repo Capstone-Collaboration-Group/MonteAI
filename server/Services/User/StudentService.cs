@@ -43,6 +43,12 @@ namespace server.Services.User
             return _mapper.Map<UserResponseDto>(student);
         }
 
+        public async Task<string?> GetEmailByStudentNumberAsync(string studentNumber)
+        {
+            var student = await _repo.GetByStudentNumberAsync(studentNumber);
+            return student?.Email;
+        }
+
         public async Task<IEnumerable<UserResponseDto>> GetAllAsync()
         {
             var students = await _repo.GetAllAsync();
