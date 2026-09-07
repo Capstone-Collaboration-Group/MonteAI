@@ -20,9 +20,6 @@ namespace server.Models.Entities
         public string Category { get; set; } = string.Empty;
 
         [Required]
-        public string Institute { get; set; } = string.Empty;
-
-        [Required]
         public string Priority { get; set; } = string.Empty;
         
         public DateTime? CreatedAt { get; set; }
