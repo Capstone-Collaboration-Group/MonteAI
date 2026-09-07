@@ -7,8 +7,7 @@ export interface AnnouncementAuthorDto {
 export interface CreateAnnouncementDto {
   subject: string;
   content: string;
-   category: string;
-  institute: string;
+  category: string;
   priority: "Normal" | "Important" | "Urgent";
   attachmentUrls: string[];
   createdAt?: string;
@@ -19,7 +18,6 @@ export interface UpdateAnnouncementDto {
   subject: string;
   content: string;
   category: string;
-  institute: string;
   priority: "Normal" | "Important" | "Urgent";
   attachmentUrls: string[];
   lastModified?: string;
