@@ -15,6 +15,7 @@
   interface AnnouncementsPanelProps {
     role: UserRole;
     userInstitute?: Institute;
+    currentUserId?: string;
     announcementService: AnnouncementService;
   }
 
@@ -38,7 +39,8 @@
     id: announcement.id,
     subject: announcement.subject,
     category: announcement.category,
-    institute: announcement.institute as Institute,
+    institute: announcement.institute,
+    authorId: announcement.author?.id ?? "",
     postedBy: announcement.author?.fullName ?? "Unknown",
     date: announcement.createdAt
       ? announcement.createdAt.slice(0, 10)
@@ -54,7 +56,7 @@
   };
 }
 
-  export function AnnouncementsPanel({ role, userInstitute, announcementService }: AnnouncementsPanelProps) {
+  export function AnnouncementsPanel({ role, userInstitute, currentUserId, announcementService }: AnnouncementsPanelProps) {
     const {announcements: apiAnnouncements, isLoading, isError, refetch,} = useAnnouncements(announcementService);
     const announcements = useMemo(() => apiAnnouncements.map(mapAnnouncement),[apiAnnouncements]);
     const [isPostAnnouncementOpen, setIsPostAnnouncementOpen] = useState(false);
@@ -62,12 +64,18 @@
     const [selectedAnnouncement, setSelectedAnnouncement] = useState<AnnouncementDetail | null>(null);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [priorityFilter, setPriorityFilter] = useState<"None" | "Normal" | "Important" | "Urgent">("None");
+    const [scopeFilter, setScopeFilter] = useState<"All" | "Mine">("All");
     const [search, setSearch] = useState("");
 
-    const scopedAnnouncements =
-      role === "ProgramHead"
-        ? announcements.filter((item) => item.institute === userInstitute)
-        : announcements;
+    const scopedAnnouncements = announcements.filter((item) => {
+      if (role === "ProgramHead" && userInstitute) {
+        if (item.institute !== userInstitute && item.institute !== "All") return false;
+      }
+      if (scopeFilter === "Mine" && currentUserId) {
+        return item.authorId === currentUserId;
+      }
+      return true;
+    });
 
     const filteredAnnouncements = scopedAnnouncements.filter((item) => {
       if (priorityFilter !== "None" && item.priority !== priorityFilter) return false;
@@ -82,7 +90,7 @@
       );
     });
 
-    const listPermissions = getAnnouncementPermissions({ role, userInstitute });
+    const listPermissions = getAnnouncementPermissions({ role, userInstitute, currentUserId });
 
     const handleOpenCreate = () => {
       setEditingAnnouncement(null);
@@ -105,7 +113,6 @@
           subject: formValues.subject,
           content: formValues.body,
           category: formValues.category,
-          institute: formValues.institute,          
           priority: formValues.priority,
           attachmentUrls: [],
           lastModified: new Date().toISOString(),
@@ -116,7 +123,6 @@
         subject: formValues.subject,
         content: formValues.body,
         category: formValues.category,
-        institute: formValues.institute,
         priority: formValues.priority,
         attachmentUrls: [],
       });
@@ -164,6 +170,7 @@
             announcement={selectedAnnouncement}
             role={role}
             userInstitute={userInstitute}
+            currentUserId={currentUserId}
             onBack={() => setSelectedAnnouncement(null)}
             onEdit={handleEditSelected}
             onDelete={handleDeleteSelected}
@@ -177,10 +184,8 @@
                 editingAnnouncement
                   ? {
                       subject: editingAnnouncement.subject,
-                      author: editingAnnouncement.postedBy,
                       date: editingAnnouncement.date,
                       category: editingAnnouncement.category,
-                      institute: editingAnnouncement.institute,
                       priority: editingAnnouncement.priority,
                       body: editingAnnouncement.body,
                     }
@@ -259,7 +264,28 @@ if (isError) {
                 </Button>
 
                 {isFilterOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-outline-variant/70 bg-surface p-3 shadow-xl">
+                  <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-outline-variant/70 bg-surface p-3 shadow-xl">
+                    <p className="px-3 py-1 text-[11px] font-semibold uppercase text-outline">Scope</p>
+                    {(["All", "Mine"] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          setScopeFilter(option);
+                          setIsFilterOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                          scopeFilter === option
+                            ? "bg-primary/10 text-primary"
+                            : "hover:bg-surface-container-high"
+                        }`}
+                      >
+                        <span>{option === "Mine" ? "Your Announcements" : "All Announcements"}</span>
+                        {scopeFilter === option && <span className="text-xs font-semibold">Selected</span>}
+                      </button>
+                    ))}
+                    <hr className="my-2 border-outline-variant/40" />
+                    <p className="px-3 py-1 text-[11px] font-semibold uppercase text-outline">Priority</p>
                     {(["None", "Normal", "Important", "Urgent"] as const).map((option) => (
                       <button
                         key={option}
@@ -337,10 +363,8 @@ if (isError) {
               editingAnnouncement
                 ? {
                     subject: editingAnnouncement.subject,
-                    author: editingAnnouncement.postedBy,
                     date: editingAnnouncement.date,
                     category: editingAnnouncement.category,
-                    institute: editingAnnouncement.institute,
                     priority: editingAnnouncement.priority,
                     body: editingAnnouncement.body,
                   }
