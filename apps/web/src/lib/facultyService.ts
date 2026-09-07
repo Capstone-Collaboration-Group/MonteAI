@@ -1,8 +1,7 @@
-import { createApiClient, createFacultyService } from "@monteai/api";
-
-const client = createApiClient({ baseURL: import.meta.env.VITE_API_BASE_URL });
+import { createFacultyService } from "@monteai/api";
+import { apiClient } from "./firebaseServices";
 
 export const facultyService = createFacultyService(
-  client,
-  import.meta.env.VITE_USE_MOCK === "true"
+    apiClient,
+    import.meta.env.VITE_USE_MOCK === "true"
 );
