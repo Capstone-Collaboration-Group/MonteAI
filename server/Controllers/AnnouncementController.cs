@@ -1,5 +1,6 @@
 using System;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using server.Models.DTOs.Announcement;
@@ -9,6 +10,7 @@ using server.Services.Interfaces;
 namespace server.Controllers 
 { 
     [ApiController]
+    [Authorize]
     [Route("api/v1/[controller]")]
     public class AnnouncementController : ControllerBase 
     {
@@ -43,15 +45,16 @@ namespace server.Controllers
         }
         [HttpPost("create")]
         public async Task<IActionResult> CreateAnnouncement([FromBody] CreateAnnouncementDto dto)
-        {
+        {  
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var role = User.FindFirstValue(ClaimTypes.Role);
+            Console.WriteLine("Currently Logged in Account: " + userId + " " + role);
             //temporary user and id
-            if(string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
-            {
-                userId = "qZ3mK9vL2nXpR7wT4yB8cF1dA6hD";
-                role = "Admin";
-            }
+            //if(string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            //{
+            //    userId = "qZ3mK9vL2nXpR7wT4yB8cF1dA6hD";
+            //    role = "Admin";
+            //}
 
             var result = await _service.CreateAsync(dto, userId, role);
             if(result)
