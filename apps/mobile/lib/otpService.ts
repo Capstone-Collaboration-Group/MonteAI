@@ -1,5 +1,6 @@
 // apps/mobile/lib/otpService.ts
 import { createApiClient, createOtpService } from "@monteai/api";
+import { getAuthToken } from "./authService";
 
 /**
  * Env-wired OTP singleton for mobile (Expo).
@@ -22,6 +23,6 @@ const baseURL =
 const useMock =
   (process.env.EXPO_PUBLIC_USE_MOCK ?? (__DEV__ ? "true" : "false")) === "true";
 
-const client = createApiClient({ baseURL });
+const client = createApiClient({ baseURL, getAuthToken });
 
 export const otpService = createOtpService(client, useMock);
