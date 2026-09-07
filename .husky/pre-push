@@ -1,3 +1,4 @@
-export PATH="/c/Program Files/nodejs:/c/Users/jakeg/AppData/Roaming/npm:$PATH"
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
 
-pnpm run lint
+pnpm lint

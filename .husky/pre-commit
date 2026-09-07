@@ -1,3 +1,1 @@
-export PATH="/c/Program Files/nodejs:/c/Users/jakeg/AppData/Roaming/npm:$PATH"
-
-"C:/Program Files/nodejs/corepack.cmd" pnpm run typecheck:all && "C:/Program Files/nodejs/corepack.cmd" pnpm lint
+pnpm typecheck
