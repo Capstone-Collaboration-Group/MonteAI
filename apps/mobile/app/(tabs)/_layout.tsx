@@ -1,6 +1,7 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { CustomTabBar } from '@/components/ui/CustomTabBar';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
 
 const TAB_ITEMS = [
   { key: 'home', icon: 'home', label: 'Home' },
@@ -11,6 +12,13 @@ const TAB_ITEMS = [
 ] as const;
 
 export default function TabLayout() {
+  // This part will also handle the check for the session. 
+  // If there's no existing session, redirect back. Continue if there is.
+  const { session, restoring } = useAuthSession();
+
+  if (restoring) return null;
+  if (!session) return <Redirect href="/auth-entry" />;
+
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
