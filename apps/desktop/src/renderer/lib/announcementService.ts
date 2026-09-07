@@ -1,8 +1,7 @@
-import {createApiClient, createAnnouncementService} from "@monteai/api";
+import {createAnnouncementService} from "@monteai/api";
+import { apiClient } from "./apiClient";
 
-const client = createApiClient({
-    baseURL: import.meta.env.VITE_API_BASE_URL
-});
+const client = apiClient;
 
 export const announcementService = createAnnouncementService(
     client,
