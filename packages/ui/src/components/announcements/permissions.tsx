@@ -1,11 +1,11 @@
-import type { Institute } from "./institutes";
-
 export type UserRole = "Admin" | "ProgramHead" | "Student";
 
 export interface AnnouncementPermissionContext {
   role: UserRole;
-  userInstitute?: Institute;
-  announcementInstitute?: Institute;
+  userInstitute?: string;
+  announcementInstitute?: string;
+  currentUserId?: string;
+  announcementAuthorId?: string;
 }
 
 export interface AnnouncementPermissions {
@@ -19,20 +19,25 @@ export function getAnnouncementPermissions({
   role,
   userInstitute,
   announcementInstitute,
+  currentUserId,
+  announcementAuthorId,
 }: AnnouncementPermissionContext): AnnouncementPermissions {
   if (role === "Admin") {
     return { canView: true, canCreate: true, canEdit: true, canDelete: true };
   }
 
   if (role === "ProgramHead") {
+    const isOwnAnnouncement = currentUserId && announcementAuthorId
+      ? currentUserId === announcementAuthorId
+      : false;
     const withinOwnInstitute =
-      !announcementInstitute || announcementInstitute === userInstitute;
+      !userInstitute || !announcementInstitute || announcementInstitute === userInstitute;
 
     return {
       canView: true,
       canCreate: true,
-      canEdit: withinOwnInstitute,
-      canDelete: withinOwnInstitute,
+      canEdit: withinOwnInstitute && isOwnAnnouncement,
+      canDelete: withinOwnInstitute && isOwnAnnouncement,
     };
   }
 

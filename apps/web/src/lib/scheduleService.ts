@@ -1,8 +1,5 @@
-import { createApiClient, createScheduleService } from "@monteai/api";
-
-
-
- const apiClient = await createApiClient({ baseURL: import.meta.env.VITE_API_BASE_URL });
+import { createScheduleService } from "@monteai/api";
+import { apiClient } from "./firebaseServices";
 
 export const scheduleService = createScheduleService(
   apiClient,

@@ -12,3 +12,4 @@ export * from "./chat/useChat";
 export * from "./panelist-schedule/usePanelistSchedule";
 export * from "./submission/useSubmission";
 export * from "./panelist/usePanelistPool";
+export * from "./announcement/useAnnouncement";

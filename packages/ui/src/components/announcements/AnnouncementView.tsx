@@ -1,17 +1,18 @@
 import { ArrowLeft, Calendar, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 import { formatDate } from "@monteai/utils";
 import { getAnnouncementPermissions, type UserRole } from "./permissions";
-import type { Institute } from "./institutes";
 
 type Priority = "Normal" | "Important" | "Urgent";
 
 export type AnnouncementDetail = {
-  id: number;
+  id: string;
   subject: string;
   category: string;
-  institute: Institute;
+  institute: string;
+  authorId: string;
   postedBy: string;
   date: string;
   priority: Priority;
@@ -23,7 +24,8 @@ export type AnnouncementDetail = {
 interface AnnouncementViewProps {
   announcement: AnnouncementDetail;
   role: UserRole;
-  userInstitute?: Institute;
+  userInstitute?: string;
+  currentUserId?: string;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -33,6 +35,7 @@ export function AnnouncementView({
   announcement,
   role,
   userInstitute,
+  currentUserId,
   onBack,
   onEdit,
   onDelete,
@@ -43,33 +46,9 @@ export function AnnouncementView({
     role,
     userInstitute,
     announcementInstitute: announcement.institute,
+    currentUserId,
+    announcementAuthorId: announcement.authorId,
   });
-
-  const handleDeleteClick = () => {
-    setShowDeleteConfirm(true);
-  };
-
-  const handleConfirmDelete = () => {
-    setShowDeleteConfirm(false);
-    onDelete();
-  };
-
-  const handleCancelDelete = () => {
-    setShowDeleteConfirm(false);
-  };
-
-  const handleEditClick = () => {
-    setShowEditConfirm(true);
-  };
-
-  const handleConfirmEdit = () => {
-    setShowEditConfirm(false);
-    onEdit();
-  };
-
-  const handleCancelEdit = () => {
-    setShowEditConfirm(false);
-  };
 
   return (
     <div className="min-h-screen bg-surface-container-low/60 p-6 lg:p-8">
@@ -89,7 +68,7 @@ export function AnnouncementView({
               {permissions.canDelete && (
                 <Button
                   className="rounded-full inline-flex items-center gap-2 whitespace-nowrap bg-red-500 text-white hover:bg-red-600"
-                  onClick={handleDeleteClick}
+                  onClick={() => setShowDeleteConfirm(true)}
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Delete Announcement</span>
@@ -98,7 +77,7 @@ export function AnnouncementView({
               {permissions.canEdit && (
                 <Button
                   className="rounded-full inline-flex items-center gap-2 whitespace-nowrap"
-                  onClick={handleEditClick}
+                  onClick={() => setShowEditConfirm(true)}
                 >
                   <Pencil className="w-4 h-4" />
                   <span>Edit Announcement</span>
@@ -151,45 +130,25 @@ export function AnnouncementView({
         </div>
       </div>
 
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-outline-variant/60 bg-surface p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-on-surface">Delete announcement?</h3>
-            <p className="mt-2 text-sm text-on-surface-variant">
-              This action cannot be undone. Are you sure you want to delete this announcement?
-            </p>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete announcement?"
+        description="This action cannot be undone. Are you sure you want to delete this announcement?"
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { setShowDeleteConfirm(false); onDelete(); }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
 
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="secondary" className="rounded-full" onClick={handleCancelDelete}>
-                Cancel
-              </Button>
-              <Button className="rounded-full bg-red-500 text-white hover:bg-red-600" onClick={handleConfirmDelete}>
-                Confirm Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showEditConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-outline-variant/60 bg-surface p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-on-surface">Edit announcement?</h3>
-            <p className="mt-2 text-sm text-on-surface-variant">
-              This will open the announcement editor so you can update the details.
-            </p>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="secondary" className="rounded-full" onClick={handleCancelEdit}>
-                Cancel
-              </Button>
-              <Button className="rounded-full" onClick={handleConfirmEdit}>
-                Confirm Edit
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showEditConfirm}
+        title="Edit announcement?"
+        description="This will open the announcement editor so you can update the details."
+        confirmLabel="Confirm Edit"
+        variant="success"
+        onConfirm={() => { setShowEditConfirm(false); onEdit(); }}
+        onCancel={() => setShowEditConfirm(false)}
+      />
     </div>
   );
 }
