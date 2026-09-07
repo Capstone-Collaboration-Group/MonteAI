@@ -79,6 +79,23 @@ namespace server.Models.DTOs.User
 
         public bool? IsActive { get; set; }
     }
+
+    // ── Student-number login (mobile) ──────────────────────────────────
+    // Mobile logs students in with their student number; this resolves the
+    // number to the Firebase email so the client can run the standard
+    // email/password sign-in flow.
+    public class ResolveLoginRequestDto
+    {
+        [Required]
+        [MaxLength(50)]
+        public string StudentNumber { get; set; } = null!;
+    }
+
+    public class ResolveLoginResponseDto
+    {
+        public string StudentNumber { get; set; } = null!;
+        public string Email { get; set; } = null!;
+    }
     public class UserResponseDto
     {
         public string Id { get; set; } = null!;
