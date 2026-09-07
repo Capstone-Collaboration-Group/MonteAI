@@ -1,6 +1,7 @@
-import { createApiClient, createProgramHeadService } from "@monteai/api";
+import { createProgramHeadService } from "@monteai/api";
+import { apiClient } from "./apiClient";
 
-const client = createApiClient({ baseURL: import.meta.env.VITE_API_BASE_URL });
+const client = apiClient;
 
 export const programHeadService = createProgramHeadService(
     client,
