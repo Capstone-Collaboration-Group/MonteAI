@@ -28,6 +28,9 @@ export default function TabLayout() {
       <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
       <Tabs.Screen name="announcements" options={{ title: 'Announcements' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      {/* Pushed-to route (Home quick actions / sidebar drawer) — deliberately
+          not part of the visible 5-item tab bar. */}
+      <Tabs.Screen name="schedules" options={{ title: 'Schedules' }} />
     </Tabs>
   );
 }
