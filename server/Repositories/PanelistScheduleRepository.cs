@@ -17,6 +17,13 @@ namespace server.Repositories
         public async Task<IEnumerable<PanelistSchedule>> GetAllPanelistSchedulesAsync()
               => await _db.PanelistSchedules.ToListAsync();
 
+        public async Task<IEnumerable<PanelistSchedule>> GetAllPanelistSchedulesWithDetailsAsync()
+            => await _db.PanelistSchedules
+                .AsNoTracking()
+                .Include(ps => ps.Schedule)
+                    .ThenInclude(s => s!.ResearchGroup)
+                .ToListAsync();
+
         public async Task<PanelistSchedule?> GetPanelistScheduleByIdAsync(Guid scheduleId, string panelistId)
             => await _db.PanelistSchedules.FindAsync(scheduleId, panelistId);
 

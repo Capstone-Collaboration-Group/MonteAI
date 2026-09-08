@@ -54,6 +54,17 @@ namespace server.Controllers
             }
             return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot" });
         }
+        [HttpPatch("update-times/{id}")]
+        public async Task<IActionResult> UpdateScheduleTimes([FromBody] UpdateScheduleTimesDto dto, Guid id)
+        {
+            var result = await _service.UpdateTimesAsync(id, dto);
+            if (result)
+            {
+                _logger.LogInformation("Performed Schedule Time Update on Id: {id}", id);
+                return Ok(new { Message = "Schedule Time Update Successful " });
+            }
+            return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot" });
+        }
         [HttpDelete("delete/{id}")]
         public async Task<IActionResult> DeleteSchedule(Guid id)
         {

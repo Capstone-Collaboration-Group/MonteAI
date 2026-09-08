@@ -4,13 +4,18 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import  { useFonts } from 'expo-font';
 import AnimatedSplashScreen from '@/components/AnimatedSplashScreen';
+import AuthEntryScreen from '@/components/AuthEntryScreen';
+import LoginScreen from '@/components/LoginScreen';
+import SignUpFlow from '@/components/SignUpFlow';
 
 
 SplashScreen.preventAutoHideAsync();
 
+type EntryStage = 'splash' | 'auth' | 'login' | 'signup' | 'app';
+
 export default function RootLayout() { 
   const [appReady, setAppReady ] = useState(false);
-  const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+  const [stage, setStage] = useState<EntryStage>('splash');
 
   const [fontsLoaded] = useFonts({
 
@@ -29,12 +34,30 @@ export default function RootLayout() {
   if(!appReady) { 
     return null;
   }
-
+console.log("USE_MOCK:", process.env.EXPO_PUBLIC_USE_MOCK);
   return (
+    
     <View style={{ flex: 1}} onLayout={onLayoutRootView}>
-      {showAnimatedSplash ? (
+      {stage === 'splash' ? (
   <AnimatedSplashScreen
-    onGetStarted={() => setShowAnimatedSplash(false)}
+    onGetStarted={() => setStage('auth')}
+  />
+) : stage === 'auth' ? (
+  <AuthEntryScreen
+    onLogin={() => setStage('login')}
+    onSignUp={() => setStage('signup')}
+  />
+) : stage === 'login' ? (
+  <LoginScreen
+    onBack={() => setStage('auth')}
+    onLogin={() => setStage('app')}
+    onSignUpPress={() => setStage('signup')}
+  />
+) : stage === 'signup' ? (
+  <SignUpFlow
+    onExit={() => setStage('auth')}
+    onLoginPress={() => setStage('auth')}
+    onComplete={() => setStage('app')}
   />
 ) : (
   <Stack screenOptions={{ headerShown: false }} />

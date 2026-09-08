@@ -15,7 +15,7 @@ namespace server.Controllers
     ): ControllerBase
     {
         [HttpGet]
-        public async Task<IActionResult> GetAllPanelistSchedules()
+        public async Task<IActionResult> GetAllPanelistSchedules()  
         {
             var result = await _service.GetAllAsync();
             if (result is null) return BadRequest(new { Message = "Bad Request... Try Again Later" });

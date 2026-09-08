@@ -8,16 +8,72 @@ namespace server.Services.Schedules
 {
     public class PanelistScheduleService
         (
-        IPanelistScheduleRepository _repo, 
+        IPanelistScheduleRepository _repo,
+        IFacultyRepository _facultyRepo,
+        IProgramHeadRepository _programHeadRepo,
+        IAdminRepository _adminRepo,
         IMapper _mapper
         ) : IPanelistScheduleService
     {
-         public async Task<IEnumerable<PanelistScheduleResponseDto>> GetAllAsync()
+         public async Task<IEnumerable<PanelistResponseDto>> GetAllAsync()
          {
-            var result = await _repo.GetAllPanelistSchedulesAsync();
-            var responseDto = _mapper.Map<IEnumerable<PanelistScheduleResponseDto>>(result);
-            return responseDto;
+            var faculties = await _facultyRepo.GetAllFacultyAsync();
+            var programHeads = await _programHeadRepo.GetAllProgramHeadsAsync();
+            var admins = await _adminRepo.GetAllAdminsAsync();
+
+            var assignments = await _repo.GetAllPanelistSchedulesWithDetailsAsync();
+
+            var result = new List<PanelistResponseDto>();
+
+            foreach (var faculty in faculties)
+                result.Add(ToPanelist(faculty.Id, faculty, PanelistType.Faculty, faculty.Institute, null, assignments));
+
+            foreach (var programHead in programHeads)
+                result.Add(ToPanelist(programHead.Id, programHead, PanelistType.ProgramHead, programHead.Institute, null, assignments));
+
+            foreach (var admin in admins)
+                result.Add(ToPanelist(admin.Id, admin, PanelistType.Admin, null, admin.Position, assignments));
+
+            return result;
          }
+
+        private static PanelistResponseDto ToPanelist(
+            string id,
+            server.Models.Entities.User user,
+            PanelistType panelistType,
+            string? institute,
+            string? position,
+            IEnumerable<PanelistSchedule> assignments)
+        {
+            var personAssignments = assignments
+                .Where(a => a.PanelistId == id)
+                .Select(a => new PanelistAssignmentSummaryDto
+                {
+                    ScheduleId = a.ScheduleId,
+                    GroupName = a.Schedule?.ResearchGroup?.GroupName ?? string.Empty,
+                    Date = a.Schedule?.Date ?? default,
+                    StartTime = a.Schedule?.StartTime ?? default,
+                    EndingTime = a.Schedule?.EndingTime ?? default
+                })
+                .ToList();
+
+            return new PanelistResponseDto
+            {
+                Id = id,
+                Email = user.Email ?? string.Empty,
+                FirstName = user.FirstName ?? string.Empty,
+                MiddleInitial = user.MiddleInitial,
+                LastName = user.LastName ?? string.Empty,
+                Suffix = user.Suffix,
+                Role = user.Role ?? string.Empty,
+                Institute = institute,
+                Position = position,
+                PanelistType = panelistType,
+                IsActive = user.IsActive,
+                Assignments = personAssignments,
+                IsAssigned = personAssignments.Count > 0
+            };
+        }
         
         public async Task<PanelistScheduleResponseDto?> GetByIdAsync(Guid scheduleId, string panelistId)
         {

@@ -174,7 +174,10 @@ try
     builder.Services.AddScoped<IPineconeService, PineconeService>();
     builder.Services.AddControllers()
         .AddJsonOptions(o =>
-            o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        {
+            o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+            o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
     // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options =>
@@ -215,7 +218,8 @@ try
                 "https://localhost:5174",
                 "https://localhost:8080",
                 "https://localhost:5173",
-                "https://monteskolar.pnm.edu.ph"
+                "https://monteskolar.pnm.edu.ph",
+                "http://192.168.100.9:8081"
                 )
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -242,7 +246,14 @@ try
     app.UseRouting();
     app.UseSerilogRequestLogging();
 
-    app.UseHttpsRedirection();
+    // Dev only: skip the HTTP->HTTPS redirect so LAN devices (e.g. a physical
+    // phone in the Expo dev build) can hit the plain-HTTP endpoint on :5084
+    // without failing on the self-signed dev cert. Browsers/desktop already
+    // target https://localhost:7085 directly, so they are unaffected.
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHttpsRedirection();
+    }
     app.UseCors("MonteSkolarPolicy"); 
     app.UseAuthentication();
     app.UseRoleAuthorization();

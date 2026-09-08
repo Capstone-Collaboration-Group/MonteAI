@@ -116,7 +116,7 @@ namespace server.Data
                       .HasForeignKey(e => e.AdviserId)
                       .OnDelete(DeleteBehavior.SetNull);
 
-                entity.HasOne<Student>()
+                entity.HasOne(e => e.Leader)
                       .WithMany()
                       .HasForeignKey(e => e.LeaderId)
                       .OnDelete(DeleteBehavior.Restrict);
@@ -324,6 +324,16 @@ namespace server.Data
                         c => c.Aggregate(0, (a,v) => HashCode.Combine(a, v.GetHashCode())),
                         c => c.ToList()
                     ));
+                entity.Property(e => e.Category)
+                    .HasMaxLength(100)
+                    .IsRequired();
+
+                entity.Property(e => e.Priority)
+                    .HasMaxLength(50)
+                    .IsRequired();
+
+                entity.Property(e => e.LastModified);
+
                 entity.Property(e => e.CreatedByAdminId)
                     .HasMaxLength(128);
 

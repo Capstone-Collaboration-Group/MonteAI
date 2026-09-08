@@ -21,16 +21,22 @@ namespace server.Services
 
         public async Task<IEnumerable<AnnouncementResponseDto>> GetAllAsync()
         {
-            var result = await _repo.GetAllAnnouncementsAsync();
+            var announcements = await _repo.GetAllAnnouncementsAsync();
 
-            var responseDto = _mapper.Map<IEnumerable<AnnouncementResponseDto>>(result);
-            _logger.LogInformation("Fetched {count} announcements.", responseDto.Count());
+            var announcementDto = _mapper.Map<IEnumerable<AnnouncementResponseDto>>(announcements);
+            _logger.LogInformation("Fetched {count} announcements.", announcementDto.Count());
 
-            return responseDto;
+            return announcementDto;
         }
         public async Task<AnnouncementResponseDto?> GetByIdAsync(Guid id)
         {
             var result = await _repo.GetAnnouncementByIdAsync(id);
+            if (result == null)
+        {
+        _logger.LogWarning("Announcement {Id} not found.", id);
+        return null;
+        }
+
             var responseDto = _mapper.Map<AnnouncementResponseDto>(result);
             _logger.LogInformation("Fetched Announcement {Id}.", responseDto.Id);
             return responseDto;
@@ -38,7 +44,6 @@ namespace server.Services
         public async Task<bool> CreateAsync(CreateAnnouncementDto createDto, string userId, string role)
         {
             var announcement = _mapper.Map<Announcement>(createDto);
-            Console.WriteLine(userId + ":" + role);
             if (role == "Admin")
                 announcement.CreatedByAdminId = userId;
             if (role == "ProgramHead")

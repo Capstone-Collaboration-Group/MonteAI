@@ -4,7 +4,7 @@ namespace server.Services.Interfaces
 {
     public interface IPanelistScheduleService
     {
-        Task<IEnumerable<PanelistScheduleResponseDto>> GetAllAsync();
+        Task<IEnumerable<PanelistResponseDto>> GetAllAsync();
 
         Task<PanelistScheduleResponseDto?> GetByIdAsync(Guid scheduleId, string panelistId);
 

@@ -6,6 +6,10 @@ namespace server.Repositories.Interfaces
     {
         Task<IEnumerable<PanelistSchedule>> GetAllPanelistSchedulesAsync();
 
+        // Returns every assignment with its Schedule (and the schedule's ResearchGroup)
+        // loaded so the service can build per-panelist assignment summaries.
+        Task<IEnumerable<PanelistSchedule>> GetAllPanelistSchedulesWithDetailsAsync();
+
         Task<PanelistSchedule?> GetPanelistScheduleByIdAsync(Guid scheduleId, string panelistId);
 
         Task<bool> CreatePanelistScheduleAsync(PanelistSchedule panelistSchedule);

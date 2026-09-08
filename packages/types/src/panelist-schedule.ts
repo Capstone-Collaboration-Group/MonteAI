@@ -19,7 +19,7 @@ export interface PanelistScheduleResponseDto {
   panelistId: string;
   panelistType: PanelistType;
   role?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface PanelistAssignmentSummary {

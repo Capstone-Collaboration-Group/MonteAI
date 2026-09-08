@@ -2,6 +2,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { ThesisPDFViewerPage } from "@monteai/ui/";
 import { thesisService } from "../lib/thesisService";
+import { getAnnotationService } from "../lib/annotationService";
 import { facultyService } from "../lib/facultyService";
 import { programHeadService } from "../lib/programHeadService";
 import { adminService } from "../lib/adminService";
@@ -17,6 +18,7 @@ export default function ThesisViewer() {
     <ThesisPDFViewerPage
     thesisId={thesisId}
     thesisService={thesisService}
+    annotationService={getAnnotationService()}
     facultyService={facultyService}
     programHeadService={programHeadService}
     adminService={adminService}

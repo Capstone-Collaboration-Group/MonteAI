@@ -39,10 +39,12 @@ const App = () => (
           {/* Public routes */}
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          
+            
 
           {/* Protected routes — wrapped inside ProtectedRoute */}
           <Route element={<ProtectedRoute profileService={profileService}/>}>
-            <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Dashboard />} />
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/theses" element={<Theses />} />
             <Route path="/faculty" element={<Faculty />} />

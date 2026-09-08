@@ -64,7 +64,7 @@ export class LiveThesisService implements ThesisService {
     // async updateThesis
     async updateThesis(thesisId: string, dto: UpdateThesisDto): Promise<boolean> {
         try {
-            const { data } = await this.client.patch<boolean>(`/thesis/update/details/${thesisId}`, dto);
+            const { data } = await this.client.put<boolean>(`/thesis/update/details/${thesisId}`, dto);
             return data;
         } catch (err) {
             return handle404(err, false);

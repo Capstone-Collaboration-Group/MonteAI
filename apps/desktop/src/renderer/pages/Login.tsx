@@ -18,11 +18,12 @@ export default function Login() {
           Back to home
         </button>
 
-        <Card className="overflow-hidden rounded-[32px] border-none bg-white p-0 shadow-[0_20px_70px_rgba(0,100,0,0.12)]">
+        <Card className="overflow-hidden rounded-[32px] !border-0 bg-white p-0 !shadow-none">
           <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
             <LeftPanel />
+
             <div className="p-6 sm:p-8 lg:p-10">
-              <LoginForm auth={auth} onSuccess={() => navigate("/announcements")} />
+              <LoginForm auth={auth} onSuccess={() => navigate("/home")} />
             </div>
           </div>
         </Card>

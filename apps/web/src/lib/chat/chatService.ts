@@ -1,8 +1,7 @@
-import { createApiClient, createChatService } from "@monteai/api";
-
-const client = createApiClient({ baseURL: import.meta.env.VITE_API_BASE_URL });
+import { createChatService } from "@monteai/api";
+import { apiClient } from "../firebaseServices";
 
 export const chatService = createChatService(
-    client,
+    apiClient,
     import.meta.env.VITE_USE_MOCK === "true"
 )

@@ -1,15 +1,24 @@
 import type { ReactNode } from "react";
 
+type ConfirmVariant = "danger" | "success" | "warning";
+
 interface ConfirmDialogProps {
   open: boolean;
   title: string;
   description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  variant?: ConfirmVariant;
   onConfirm: () => void;
   onCancel: () => void;
   children?: ReactNode;
 }
+
+const variantStyles: Record<ConfirmVariant, string> = {
+  danger: "bg-error text-on-error hover:bg-error/90",
+  success: "bg-status-approved text-white hover:bg-status-approved/90",
+  warning: "bg-status-pending text-on-surface hover:bg-status-pending/90",
+};
 
 export function ConfirmDialog({
   open,
@@ -17,6 +26,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
+  variant = "danger",
   onConfirm,
   onCancel,
   children,
@@ -42,7 +52,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-error px-4 py-2 text-sm font-semibold text-white hover:bg-error/90"
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${variantStyles[variant]}`}
           >
             {confirmLabel}
           </button>

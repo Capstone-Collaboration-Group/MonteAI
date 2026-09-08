@@ -14,6 +14,7 @@
     },
     "android": {
       "package": "com.monteskolar.mobile",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#fcf9f8",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

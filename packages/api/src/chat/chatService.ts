@@ -21,7 +21,6 @@ export class LiveChatService implements ChatService {
     return data;
   }
   async sendMessage(sessionId: string, dto: CreateChatMessageDto): Promise<ChatMessageResponseDto> {
-      sessionId = "133dd628-17b4-4cb0-af48-58a192b881e2";
       const { data } = await this.client.post<{message: string; useMessage: ChatMessageResponseDto; aiMessage: ChatMessageResponseDto;}>(
       `/chat/sessions/${sessionId}/messages`,
       dto
@@ -30,7 +29,7 @@ export class LiveChatService implements ChatService {
   }
   async getSession(sessionId: string): Promise<ChatSessionResponseDto | null> {
     try {
-      const { data } = await this.client.get<ChatSessionResponseDto>(`/chatsessions/${sessionId}`);
+      const { data } = await this.client.get<ChatSessionResponseDto>(`/chat/sessions/${sessionId}`);
       return data;
     } catch (err) { 
      return handle404(err,  null);
@@ -39,7 +38,7 @@ export class LiveChatService implements ChatService {
 
   async updateChatSession(sessionId: string, dto: UpdateChatSessionDto): Promise<boolean> { 
     try { 
-      const { data } = await this.client.patch<boolean>(`/chat/session/${sessionId}`, dto);
+      const { data } = await this.client.put<boolean>(`/chat/sessions/${sessionId}/update`, dto);
       return data;
     } catch (err) { 
       return handle404(err, false)

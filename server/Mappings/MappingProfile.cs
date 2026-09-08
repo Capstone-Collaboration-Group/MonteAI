@@ -84,7 +84,9 @@ namespace server.Mappings
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
 
             // ResearchGroup
-            CreateMap<ResearchGroup, ResearchGroupResponseDto>();
+            CreateMap<ResearchGroup, ResearchGroupResponseDto>()
+                .ForMember(dest => dest.Institute, opt => opt.MapFrom(src =>
+                    src.Leader != null ? (src.Leader.Institute ?? string.Empty) : string.Empty));
             CreateMap<CreateResearchGroupDto, ResearchGroup>();
             CreateMap<UpdateResearchGroupDto, ResearchGroup>();
 
@@ -111,7 +113,11 @@ namespace server.Mappings
 
             // Announcement 
             CreateMap<Announcement, AnnouncementResponseDto>()
-                   .ForMember(dest => dest.Author, opt => opt.MapFrom(src => ResolveAnnouncementAuthor(src)));
+                   .ForMember(dest => dest.Author, opt => opt.MapFrom(src => ResolveAnnouncementAuthor(src)))
+                   .ForMember(dest => dest.Institute, opt => opt.MapFrom(src =>
+                    src.CreatedByProgramHead != null
+                        ? src.CreatedByProgramHead.Institute
+                        : "All"));
             CreateMap<CreateAnnouncementDto, Announcement>();
             CreateMap<UpdateAnnouncementDto, Announcement>();
            

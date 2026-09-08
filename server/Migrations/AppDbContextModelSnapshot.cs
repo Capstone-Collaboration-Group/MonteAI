@@ -86,6 +86,11 @@ namespace server.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -105,6 +110,11 @@ namespace server.Migrations
 
                     b.Property<DateTime?>("LastModified")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Subject")
                         .IsRequired()
@@ -671,13 +681,15 @@ namespace server.Migrations
                         .HasForeignKey("AdviserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("server.Models.Entities.Student", null)
+                    b.HasOne("server.Models.Entities.Student", "Leader")
                         .WithMany()
                         .HasForeignKey("LeaderId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Adviser");
+
+                    b.Navigation("Leader");
                 });
 
             modelBuilder.Entity("server.Models.Entities.Review", b =>

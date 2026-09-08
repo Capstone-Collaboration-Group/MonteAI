@@ -17,7 +17,7 @@ export function PageLayout({
   
   return (
     <div 
-      className={`flex h-screen bg-surface-container-low ${layoutClass} ${className}`} 
+      className={`flex h-full bg-surface-container-low ${layoutClass} ${className}`}
       {...props}
     >
       {children}

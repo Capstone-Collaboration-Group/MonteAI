@@ -1,6 +1,7 @@
-import { createApiClient, createThesisService } from "@monteai/api";
+import { createThesisService } from "@monteai/api";
+import { apiClient } from "./apiClient";
 
-const client = createApiClient({ baseURL: import.meta.env.VITE_API_BASE_URL });
+const client = apiClient;
 
 export const thesisService = createThesisService(
   client,

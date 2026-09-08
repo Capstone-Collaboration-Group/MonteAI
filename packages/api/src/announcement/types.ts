@@ -7,7 +7,7 @@ import type {
 export interface AnnouncementService { 
     getAnnouncements(): Promise<AnnouncementResponseDto[]>;
     getAnnouncement(announcementId: string): Promise<AnnouncementResponseDto | null>;
-    createAnnouncement(dto: CreateAnnouncementDto): Promise<AnnouncementResponseDto>;
-    updateAnnouncement(announcementId: string, dto: UpdateAnnouncementDto): Promise<boolean>;
-    deleteAnnouncement(announcementId: string): Promise<boolean>;
+    createAnnouncement(dto: CreateAnnouncementDto): Promise<void>;
+    updateAnnouncement(announcementId: string,dto: UpdateAnnouncementDto): Promise<void>;
+    deleteAnnouncement(announcementId: string): Promise<void>;
 }

@@ -44,6 +44,9 @@ namespace server.Models.DTOs.ResearchGroup
 
         public string LeaderId { get; set; } = string.Empty;
 
+        /// Institute of the group's leader student (resolved via Leader nav).
+        public string Institute { get; set; } = string.Empty;
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Modal, ModalHeader } from "../common/Modal";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 import type { CreateScheduleDto, PanelistCandidate, PanelistType } from "@monteai/types";
 import { getPanelistDisplayName, getPanelistInitials } from "@monteai/types";
 
@@ -106,6 +107,8 @@ export function ScheduleDefenseModal({
   const [selectedPanelists, setSelectedPanelists] = useState<PanelistCandidate[]>([]);
   const [search, setSearch]                   = useState("");
   const [venue, setVenue]                     = useState("");
+  const [confirmOpen, setConfirmOpen]         = useState(false);
+  const [pendingPayload, setPendingPayload]   = useState<CreateScheduleDto | null>(null);
 
   const duration   = useMemo(() => calcDuration(startTime, endTime), [startTime, endTime]);
   const canConfirm = defenseDate && startTime && endTime && selectedPanelists.length >= 3 && venue;
@@ -139,13 +142,22 @@ export function ScheduleDefenseModal({
         panelistType: p.panelistType as PanelistType,
       })),
     };
+    setPendingPayload(payload);
+    setConfirmOpen(true);
+  }
+
+  function handleFinalConfirm() {
+    if (!pendingPayload) return;
     console.log(`id is ${thesis.id}`);
     console.log(`groupId is ${thesis.groupId}`);
-    onConfirm(payload);
+    onConfirm(pendingPayload);
+    setConfirmOpen(false);
+    setPendingPayload(null);
     onClose();
   }
 
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} size="xl" className="!max-w-5xl">
 
       {/* ── Header ── */}
@@ -382,5 +394,40 @@ export function ScheduleDefenseModal({
       </div>
 
     </Modal>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Confirm Schedule Creation"
+        description={`You are about to schedule a defense for "${thesis.title}" by ${thesis.author}. Please review the details before confirming.`}
+        confirmLabel="Create Schedule"
+        cancelLabel="Go Back"
+        onConfirm={handleFinalConfirm}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setPendingPayload(null);
+        }}
+      >
+        {pendingPayload && (
+          <div className="space-y-2 rounded-lg border border-outline/10 bg-surface-container-low p-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-on-surface-variant">Date</span>
+              <span className="font-medium text-on-surface">{pendingPayload.date}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-on-surface-variant">Time</span>
+              <span className="font-medium text-on-surface">{pendingPayload.startTime} – {pendingPayload.endingTime}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-on-surface-variant">Venue</span>
+              <span className="font-medium text-on-surface">{pendingPayload.roomVenue}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-on-surface-variant">Panelists</span>
+              <span className="font-medium text-on-surface">{pendingPayload.panelists.length} selected</span>
+            </div>
+          </div>
+        )}
+      </ConfirmDialog>
+    </>
   );
 }

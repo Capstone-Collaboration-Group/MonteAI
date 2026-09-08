@@ -24,6 +24,10 @@ namespace server.Models.Entities
         public virtual ICollection<Student> Students { get; set; } = [];
         public Faculty?  Adviser { get; set; }
 
+        // Leader = the student referenced by LeaderId. Needed to resolve the
+        // group's institute for the schedule calendar card colors.
+        public Student? Leader { get; set; }
+
         public ICollection<Schedule> Schedules { get; set; } = [];
 
     }

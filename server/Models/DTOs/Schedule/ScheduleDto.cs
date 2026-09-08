@@ -10,7 +10,7 @@ namespace server.Models.DTOs.Schedule
         public string ScheduledBy { get; set; } = string.Empty;
 
         public Guid? GroupId { get; set; }
-
+            
         [Required]
         public DateOnly Date { get; set; }
 
@@ -51,6 +51,21 @@ namespace server.Models.DTOs.Schedule
         public string? AdditionalInformation { get; set; }
 
         public List<PanelistScheduleResponseDto>? Panelists { get; set; }
+    }
+
+    // Narrow, purpose-built DTO for drag/resize. Date & time are required
+    // (non-nullable) so a missing/invalid field fails model binding loudly
+    // instead of silently writing DateOnly.MinValue ("0001-01-01") to the DB.
+    public class UpdateScheduleTimesDto
+    {
+        [Required]
+        public DateOnly Date { get; set; }
+
+        [Required]
+        public TimeOnly StartTime { get; set; }
+
+        [Required]
+        public TimeOnly EndingTime { get; set; }
     }
 
     public class ScheduleResponseDto

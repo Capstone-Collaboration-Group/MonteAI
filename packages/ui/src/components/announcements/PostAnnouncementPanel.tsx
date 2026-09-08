@@ -3,23 +3,33 @@ import { useState } from "react";
 import { Button } from "../Button";
 import { Dropdown } from "../common/Dropdown";
 import { DropdownItem } from "../common/DropdownItem";
-import { INSTITUTES, type Institute } from "./institutes";
 
 type Priority = "Normal" | "Important" | "Urgent";
 
+const CATEGORY_OPTIONS = [
+  "Academic",
+  "Research",
+  "Thesis Defense",
+  "Administrative",
+  "Event",
+  "Student Affairs",
+  "Faculty Affairs",
+  "Library",
+  "Financial",
+  "IT & Technology",
+  "General",
+] as const;
+
 export type AnnouncementFormValues = {
   subject: string;
-  author: string;
   date: string;
   category: string;
-  institute: Institute;
   priority: Priority;
   body: string;
 };
 
 interface PostAnnouncementPanelProps {
   open: boolean;
-  /** Pass an announcement's values to pre-fill the form for editing. Omit/null for a blank "create" form. */
   initialValues?: AnnouncementFormValues | null;
   onClose: () => void;
   onSubmit: (announcement: AnnouncementFormValues) => void;
@@ -37,37 +47,24 @@ function getTodayString() {
 
 const BLANK = {
   subject: "",
-  author: "",
   date: "",
   category: "",
-  institute: "" as Institute | "",
   priority: "Normal" as Priority,
   body: "",
 };
 
 export function PostAnnouncementPanel({ open, initialValues, onClose, onSubmit }: PostAnnouncementPanelProps) {
   const [subject, setSubject] = useState(initialValues?.subject ?? BLANK.subject);
-const [date, setDate] = useState(initialValues?.date ?? getTodayString());
-const [author, setAuthor] = useState(initialValues?.author ?? BLANK.author);
-const [category, setCategory] = useState(initialValues?.category ?? BLANK.category);
-const [institute, setInstitute] = useState<Institute | "">(
-  initialValues?.institute ?? BLANK.institute
-);
-const [instituteOpen, setInstituteOpen] = useState(false);
-const [priority, setPriority] = useState<Priority>(
-  initialValues?.priority ?? BLANK.priority
-);
-const [body, setBody] = useState(initialValues?.body ?? BLANK.body);
+  const [date, setDate] = useState(initialValues?.date ?? getTodayString());
+  const [category, setCategory] = useState(initialValues?.category ?? BLANK.category);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [priority, setPriority] = useState<Priority>(initialValues?.priority ?? BLANK.priority);
+  const [body, setBody] = useState(initialValues?.body ?? BLANK.body);
 
   const isEditing = Boolean(initialValues);
 
-  // Whenever the panel opens, load either the announcement being edited
-  // or a blank form for creating a new one.
-  
-
   const handleSubmit = () => {
-    if (!institute) return;
-    onSubmit({ subject, author, date, category, institute, priority, body });
+    onSubmit({ subject, date, category, priority, body });
   };
 
   return (
@@ -107,16 +104,6 @@ const [body, setBody] = useState(initialValues?.body ?? BLANK.body);
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-label-sm font-label-sm text-outline">Author</label>
-              <input
-                type="text"
-                value={author}
-                onChange={(event) => setAuthor(event.target.value)}
-                placeholder="e.g. Academic Affairs"
-                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-body-sm outline-none"
-              />
-            </div>
-            <div>
               <label className="text-label-sm font-label-sm text-outline">Date</label>
               <input
                 type="date"
@@ -126,40 +113,27 @@ const [body, setBody] = useState(initialValues?.body ?? BLANK.body);
                 className="mt-1 w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-body-sm outline-none"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-label-sm font-label-sm text-outline">Category</label>
-              <input
-                type="text"
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                placeholder="e.g. Academic"
-                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-body-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-label-sm font-label-sm text-outline">Institute</label>
               <Dropdown
-                isOpen={instituteOpen}
-                onOpenChange={setInstituteOpen}
+                isOpen={categoryOpen}
+                onOpenChange={setCategoryOpen}
                 trigger={
                   <div className="mt-1 flex w-full items-center justify-between rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-body-sm">
-                    <span className={institute ? "text-on-surface" : "text-on-surface-variant"}>
-                      {institute || "Select institute"}
+                    <span className={category ? "text-on-surface" : "text-on-surface-variant"}>
+                      {category || "Select category"}
                     </span>
                     <ChevronDown className="w-4 h-4 text-on-surface-variant" />
                   </div>
                 }
               >
-                {INSTITUTES.map((option) => (
+                {CATEGORY_OPTIONS.map((option) => (
                   <DropdownItem
                     key={option}
-                    variant={institute === option ? "primary" : "default"}
+                    variant={category === option ? "primary" : "default"}
                     onClick={() => {
-                      setInstitute(option);
-                      setInstituteOpen(false);
+                      setCategory(option);
+                      setCategoryOpen(false);
                     }}
                   >
                     {option}
@@ -202,7 +176,7 @@ const [body, setBody] = useState(initialValues?.body ?? BLANK.body);
       </div>
 
       <div className="p-6 border-t border-outline-variant bg-white">
-        <Button onClick={handleSubmit} className="w-full rounded-full" disabled={!institute}>
+        <Button onClick={handleSubmit} className="w-full rounded-full">
           {isEditing ? "Save Changes" : "Post Announcement"}
         </Button>
       </div>
