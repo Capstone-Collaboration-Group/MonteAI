@@ -1,16 +1,37 @@
 import { Stack, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 
-import LoginScreen from '@/components/LoginScreen';
+import LoginScreen, { type LoginCredentials } from '@/components/LoginScreen';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
+import { describeAuthError } from '@/lib/authService';
 
 /**
  * Login route — Figma "Login" (node 448:487).
- * Reached from the auth entry's Login button. Successful login continues
- * into the app; the real Firebase + `/auth/login` wiring lands with the
- * auth integration.
+ * Students sign in with their student number; the auth service resolves it
+ * to the Firebase email (via /auth/resolve-login) and runs the standard
+ * Firebase email/password sign-in.
  */
 export default function LoginRoute() {
   const router = useRouter();
+  const { signInWithStudentNumber } = useAuthSession();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLogin = async (credentials: LoginCredentials) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await signInWithStudentNumber(
+        credentials.studentNumber,
+        credentials.password,
+      );
+      router.replace('/(tabs)/home');
+    } catch (err) {
+      setError(describeAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -20,8 +41,10 @@ export default function LoginRoute() {
           if (router.canGoBack()) router.back();
           else router.replace('/auth-entry');
         }}
-        onLogin={() => router.replace('/(tabs)/home')}
+        onLogin={handleLogin}
         onSignUpPress={() => router.push('/sign-up')}
+        loading={loading}
+        error={error}
       />
     </>
   );

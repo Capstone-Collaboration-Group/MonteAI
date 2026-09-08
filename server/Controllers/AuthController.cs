@@ -56,6 +56,28 @@ namespace server.Controllers
             return Ok("Logged in Successfully!");
         }
 
+        //  Student-number login (mobile) 
+        // Intentionally anonymous + generic errors to avoid student-number enumeration.
+        [HttpPost("resolve-login")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResolveStudentLogin([FromBody] ResolveLoginRequestDto dto)
+        {
+            var studentNumber = dto.StudentNumber.Trim();
+            if (string.IsNullOrEmpty(studentNumber))
+                return Unauthorized(new { Message = "Invalid student number or password." });
+
+            var email = await _studentService.GetEmailByStudentNumberAsync(studentNumber);
+
+            _logger.LogInformation("Email is {email}", email);
+            if (string.IsNullOrEmpty(email))
+            {
+                _logger.LogWarning("Failed login resolution for student number");
+                return Unauthorized(new { Message = "Invalid student number or password." });
+            }
+
+            return Ok(new ResolveLoginResponseDto { StudentNumber = studentNumber, Email = email });
+        }
+
         [HttpGet("me")]
         [Authorize]
         public async Task<IActionResult> GetCurrentUser()

@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
@@ -14,11 +15,14 @@ import { Spacing, Radius, FontSize } from '@/constants/theme';
 const DRAWER_WIDTH = 320;
 const OVERLAY_OPACITY = 0.4;
 
+type DrawerRoute = '/(tabs)/schedules' | '/(tabs)/announcements';
+
 interface NavItem {
   icon: React.ComponentProps<typeof MaterialIcons>['name'];
   label: string;
   active?: boolean;
   onPress?: () => void;
+  route?: DrawerRoute;
 }
 
 interface SidebarDrawerProps {
@@ -32,8 +36,8 @@ const NAV_ITEMS: NavItem[] = [
   { icon: 'add-circle', label: 'New Chat' },
   { icon: 'upload-file', label: 'Submit Thesis Document' },
   { icon: 'group', label: 'Research Group' },
-  { icon: 'calendar-month', label: 'Schedules' },
-  { icon: 'campaign', label: 'Announcements' },
+  { icon: 'calendar-month', label: 'Schedules', route: '/(tabs)/schedules' },
+  { icon: 'campaign', label: 'Announcements', route: '/(tabs)/announcements' },
   { icon: 'search', label: 'Find Thesis' },
   { icon: 'chat', label: 'Search Chat' },
 ];
@@ -45,6 +49,7 @@ const RECENT = [
 ];
 
 export function SidebarDrawer({ visible, onClose, activeRoute, onNavigate }: SidebarDrawerProps) {
+  const router = useRouter();
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
@@ -109,6 +114,7 @@ export function SidebarDrawer({ visible, onClose, activeRoute, onNavigate }: Sid
               <Pressable
                 key={item.label}
                 onPress={() => {
+                  if (item.route) router.push(item.route);
                   item.onPress?.();
                   onNavigate?.(item.label);
                   onClose();

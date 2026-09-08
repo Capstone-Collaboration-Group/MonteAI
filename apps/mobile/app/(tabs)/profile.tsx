@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
 import { studentService } from '@/lib/studentService';
 import type { StudentResponseDto } from '@monteai/types';
 
@@ -22,6 +24,8 @@ function initials(first?: string, last?: string): string {
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const { session, signOut } = useAuthSession();
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'onSurface');
   const body = useThemeColor({}, 'onSurfaceVariant');
@@ -51,8 +55,8 @@ export default function ProfileScreen() {
 
   const fullName = student
     ? `${student.firstName} ${student.middleInitial ? student.middleInitial + '. ' : ''}${student.lastName}${student.suffix ? ' ' + student.suffix : ''}`
-    : 'Jane Doe';
-  const email = student?.email ?? 'jane.doe@student.pnm.edu.ph';
+    : session?.email.split('@')[0] ?? 'Jane Doe';
+  const email = student?.email ?? session?.email ?? 'jane.doe@student.pnm.edu.ph';
   const role = student?.program ?? 'Academic Researcher';
   const ini = student ? initials(student.firstName, student.lastName) : 'JD';
 
@@ -113,7 +117,15 @@ export default function ProfileScreen() {
         </View>
 
         {/* Logout */}
-        <Pressable style={[s.logoutBtn, { borderColor: '#dc2626' }]}>
+        <Pressable
+          style={[s.logoutBtn, { borderColor: '#dc2626' }]}
+          accessibilityRole="button"
+          onPress={() => {
+            void (async () => {
+              await signOut();
+              router.replace('/auth-entry');
+            })();
+          }}>
           <MaterialIcons name="logout" size={20} color="#dc2626" />
           <Text style={s.logoutText}>Log Out</Text>
         </Pressable>
