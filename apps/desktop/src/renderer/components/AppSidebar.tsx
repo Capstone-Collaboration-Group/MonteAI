@@ -10,6 +10,7 @@ import { LayoutDashboard,
     Calendar,
     LogOut,
     Settings as SettingsIcon,
+      HardDriveDownload,
      Megaphone,
      View} from "lucide-react";
 import { auth } from "../lib/firebaseServices";
@@ -43,7 +44,7 @@ export default function AppSidebar() {
       </Sidebar.Header>
 
       <Sidebar.Nav>
-        <NavLink to="/">
+        <NavLink to="/" end>
           {({ isActive }) => (
             <Sidebar.Item
               icon={<LayoutDashboard className="h-4 w-4" />}
@@ -97,10 +98,19 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
-       
+
       </Sidebar.Nav>
 
-      <Sidebar.Footer>
+      <Sidebar.Footer className="mt-auto space-y-1">
+        <NavLink to="/backup">
+          {({ isActive }) => (
+            <Sidebar.Item
+              icon={<HardDriveDownload className="h-4 w-4" />}
+              label="Backup"
+              active={isActive}
+            />
+          )}
+        </NavLink>
         <NavLink to="/settings">
           {({ isActive }) => (
             <Sidebar.Item
@@ -110,8 +120,6 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
-      </Sidebar.Footer>
-      <Sidebar.Footer className="border-none">
         <NavLink to="/about">
           {({ isActive }) => (
             <Sidebar.Item
@@ -121,8 +129,6 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
-      </Sidebar.Footer>
-      <Sidebar.Footer className="border-none">
         <NavLink to="/logout">
           {({ isActive }) => (
             <Sidebar.Item

@@ -1,5 +1,5 @@
 // apps/desktop/src/App.tsx (or wherever your renderer root component is)
-import { Toaster, Sidebar, NotFound, SettingsPage, ProtectedRoute } from "@monteai/ui";
+import { Toaster, Sidebar, NotFound, SettingsPage, ProtectedRoute, BackupPage } from "@monteai/ui";
 import {
   HashRouter,
   Routes,
@@ -39,8 +39,7 @@ const App = () => (
           {/* Public routes */}
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
-          
-            
+
 
           {/* Protected routes — wrapped inside ProtectedRoute */}
           <Route element={<ProtectedRoute profileService={profileService}/>}>
@@ -51,6 +50,7 @@ const App = () => (
             <Route path="/panelist" element={<Panelist />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/backup" element={<BackupPage />} />
             <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
           </Route>
 
