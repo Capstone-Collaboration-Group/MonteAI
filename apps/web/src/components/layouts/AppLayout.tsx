@@ -1,5 +1,5 @@
 // layouts/AppLayout.tsx
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, useLocation, matchPath } from "react-router-dom";
 import { Sidebar } from "@monteai/ui";
 import {
   MessageSquare,
@@ -9,26 +9,39 @@ import {
   LogOut,
   Settings,
 } from "lucide-react"; // Imported LogOut
-import { recentChats } from "../../lib/mock-data";
 import CdmLogo from "../../assets/cdm-logo.png";
 
 // Import your global hooks and initialized services
-import { useUserProfile, queryClient } from "@monteai/hooks";
+import { useUserProfile, useAuth, useChatSessions, queryClient } from "@monteai/hooks";
 import { profileService } from "../../lib/authService";
+import { chatService } from "../../lib/chat/chatService";
 import { auth } from "../../lib/firebase";
 import { useEffect } from "react";
 
 function AppSidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // 1. Fetch the dynamic user profile
   const { profile, isLoading } = useUserProfile(profileService);
+  const { user } = useAuth();
+
+  // 2. Fetch the signed-in user's chat sessions (sorted latest-first)
+  const {
+    data: chatSessions,
+    isLoading: sessionsLoading,
+    isError: sessionsError,
+  } = useChatSessions(chatService, user?.uid);
+
+  // Extract /chat/:sessionId so the open conversation can be highlighted
+  const activeSessionId =
+    matchPath("/chat/:sessionId", location.pathname)?.params.sessionId ?? null;
 
   // I'LL REMOVE THIS SOON JUST FOR TESTING
   useEffect(() => { 
     auth.currentUser?.getIdToken().then(token => console.log("TOKEN:", token));
   }, []);
-  // 2. Handle secure sign out
+  // 3. Handle secure sign out
   const handleLogout = async () => {
     try {
       await auth.signOut();
@@ -109,13 +122,32 @@ function AppSidebar() {
 
       <Sidebar.SidebarSectionLabel>Recents</Sidebar.SidebarSectionLabel>
       <Sidebar.Nav className="gap-0.5">
-        {recentChats.map((chat) => (
-          <Sidebar.Item
-            key={chat.id}
-            icon={<MessageCircle className="h-4 w-4" />}
-            label={chat.title}
-          />
-        ))}
+        {sessionsLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2">
+              <div className="h-5 w-5 shrink-0 animate-pulse rounded bg-surface-container-high" />
+              <div className="h-4 w-full animate-pulse rounded bg-surface-container-high" />
+            </div>
+          ))
+        ) : sessionsError ? (
+          <p className="px-3 py-2 text-xs text-on-surface-variant">
+            Couldn't load conversations.
+          </p>
+        ) : chatSessions && chatSessions.length > 0 ? (
+          chatSessions.map((session) => (
+            <Sidebar.Item
+              key={session.id}
+              icon={<MessageCircle className="h-4 w-4" />}
+              label={session.title}
+              active={session.id === activeSessionId}
+              onClick={() => navigate(`/chat/${session.id}`)}
+            />
+          ))
+        ) : (
+          <p className="px-3 py-2 text-xs text-on-surface-variant">
+            No conversations yet
+          </p>
+        )}
       </Sidebar.Nav>
 
       {/* 3. Make the Footer dynamic and add the logout trigger */}
