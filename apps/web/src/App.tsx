@@ -36,9 +36,9 @@ const App = () => (
           <Route path="/login" element={<Login />} />
 
           
-           <Route element={<AppLayout />}>
+            <Route element={<AppLayout />}>
               <Route path="/home" element={<Home />} />
-              <Route path="/chat" element={<Chat />} />
+              <Route path="/chat/:sessionId?" element={<Chat />} />
               <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
               <Route path="/submit" element={<SubmitThesis />} />
               <Route path="/schedule" element={<Schedule />} />
