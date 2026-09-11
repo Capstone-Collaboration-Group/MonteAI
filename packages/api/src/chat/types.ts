@@ -2,12 +2,14 @@
 import type {
   CreateChatSessionDto,
   ChatSessionResponseDto,
+  ChatSessionResponseListDto,
   CreateChatMessageDto,
   ChatMessageResponseDto,
   UpdateChatSessionDto,
 } from "@monteai/types";
 
 export interface ChatService {
+  getSessions(userId: string): Promise<ChatSessionResponseListDto>;
   createSession(dto: CreateChatSessionDto): Promise<ChatSessionResponseDto>;
   getSession(sessionId: string): Promise<ChatSessionResponseDto | null>;
   updateChatSession(sessionId: string, dto: UpdateChatSessionDto ): Promise<boolean>;
