@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,11 +12,14 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { chatService } from '@/lib/chatService';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
 import type { ChatSessionResponseDto } from '@monteai/types';
 
 interface Message {
@@ -32,12 +35,27 @@ const WELCOME_MSG: Message = {
   text: 'Hello! I\'m MonteAI, your research assistant. How can I help you today?',
 };
 
+function toMessage(role: string, text: string, id: string): Message {
+  return { id, role: role === 'user' ? 'user' : 'ai', text };
+}
+
 export default function ChatScreen() {
+  const { session: authSession } = useAuthSession();
+  const userId = authSession?.uid ?? null;
+
+  // Drawer requests arrive as an `open` route param (see SidebarDrawer):
+  //   "s:<sessionId>:<timestamp>" — open that session
+  //   "n:<timestamp>"             — start a fresh chat
+  // The timestamp keeps every tap unique so each one is processed once.
+  const { open } = useLocalSearchParams<{ open?: string }>();
+
   const [session, setSession] = useState<ChatSessionResponseDto | null>(null);
   const [messages, setMessages] = useState<Message[]>([WELCOME_MSG]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const { recentChats, loading: chatsLoading, refresh } = useDrawerChats();
 
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'onSurface');
@@ -47,37 +65,82 @@ export default function ChatScreen() {
   const onPrimary = useThemeColor({}, 'onPrimary');
   const outline = useThemeColor({}, 'outlineVariant');
 
-  // Create a session on mount
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const s = await chatService.createSession({ userId: 'mobile-user', title: 'New Chat' });
-        if (active) setSession(s);
-      } catch {
-        // session stays null — send will be disabled
-      }
-    })();
-    return () => { active = false; };
+  const startNewChat = useCallback(() => {
+    setSession(null);
+    setMessages([WELCOME_MSG]);
   }, []);
+
+  const handleSelectSession = useCallback(
+    async (id: string) => {
+      if (session?.id === id || loadingHistory) return;
+
+      setLoadingHistory(true);
+      try {
+        const s = await chatService.getSession(id);
+        if (!s) return;
+
+        setSession(s);
+        // Messages arrive latest-first; reverse so the conversation reads
+        // chronologically and the latest message is scrolled into view.
+        setMessages(s.messages.map((m) => toMessage(m.role, m.content, m.id)).reverse());
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          { id: `err-${Date.now()}`, role: 'ai', text: 'Could not load this conversation. Please try again.' },
+        ]);
+      } finally {
+        setLoadingHistory(false);
+      }
+    },
+    [session, loadingHistory]
+  );
+
+  // Handle drawer requests (recent chat tapped / new chat) from any tab.
+  const handledOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open || handledOpen.current === open) return;
+    handledOpen.current = open;
+    const [kind, id] = open.split(':');
+    if (kind === 's' && id) {
+      void handleSelectSession(id);
+    } else if (kind === 'n') {
+      startNewChat();
+    }
+  }, [open, handleSelectSession, startNewChat]);
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || !session || sending) return;
+    if (!text || sending || loadingHistory) return;
 
-    const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', text };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput('');
+    if (!userId) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err-${Date.now()}`, role: 'ai', text: 'Please sign in to start chatting.' },
+      ]);
+      return;
+    }
+
     setSending(true);
+    setInput('');
+    setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text }]);
 
     try {
-      const res = await chatService.sendMessage(session.id, { role: 'user', content: text });
-      const aiMsg: Message = {
-        id: res.id,
-        role: 'ai',
-        text: res.content,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      let activeSession = session;
+
+      if (!activeSession) {
+        activeSession = await chatService.createSession({
+          userId,
+          title: text.slice(0, 100),
+        });
+        setSession(activeSession);
+      }
+
+      const res = await chatService.sendMessage(activeSession.id, { role: 'user', content: text });
+      setMessages((prev) => [...prev, toMessage(res.role, res.content, res.id)]);
+      // Once the response is back, silently refresh the session list so a
+      // newly created chat is pushed to the top of the history in real time.
+      refresh(true);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -90,7 +153,7 @@ export default function ChatScreen() {
   }
 
   return (
-    <DrawerProvider>
+    <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
@@ -132,6 +195,12 @@ export default function ChatScreen() {
             </View>
           </View>
         ))}
+        {loadingHistory && (
+          <View style={s.typingRow}>
+            <ActivityIndicator size="small" color={primary} />
+            <Text style={[s.typingText, { color: body }]}>Loading conversation...</Text>
+          </View>
+        )}
         {sending && (
           <View style={s.typingRow}>
             <ActivityIndicator size="small" color={primary} />
@@ -145,7 +214,13 @@ export default function ChatScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={s.inputWrap}>
             <View style={[s.inputBar, { backgroundColor: surface, borderColor: outline }]}>
-              <Pressable hitSlop={8}><MaterialIcons name="add-circle-outline" size={24} color={body} /></Pressable>
+              <Pressable
+                hitSlop={8}
+                onPress={startNewChat}
+                accessibilityRole="button"
+                accessibilityLabel="Start a new chat">
+                <MaterialIcons name="add-circle-outline" size={24} color={body} />
+              </Pressable>
               <TextInput
                 value={input}
                 onChangeText={setInput}
