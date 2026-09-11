@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import SubmitThesis from "./pages/SubmitThesis";
 import Login from "./pages/Login";
 import Announcements from "./pages/Announcements";
+import ResearchGroups from "./pages/ResearchGroups";
 import ThesisViewer from "./pages/ThesisViewer";
 import Theses from "./pages/ThesesPage";
 import { profileService } from "./lib/authService";
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/schedule" element={<Schedule />} />
               <Route path="/theses" element={<Theses />} />
               <Route path="/announcements" element={<Announcements />} />
+              <Route path="/research-groups" element={<ResearchGroups />} />
               <Route path="/settings" element={<SettingsPage />} />
           </Route>
 
