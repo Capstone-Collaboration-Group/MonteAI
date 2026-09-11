@@ -13,6 +13,7 @@ import Panelist from "./renderer/pages/Panelist";
 import Announcements from "./renderer/pages/Announcements";
 import { AuthProvider, queryClient, QueryClientProvider } from "@monteai/hooks";
 import Schedule from "./renderer/pages/Schedule";
+import ResearchGroups from "./renderer/pages/ResearchGroups";
 import  AppSidebar  from "@/renderer/components/AppSidebar";
 import ThesisViewer from "./renderer/pages/ThesisViewer";
 import Register from "./renderer/pages/Register";
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/theses" element={<Theses />} />
             <Route path="/faculty" element={<Faculty />} />
+            <Route path="/research-groups" element={<ResearchGroups />} />
             <Route path="/panelist" element={<Panelist />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/settings" element={<SettingsPage />} />
