@@ -50,6 +50,7 @@ export default function TabLayout() {
       {/* Pushed-to route (Home quick actions / sidebar drawer) — deliberately
           not part of the visible 5-item tab bar. */}
       <Tabs.Screen name="schedules" options={{ title: 'Schedules' }} />
+      <Tabs.Screen name="research-group" options={{ title: 'Research Group' }} />
     </Tabs>
   );
 }
