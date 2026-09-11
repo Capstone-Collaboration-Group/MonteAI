@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
@@ -42,6 +43,7 @@ export default function AnnouncementsScreen() {
 
   const [announcements, setAnnouncements] = useState<AnnouncementResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const { recentChats, loading: chatsLoading } = useDrawerChats();
 
   useEffect(() => {
     let active = true;
@@ -59,7 +61,7 @@ export default function AnnouncementsScreen() {
   }, []);
 
   return (
-    <DrawerProvider>
+    <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
