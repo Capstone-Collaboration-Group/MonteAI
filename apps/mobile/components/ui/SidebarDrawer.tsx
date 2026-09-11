@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -25,15 +27,21 @@ interface NavItem {
   route?: DrawerRoute;
 }
 
+export interface DrawerRecentChat {
+  id: string;
+  title: string;
+}
+
 interface SidebarDrawerProps {
   visible: boolean;
   onClose: () => void;
   activeRoute?: string;
   onNavigate?: (route: string) => void;
+  recentChats?: DrawerRecentChat[];
+  recentLoading?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { icon: 'add-circle', label: 'New Chat' },
   { icon: 'upload-file', label: 'Submit Thesis Document' },
   { icon: 'group', label: 'Research Group' },
   { icon: 'calendar-month', label: 'Schedules', route: '/(tabs)/schedules' },
@@ -42,13 +50,20 @@ const NAV_ITEMS: NavItem[] = [
   { icon: 'chat', label: 'Search Chat' },
 ];
 
-const RECENT = [
+const LEGACY_RECENT = [
   'Neural Networks in Bio-informatics',
   'Methodology Review: Chapter 3',
   'APA Citation Guidelines 2024',
 ];
 
-export function SidebarDrawer({ visible, onClose, activeRoute, onNavigate }: SidebarDrawerProps) {
+export function SidebarDrawer({
+  visible,
+  onClose,
+  activeRoute,
+  onNavigate,
+  recentChats,
+  recentLoading,
+}: SidebarDrawerProps) {
   const router = useRouter();
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -76,6 +91,21 @@ export function SidebarDrawer({ visible, onClose, activeRoute, onNavigate }: Sid
       }),
     ]).start();
   }, [visible, translateX, overlayOpacity]);
+
+  const navItems: NavItem[] = [
+    {
+      icon: 'add-circle',
+      label: 'New Chat',
+      // Navigate to the chat tab and start a fresh chat — works from any tab.
+      // The timestamp keeps the param unique so every tap is handled.
+      onPress: () =>
+        router.navigate({
+          pathname: '/(tabs)/chat',
+          params: { open: `n:${Date.now()}` },
+        }),
+    },
+    ...NAV_ITEMS,
+  ];
 
   return (
     <View
@@ -106,9 +136,9 @@ export function SidebarDrawer({ visible, onClose, activeRoute, onNavigate }: Sid
           </Pressable>
         </View>
 
-        {/* Nav links */}
-        <View style={s.nav}>
-          {NAV_ITEMS.map((item, i) => {
+        {/* Nav links — scrollable so older sessions are reachable */}
+        <ScrollView style={s.nav} contentContainerStyle={s.navContent}>
+          {navItems.map((item, i) => {
             const isActive = item.label === activeRoute;
             return (
               <Pressable
@@ -140,13 +170,45 @@ export function SidebarDrawer({ visible, onClose, activeRoute, onNavigate }: Sid
           {/* Recent section */}
           <View style={s.recentSection}>
             <Text style={[s.recentHeading, { color: body }]}>RECENT</Text>
-            {RECENT.map((item) => (
-              <Pressable key={item} style={s.recentItem} accessibilityRole="button">
-                <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>{item}</Text>
-              </Pressable>
-            ))}
+            {recentChats ? (
+              recentLoading ? (
+                <View style={s.recentLoadingRow}>
+                  <ActivityIndicator size="small" color={primary} />
+                  <Text style={[s.recentText, { color: body }]}>Loading chats...</Text>
+                </View>
+              ) : recentChats.length === 0 ? (
+                <Text style={[s.recentEmpty, { color: body }]}>No conversations yet</Text>
+              ) : (
+                recentChats.map((chat) => (
+                  <Pressable
+                    key={chat.id}
+                    style={s.recentItem}
+                    onPress={() => {
+                      // Navigate to the chat tab and open this session —
+                      // works from any tab. The timestamp keeps the param
+                      // unique so every tap is handled.
+                      router.navigate({
+                        pathname: '/(tabs)/chat',
+                        params: { open: `s:${chat.id}:${Date.now()}` },
+                      });
+                      onClose();
+                    }}
+                    accessibilityRole="button">
+                    <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>
+                      {chat.title}
+                    </Text>
+                  </Pressable>
+                ))
+              )
+            ) : (
+              LEGACY_RECENT.map((item) => (
+                <Pressable key={item} style={s.recentItem} accessibilityRole="button">
+                  <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>{item}</Text>
+                </Pressable>
+              ))
+            )}
           </View>
-        </View>
+        </ScrollView>
 
         {/* User profile footer */}
         <View style={[s.footer, { borderTopColor: outline }]}>
@@ -194,6 +256,7 @@ const s = StyleSheet.create({
   brand: { fontSize: FontSize.xl, fontWeight: '700' },
   closeBtn: { padding: Spacing.xs },
   nav: { flex: 1, paddingHorizontal: Spacing.sm },
+  navContent: { paddingVertical: Spacing.sm },
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,8 +272,10 @@ const s = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: Spacing.xs,
   },
-  recentItem: { paddingVertical: Spacing.sm },
+  recentItem: { paddingVertical: Spacing.sm, borderRadius: Radius.sm },
   recentText: { fontSize: FontSize.sm },
+  recentLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
+  recentEmpty: { fontSize: FontSize.sm, paddingVertical: Spacing.sm },
   footer: {
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.lg,
