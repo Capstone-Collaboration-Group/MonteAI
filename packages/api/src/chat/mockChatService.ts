@@ -3,6 +3,7 @@
 import type { ChatService } from "./types";
 import type {
   ChatSessionResponseDto,
+  ChatSessionResponseListDto,
   ChatMessageResponseDto,
   CreateChatSessionDto,
   CreateChatMessageDto,
@@ -64,6 +65,17 @@ const sessionsMap = new Map<string, ChatSessionResponseDto>();
 buildSeed().forEach((session) => sessionsMap.set(session.id, session));
 
 export const mockChatService: ChatService = {
+  async getSessions(userId: string): Promise<ChatSessionResponseListDto> {
+    await delay(150);
+
+    return [...sessionsMap.values()]
+      .filter((session) => session.userId === userId)
+      .sort(
+        (a, b) =>
+          new Date(b.lastChatDate).getTime() - new Date(a.lastChatDate).getTime()
+      );
+  },
+
   async createSession(dto: CreateChatSessionDto) {
     await delay(300);
 
@@ -114,7 +126,7 @@ export const mockChatService: ChatService = {
     sessionId: string,
     dto: CreateChatMessageDto
   ): Promise<ChatMessageResponseDto> {
-    await delay(300);
+    await delay(600);
 
     const session = sessionsMap.get(sessionId);
 
@@ -122,20 +134,30 @@ export const mockChatService: ChatService = {
       throw new Error(`Chat session '${sessionId}' not found.`);
     }
 
-    const message: ChatMessageResponseDto = {
+    const now = new Date().toISOString();
+
+    const userMessage: ChatMessageResponseDto = {
       id: crypto.randomUUID(),
       sessionId,
       role: dto.role,
       content: dto.content,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
     };
 
-    session.messages.push(message);
+    const assistantMessage: ChatMessageResponseDto = {
+      id: crypto.randomUUID(),
+      sessionId,
+      role: "assistant",
+      content: `Here is a summary of the sources relevant to "${dto.content.slice(0, 80)}" (Dela Cruz et al., 2024). This is a mock MonteAI response for local development.`,
+      timestamp: now,
+    };
 
-    session.lastChatDate = message.timestamp;
+    session.messages.push(userMessage, assistantMessage);
+
+    session.lastChatDate = assistantMessage.timestamp;
 
     sessionsMap.set(sessionId, session);
 
-    return message;
+    return assistantMessage;
   },
 };

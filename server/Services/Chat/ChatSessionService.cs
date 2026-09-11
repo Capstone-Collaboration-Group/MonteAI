@@ -74,6 +74,15 @@ namespace server.Services.Chat
             return result;
         }
 
+        public async Task<bool> TouchAsync(Guid id)
+        {
+            var session = await _chatSessionRepo.GetChatSessionByIdAsync(id);
+            if (session == null) return false;
+
+            session.LastChatDate = DateTime.UtcNow;
+            return await _chatSessionRepo.UpdateChatSessionAsync(session);
+        }
+
         public async Task<bool> DeleteAsync(Guid id)
         {
             var result = await _chatSessionRepo.DeleteChatSessionAsync(id);

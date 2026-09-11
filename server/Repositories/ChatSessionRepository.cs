@@ -17,6 +17,7 @@ namespace server.Repositories
         public async Task<IEnumerable<ChatSession>> GetAllChatSessionsAsync(string userId) 
             => await _db.ChatSessions
                 .Where(cs => cs.UserId == userId)
+                .OrderByDescending(cs => cs.LastChatDate)
                 .ToListAsync();
 
         public async Task<ChatSession?> GetChatSessionByIdAsync(Guid id) => await _db.ChatSessions.FindAsync(id);

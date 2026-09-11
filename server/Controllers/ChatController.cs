@@ -71,6 +71,12 @@ namespace server.Controllers
                 return StatusCode(500, new { Message = "Failed to persist user message." });
             }
 
+            // 1b. Keep LastChatDate fresh so the session sorts first in the user's history
+            if (Guid.TryParse(id, out var sessionId))
+            {
+                await _chatSessionService.TouchAsync(sessionId);
+            }
+
             // 2. Generate RAG response via Phi-4 + Pinecone
             string aiReplyText;
             try

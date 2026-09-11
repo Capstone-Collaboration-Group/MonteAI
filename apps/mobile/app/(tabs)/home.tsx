@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
@@ -50,6 +51,7 @@ export default function HomeScreen() {
   const [schedules, setSchedules] = useState<ScheduleResponseDto[]>([]);
   const [theses, setTheses] = useState<ThesisResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const { recentChats, loading: chatsLoading } = useDrawerChats();
 
   useEffect(() => {
     let active = true;
@@ -74,7 +76,7 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <DrawerProvider>
+    <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>

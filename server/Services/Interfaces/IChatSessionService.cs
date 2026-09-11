@@ -13,6 +13,9 @@ namespace server.Services.Interfaces
         // UpdateAsync
         Task<bool> UpdateAsync(UpdateChatSessionDto chatSession, Guid sessionId);
 
+        // TouchAsync — bump LastChatDate after new activity in a session
+        Task<bool> TouchAsync(Guid id);
+
         // DeleteAsync
         Task<bool> DeleteAsync(Guid id);
 

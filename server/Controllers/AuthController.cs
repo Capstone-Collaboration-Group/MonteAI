@@ -9,7 +9,7 @@ namespace server.Controllers
     [ApiController]
     [Route("api/v1/[controller]")]
     public class AuthController : ControllerBase
-    {
+    { 
         private readonly ILogger<AuthController> _logger;
         private readonly IStudentService _studentService;
         private readonly IFacultyService _facultyService;
