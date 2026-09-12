@@ -1,8 +1,8 @@
 export interface CreateResearchGroupDto {
   groupName: string;
   researchTitle: string;
-  adviserId: string;
-  leaderId: string;
+  adviserId?: string;
+  leaderId?: string;
 }
 
 export interface UpdateResearchGroupDto {
@@ -21,6 +21,15 @@ export interface ResearchGroupResponseDto {
   createdAt: string;
   updatedAt: string;
   institute: string;
+  members: ResearchGroupMemberDto[];
+}
+
+export interface ResearchGroupMemberDto {
+  id: string;
+  studentNumber: string;
+  name: string;
+  position: string;
+  program: string;
 }
 
 export type ResearchGroupResponseListDto = ResearchGroupResponseDto[];
