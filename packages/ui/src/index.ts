@@ -22,3 +22,4 @@ export * from "./components/announcements/AnnouncementsPanel";
 export * from "./components/announcements/PostAnnouncementPanel";
 
 export * from "./components/auth";
+export * from "./components/ResearchGroup";

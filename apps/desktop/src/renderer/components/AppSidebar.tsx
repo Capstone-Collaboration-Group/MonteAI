@@ -89,6 +89,15 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
+        <NavLink to="/research-groups">
+          {({ isActive }) => (
+            <Sidebar.Item
+              icon={<Users className="h-4 w-4" />}
+              label="Research Groups"
+              active={isActive}
+            />
+          )}
+        </NavLink>
         <NavLink to="/schedule">
           {({ isActive }) => (
             <Sidebar.Item

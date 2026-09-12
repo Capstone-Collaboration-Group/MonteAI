@@ -10,4 +10,6 @@ export interface ResearchGroupService {
     createResearchGroup(dto: CreateResearchGroupDto): Promise<ResearchGroupResponseDto>;
     updateResearchGroup(id: string, dto: UpdateResearchGroupDto): Promise<boolean>;
     deleteResearchGroup(id: string): Promise<boolean>;
+    addMember(id: string, studentId: string): Promise<boolean>;
+    removeMember(id: string, studentId: string): Promise<boolean>;
 }

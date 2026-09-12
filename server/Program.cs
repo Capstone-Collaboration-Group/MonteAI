@@ -120,6 +120,7 @@ try
         options.AddPolicy("FirebaseAuthenticated", policy =>
             policy.RequireAuthenticatedUser());
     });
+    builder.Services.AddHttpContextAccessor();
      
     builder.Services.Configure<PineconeConfig>(
             builder.Configuration.GetSection(PineconeConfig.SectionName)

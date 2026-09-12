@@ -5,7 +5,7 @@ import  type {
     StudentResponseDto
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
-import type { StudentService } from "./types";
+import type { StudentDirectoryParams, StudentService } from "./types";
 
 export class LiveStudentService implements StudentService { 
     private readonly client: AxiosInstance
@@ -13,9 +13,9 @@ export class LiveStudentService implements StudentService {
         this.client = client;
     }
 
-    async getStudents(): Promise<StudentResponseDto[] | []> { 
+    async getStudents(params?: StudentDirectoryParams): Promise<StudentResponseDto[] | []> { 
         try { 
-            const { data } = await this.client.get<StudentResponseDto[]>(`/student`)
+            const { data } = await this.client.get<StudentResponseDto[]>(`/student`, { params })
             return data
         } catch (err) { 
             return handle404(err, []);

@@ -1,9 +1,10 @@
-﻿using server.Mappings;
-using server.Repositories.Interfaces;
-using server.Services.Interfaces;
-using AutoMapper;
+﻿using AutoMapper;
 using server.Models.Entities;
 using server.Models.DTOs.User;
+using server.Models.DTOs.Student;
+using server.Mappings;
+using server.Repositories.Interfaces;
+using server.Services.Interfaces;
 
 namespace server.Services.User
 {
@@ -86,6 +87,44 @@ namespace server.Services.User
 
             return true;
 
+        }
+
+        public async Task<IEnumerable<StudentResponseDto>> GetDirectoryAsync(string? search, string? program)
+        {
+            var students = (await _repo.GetAllAsync()).ToList();
+
+            if (!string.IsNullOrWhiteSpace(program))
+            {
+                var normalized = program.Trim();
+                students = students
+                    .Where(s => string.Equals(
+                        s.Program?.Trim(),
+                        normalized,
+                        StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var query = search.Trim().ToLowerInvariant();
+                students = students
+                    .Where(s =>
+                        $"{s.FirstName} {s.MiddleInitial} {s.LastName} {s.Suffix}"
+                            .ToLowerInvariant()
+                            .Contains(query) ||
+                        (s.StudentNumber ?? string.Empty)
+                            .ToLowerInvariant()
+                            .Contains(query))
+                    .ToList();
+            }
+
+            return _mapper.Map<IEnumerable<StudentResponseDto>>(students);
+        }
+
+        public async Task<StudentResponseDto?> GetProfileByIdAsync(string id)
+        {
+            var student = await _repo.GetByIdAsync(id);
+            return student == null ? null : _mapper.Map<StudentResponseDto>(student);
         }
 
     }

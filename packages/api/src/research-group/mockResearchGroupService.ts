@@ -24,6 +24,7 @@ function buildSeed(): ResearchGroupResponseDto[] {
       leaderId: "student-1",
       createdAt: "2025-01-10T08:00:00.000Z",
       updatedAt: "2025-01-10T08:00:00.000Z",
+      members: [{ id: "student-1", studentNumber: "2025-0001", name: "Student One", position: "Leader", program: "BSCS" }],
       
     },
     {
@@ -35,6 +36,7 @@ function buildSeed(): ResearchGroupResponseDto[] {
       leaderId: "student-2",
       createdAt: "2025-01-15T09:30:00.000Z",
       updatedAt: "2025-01-15T09:30:00.000Z",
+      members: [{ id: "student-2", studentNumber: "2025-0002", name: "Student Two", position: "Leader", program: "BSIT" }],
       
     },
     {
@@ -46,6 +48,7 @@ function buildSeed(): ResearchGroupResponseDto[] {
       leaderId: "student-3",
       createdAt: "2025-01-20T10:15:00.000Z",
       updatedAt: "2025-01-20T10:15:00.000Z",
+      members: [{ id: "student-3", studentNumber: "2025-0003", name: "Student Three", position: "Leader", program: "BSCS" }],
     },
   ];
 }
@@ -73,15 +76,17 @@ export const mockResearchGroupService: ResearchGroupService = {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const institute = 'ibe';
+    const leaderId = dto.leaderId ?? `student-${id.slice(0, 8)}`;
     const researchGroup: ResearchGroupResponseDto = {
       id,
       groupName: dto.groupName,
       institute: institute,
       researchTitle: dto.researchTitle,
-      adviserId: dto.adviserId,
-      leaderId: dto.leaderId,
+      adviserId: dto.adviserId ?? "",
+      leaderId,
       createdAt: now,
       updatedAt: now,
+      members: [{ id: leaderId, studentNumber: leaderId, name: leaderId, position: "Leader", program: "" }],
     };
 
     researchGroupsMap.set(id, researchGroup);
@@ -113,5 +118,22 @@ export const mockResearchGroupService: ResearchGroupService = {
   async deleteResearchGroup(id: string) {
     await delay(200);
     return researchGroupsMap.delete(id);
+  },
+
+  async addMember(id: string, studentId: string) {
+    await delay(200);
+    const group = researchGroupsMap.get(id);
+    if (!group || group.members.length >= 4) return false;
+    if (group.members.some((member) => member.id === studentId)) return false;
+    group.members = [...group.members, { id: studentId, studentNumber: studentId, name: studentId, position: "Member", program: "" }];
+    return true;
+  },
+
+  async removeMember(id: string, studentId: string) {
+    await delay(200);
+    const group = researchGroupsMap.get(id);
+    if (!group || group.leaderId === studentId) return false;
+    group.members = group.members.filter((member) => member.id !== studentId);
+    return true;
   },
 };

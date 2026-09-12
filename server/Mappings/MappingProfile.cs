@@ -8,6 +8,7 @@ using server.Models.DTOs.ProgramHead;
 using server.Models.DTOs.ResearchGroup;
 using server.Models.DTOs.Review;
 using server.Models.DTOs.Schedule;
+using server.Models.DTOs.Student;
 using server.Models.DTOs.Submission;
 using server.Models.DTOs.Thesis;
 using server.Models.DTOs.User;
@@ -40,6 +41,7 @@ namespace server.Mappings
 
             //User Mappings
             CreateMap<Student, UserResponseDto>();
+            CreateMap<Student, StudentResponseDto>();
             CreateMap<Faculty, UserResponseDto>();
             CreateMap<Admin, UserResponseDto>();
             CreateMap<ProgramHead, UserResponseDto>();
@@ -86,7 +88,17 @@ namespace server.Mappings
             // ResearchGroup
             CreateMap<ResearchGroup, ResearchGroupResponseDto>()
                 .ForMember(dest => dest.Institute, opt => opt.MapFrom(src =>
-                    src.Leader != null ? (src.Leader.Institute ?? string.Empty) : string.Empty));
+                    src.Leader != null ? (src.Leader.Institute ?? string.Empty) : string.Empty))
+                .ForMember(dest => dest.Members, opt => opt.MapFrom(src => src.Students));
+            CreateMap<Student, ResearchGroupMemberDto>()
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src =>
+                    string.Join(" ", new[]
+                    {
+                        src.FirstName,
+                        src.MiddleInitial == null ? "" : src.MiddleInitial.ToString(),
+                        src.LastName,
+                        src.Suffix
+                    }.Where(value => !string.IsNullOrWhiteSpace(value)))));
             CreateMap<CreateResearchGroupDto, ResearchGroup>();
             CreateMap<UpdateResearchGroupDto, ResearchGroup>();
 

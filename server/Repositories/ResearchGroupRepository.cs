@@ -14,11 +14,13 @@ namespace server.Repositories
             => await _db.ResearchGroups
                     .Include(rg => rg.Adviser)
                     .Include(rg => rg.Students)
+                    .Include(rg => rg.Leader)
                     .ToListAsync();
         public async Task<ResearchGroup?> GetResearchGroupByIdAsync(Guid id)
             => await _db.ResearchGroups
                     .Include(rg => rg.Adviser)
                     .Include(rg => rg.Students)
+                    .Include(rg => rg.Leader)
                     .FirstOrDefaultAsync(rg => rg.Id == id);
 
         public async Task<bool> CreateResearchGroupAsync(ResearchGroup researchGroup)
@@ -41,10 +43,10 @@ namespace server.Repositories
             var existing = await _db.ResearchGroups.FindAsync(researchGroup.Id);
             if (existing == null) return false;
 
-            existing.GroupName = researchGroup.GroupName;
-            existing.ResearchTitle = researchGroup.ResearchTitle;
-            existing.AdviserId = researchGroup.AdviserId;
-            existing.LeaderId = researchGroup.LeaderId;
+            if (!string.IsNullOrWhiteSpace(researchGroup.GroupName)) existing.GroupName = researchGroup.GroupName;
+            if (!string.IsNullOrWhiteSpace(researchGroup.ResearchTitle)) existing.ResearchTitle = researchGroup.ResearchTitle;
+            if (!string.IsNullOrWhiteSpace(researchGroup.AdviserId)) existing.AdviserId = researchGroup.AdviserId;
+            if (!string.IsNullOrWhiteSpace(researchGroup.LeaderId)) existing.LeaderId = researchGroup.LeaderId;
             existing.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
@@ -56,6 +58,27 @@ namespace server.Repositories
             if (existing == null) return false;
 
             _db.ResearchGroups.Remove(existing);
+            await _db.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> AddMemberAsync(Guid groupId, string studentId)
+        {
+            var student = await _db.Students.FindAsync(studentId);
+            if (student is null || student.GroupId.HasValue) return false;
+            student.GroupId = groupId;
+            student.Position = "Member";
+            await _db.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> RemoveMemberAsync(Guid groupId, string studentId)
+        {
+            var student = await _db.Students.FirstOrDefaultAsync(s => s.Id == studentId && s.GroupId == groupId);
+            if (student is null) return false;
+            student.GroupId = null;
+            student.Position = "Member";
+            await _db.SaveChangesAsync();
             return true;
         }
     }

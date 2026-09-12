@@ -7,3 +7,4 @@ export * from "./FacultyPage";
 export * from "./PanelistPage";
 export * from "./ChatPage";
 export * from "./ThesisPDFViewer";
+export * from "./ResearchGroupPage";

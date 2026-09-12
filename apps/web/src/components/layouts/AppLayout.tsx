@@ -8,6 +8,7 @@ import {
   Plus,
   LogOut,
   Settings,
+  Users,
 } from "lucide-react"; // Imported LogOut
 import CdmLogo from "../../assets/cdm-logo.png";
 
@@ -116,6 +117,15 @@ function AppSidebar() {
         <NavLink to="/announcements">
           {({ isActive }) => (
             <Sidebar.Item icon={<Search className="h-4 w-4" />} label="Announcements" active={isActive} />
+          )}
+        </NavLink>
+        <NavLink to="/research-groups">
+          {({ isActive }) => (
+            <Sidebar.Item
+              icon={<Users className="h-4 w-4" />}
+              label="Research Groups"
+              active={isActive}
+            />
           )}
         </NavLink>
       </Sidebar.Nav>

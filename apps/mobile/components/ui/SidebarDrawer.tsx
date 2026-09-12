@@ -17,7 +17,10 @@ import { Spacing, Radius, FontSize } from '@/constants/theme';
 const DRAWER_WIDTH = 320;
 const OVERLAY_OPACITY = 0.4;
 
-type DrawerRoute = '/(tabs)/schedules' | '/(tabs)/announcements';
+type DrawerRoute =
+  | '/(tabs)/schedules'
+  | '/(tabs)/announcements'
+  | '/(tabs)/research-group';
 
 interface NavItem {
   icon: React.ComponentProps<typeof MaterialIcons>['name'];
@@ -43,7 +46,7 @@ interface SidebarDrawerProps {
 
 const NAV_ITEMS: NavItem[] = [
   { icon: 'upload-file', label: 'Submit Thesis Document' },
-  { icon: 'group', label: 'Research Group' },
+  { icon: 'group', label: 'Research Group', route: '/(tabs)/research-group' },
   { icon: 'calendar-month', label: 'Schedules', route: '/(tabs)/schedules' },
   { icon: 'campaign', label: 'Announcements', route: '/(tabs)/announcements' },
   { icon: 'search', label: 'Find Thesis' },
