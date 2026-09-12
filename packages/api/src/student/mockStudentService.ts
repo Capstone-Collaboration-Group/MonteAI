@@ -31,7 +31,8 @@ function buildSeed(): StudentResponseDto[] {
         leaderId: "student-1",
         createdAt: "2025-01-10T08:00:00.000Z",
         updatedAt: "2025-01-10T08:00:00.000Z",
-        institute: 'Institute of Computing Studies'
+        institute: 'Institute of Computing Studies',
+        members: [{ id: "student-1", studentNumber: "2023-00001", name: "John A. Doe", position: "Leader", program: "BS Information Technology" }],
       },
       position: "Leader",
       institute: "Institute of Computing Studies",
@@ -59,7 +60,8 @@ function buildSeed(): StudentResponseDto[] {
         leaderId: "student-2",
         createdAt: "2025-01-15T09:30:00.000Z",
         updatedAt: "2025-01-15T09:30:00.000Z",
-        institute: "Institute of Business and Entrepreneurship"
+        institute: "Institute of Business and Entrepreneurship",
+        members: [{ id: "student-2", studentNumber: "2023-00002", name: "Jane B. Smith", position: "Leader", program: "BS Information Technology" }],
       },
       position: "Member",
       institute: "Institute of Computing Studies",
@@ -89,6 +91,24 @@ function buildSeed(): StudentResponseDto[] {
       createdAt: "2025-01-20T10:15:00.000Z",
       updatedAt: "2025-01-20T10:15:00.000Z",
     },
+    {
+      id: "student-4",
+      email: "anna.reyes@student.monteai.edu",
+      firstName: "Anna",
+      middleInitial: "D",
+      lastName: "Reyes",
+      suffix: "",
+      studentNumber: "2023-00004",
+      position: "Member",
+      institute: "Institute of Computing Studies",
+      program: "BS Information Technology",
+      yearLevel: 4,
+      section: "4A",
+      role: "Student",
+      isActive: true,
+      createdAt: "2025-01-22T08:00:00.000Z",
+      updatedAt: "2025-01-22T08:00:00.000Z",
+    },
   ];
 }
 
@@ -97,9 +117,26 @@ const studentsMap = new Map<string, StudentResponseDto>();
 buildSeed().forEach((student) => studentsMap.set(student.id, student));
 
 export const mockStudentService: StudentService = {
-  async getStudents() {
+  async getStudents(params) {
     await delay(300);
-    return Array.from(studentsMap.values());
+
+    let list = Array.from(studentsMap.values());
+
+    const program = params?.program?.trim().toLowerCase();
+    if (program) {
+      list = list.filter((s) => s.program?.trim().toLowerCase() === program);
+    }
+
+    const search = params?.search?.trim().toLowerCase();
+    if (search) {
+      list = list.filter((s) => {
+        const fullName = `${s.firstName} ${s.middleInitial ?? ''} ${s.lastName} ${s.suffix ?? ''}`
+          .toLowerCase();
+        return fullName.includes(search) || s.studentNumber.toLowerCase().includes(search);
+      });
+    }
+
+    return list;
   },
 
   async getStudent(studentId: string) {

@@ -138,6 +138,7 @@ function buildSeed(): ScheduleResponseDto[] {
         createdAt: "2023-01-01",
         updatedAt: "2023-01-01",
         institute: institutes[instituteIndex],
+        members: [],
       },
       panelists,
     });
