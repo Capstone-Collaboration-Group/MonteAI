@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
+import { AnnouncementDetailModal } from '@/components/announcement/AnnouncementDetailModal';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { announcementService } from '@/lib/announcementService';
 import type { AnnouncementResponseDto } from '@monteai/types';
@@ -42,8 +43,13 @@ export default function AnnouncementsScreen() {
   const primary = useThemeColor({}, 'primary');
 
   const [announcements, setAnnouncements] = useState<AnnouncementResponseDto[]>([]);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<AnnouncementResponseDto | null>(null);
   const [loading, setLoading] = useState(true);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
+  const openAnnouncement = useCallback((announcement: AnnouncementResponseDto) => {
+    setSelectedAnnouncement(announcement);
+  }, []);
+  const closeAnnouncement = useCallback(() => setSelectedAnnouncement(null), []);
 
   useEffect(() => {
     let active = true;
@@ -95,7 +101,16 @@ export default function AnnouncementsScreen() {
           announcements.map((a, i) => {
             const badge = badgeForIndex(i);
             return (
-              <View key={a.id} style={[s.card, { backgroundColor: surface, borderColor: outline }]}>
+              <Pressable
+                key={a.id}
+                onPress={() => openAnnouncement(a)}
+                accessibilityRole="button"
+                accessibilityLabel={`Read announcement: ${a.subject}`}
+                style={({ pressed }) => [
+                  s.card,
+                  { backgroundColor: surface, borderColor: outline },
+                  pressed && { opacity: 0.85 },
+                ]}>
                 <View style={s.cardTop}>
                   <View style={[s.badge, { backgroundColor: badge.bg + '18' }]}>
                     <Text style={[s.badgeText, { color: badge.bg }]}>{badge.label}</Text>
@@ -109,16 +124,17 @@ export default function AnnouncementsScreen() {
                     <MaterialIcons name="account-circle" size={16} color={body} />
                     <Text style={[s.source, { color: body }]}>{a.author?.fullName ?? 'Admin'}</Text>
                   </View>
-                  <Pressable style={s.readMore}>
+                  <View style={s.readMore}>
                     <Text style={[s.readMoreText, { color: primary }]}>Read Full Message</Text>
                     <MaterialIcons name="arrow-forward" size={14} color={primary} />
-                  </Pressable>
+                  </View>
                 </View>
-              </View>
+              </Pressable>
             );
           })
         )}
       </ScrollView>
+      <AnnouncementDetailModal announcement={selectedAnnouncement} onClose={closeAnnouncement} />
     </View>
       )}
     </DrawerProvider>
