@@ -1,6 +1,6 @@
 // apps/mobile/components/schedule/WeekView.tsx
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import type { ScheduleResponseDto } from '@monteai/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
@@ -15,6 +15,7 @@ interface WeekViewProps {
   schedules: ScheduleResponseDto[];
   activeId?: string;
   onSelect: (schedule: ScheduleResponseDto) => void;
+  refreshControl?: ScrollViewProps['refreshControl'];
 }
 
 function groupByDate(schedules: ScheduleResponseDto[]): Map<string, ScheduleResponseDto[]> {
@@ -29,7 +30,7 @@ function groupByDate(schedules: ScheduleResponseDto[]): Map<string, ScheduleResp
 }
 
 /** Monday–Saturday grid (07:00–19:00) with compact defense cards per column. */
-export function WeekView({ currentDate, schedules, activeId, onSelect }: WeekViewProps) {
+export function WeekView({ currentDate, schedules, activeId, onSelect, refreshControl }: WeekViewProps) {
   const outline = useThemeColor({}, 'outline');
   const outlineVariant = useThemeColor({}, 'outlineVariant');
   const body = useThemeColor({}, 'onSurfaceVariant');
@@ -59,7 +60,7 @@ export function WeekView({ currentDate, schedules, activeId, onSelect }: WeekVie
         })}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         <View style={s.row}>
           <View style={[s.timeCol, { borderRightColor: outlineVariant }]}>
             {HOUR_LABELS.map((label) => (
