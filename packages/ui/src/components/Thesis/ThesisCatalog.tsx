@@ -1,6 +1,6 @@
 // packages/ui/src/components/Thesis/ThesisCatalog.tsx
 import { useState } from "react";
-import type { ThesisSummary, SubmissionHealthStatus, ThesisCatalogCounts, ThesisStatus, ThesisActionType } from "@monteai/types";
+import type { ThesisSummary, ThesisResponseDto, ThesisCatalogCounts, ThesisStatus, ThesisActionType } from "@monteai/types";
 
 import { FeaturedThesisCard } from "./FeaturedThesisCard";
 import { SubmissionHealthCard } from "./SubmissionHealthCard";
@@ -13,7 +13,7 @@ type StatusFilter = "None" | ThesisStatus;
 interface ThesisCatalogProps {
   featuredThesis: ThesisSummary;
   theses: ThesisSummary[];
-  healthStats: SubmissionHealthStatus;
+  thesisData: ThesisResponseDto[];
   counts: ThesisCatalogCounts;
   isLoading?: boolean;
   onViewDetails?: (thesisId: string) => void;
@@ -27,7 +27,7 @@ const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected
 export function ThesisCatalog({
   featuredThesis,
   theses,
-  healthStats,
+  thesisData,
   counts,
 
   onViewDetails,
@@ -97,7 +97,7 @@ export function ThesisCatalog({
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
           <FeaturedThesisCard thesis={featuredThesis} onViewDetails={onViewDetails} />
-          <SubmissionHealthCard stats={healthStats} />
+          <SubmissionHealthCard theses={thesisData} />
         </div>
 
         <ThesisListView
