@@ -1,6 +1,6 @@
 // apps/mobile/components/schedule/MonthView.tsx
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import type { ScheduleResponseDto } from '@monteai/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Radius, Spacing } from '@/constants/theme';
@@ -17,6 +17,7 @@ interface MonthViewProps {
   onSelect: (schedule: ScheduleResponseDto) => void;
   /** Fired when a day cell is tapped — the screen drills into that day. */
   onDayPress: (date: Date) => void;
+  refreshControl?: ScrollViewProps['refreshControl'];
 }
 
 function buildMonthGrid(date: Date): (Date | null)[][] {
@@ -52,7 +53,7 @@ function groupByDate(schedules: ScheduleResponseDto[]): Map<string, ScheduleResp
  * defense chips — tapping a chip opens the detail sheet, tapping the day
  * itself drills into the day view.
  */
-export function MonthView({ currentDate, schedules, activeId, onSelect, onDayPress }: MonthViewProps) {
+export function MonthView({ currentDate, schedules, activeId, onSelect, onDayPress, refreshControl }: MonthViewProps) {
   const heading = useThemeColor({}, 'onSurface');
   const body = useThemeColor({}, 'onSurfaceVariant');
   const outline = useThemeColor({}, 'outline');
@@ -74,7 +75,7 @@ export function MonthView({ currentDate, schedules, activeId, onSelect, onDayPre
   };
 
   return (
-    <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
       <View style={[s.grid, { borderColor: outline, backgroundColor: surface }]}>
         <View style={[s.weekdayRow, { borderBottomColor: outlineVariant }]}>
           {WEEKDAY_LABELS.map((label) => (
