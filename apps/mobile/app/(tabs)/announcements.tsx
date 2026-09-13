@@ -47,6 +47,10 @@ export default function AnnouncementsScreen() {
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<AnnouncementResponseDto | null>(null);
   const [loading, setLoading] = useState(true);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
+  const openAnnouncement = useCallback((announcement: AnnouncementResponseDto) => {
+    setSelectedAnnouncement(announcement);
+  }, []);
+  const closeAnnouncement = useCallback(() => setSelectedAnnouncement(null), []);
 
   const openAnnouncement = useCallback((announcement: AnnouncementResponseDto) => {
     setSelectedAnnouncement(announcement);
