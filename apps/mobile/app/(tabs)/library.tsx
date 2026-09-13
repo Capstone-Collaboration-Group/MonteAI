@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -11,6 +12,7 @@ import { thesisService } from '@/lib/thesisService';
 import type { ThesisResponseDto } from '@monteai/types';
 
 export default function LibraryScreen() {
+  const router = useRouter();
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'onSurface');
   const body = useThemeColor({}, 'onSurfaceVariant');
@@ -70,7 +72,16 @@ export default function LibraryScreen() {
           <Text style={[s.emptyText, { color: body }]}>No theses found</Text>
         ) : (
           theses.map((t) => (
-            <View key={t.id} style={[s.card, { backgroundColor: surface, borderColor: outline }]}>
+            <Pressable
+              key={t.id}
+              onPress={() => router.push({ pathname: '/thesis/[id]', params: { id: t.id } })}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${t.title}`}
+              style={({ pressed }) => [
+                s.card,
+                { backgroundColor: surface, borderColor: outline },
+                pressed && { opacity: 0.85 },
+              ]}>
               <View style={s.cardHeader}>
                 <MaterialIcons name="description" size={20} color={primary} />
                 <Text style={[s.cardYear, { color: body }]}>
@@ -85,7 +96,7 @@ export default function LibraryScreen() {
                 <Text style={[s.cardInstitute, { color: primary }]}>{t.institute}</Text>
                 <MaterialIcons name="arrow-forward" size={16} color={primary} />
               </View>
-            </View>
+            </Pressable>
           ))
         )}
 
