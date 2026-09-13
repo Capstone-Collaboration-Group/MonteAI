@@ -11,11 +11,19 @@ import type {
     ThesisVersion,
     AnnotationResponseDto,
 } from "@monteai/types";
+import { MOCK_THESIS_PDF_DATA_URL } from "./mockThesisPdf";
 
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
-const TEST_PDF = "https://arxiv.org/pdf/1708.08021";
+
+// A small thesis-shaped PDF with real bookmarks, embedded offline so the
+// table-of-contents dropdown works without network access.
+const TEST_PDF = MOCK_THESIS_PDF_DATA_URL;
+
+// A larger remote PDF with its own outline, useful for exercising lazy
+// rendering / performance in dev.
+const REMOTE_TEST_PDF = "https://arxiv.org/pdf/1708.08021";
 
 
 console.log("mockThesisService loaded — Initialized with seed data");
@@ -55,7 +63,7 @@ function buildTheses(): ThesisResponseDto[] {
             indexedAt: "",
             rejectedAt: "",
             updatedAt: "2026-06-06T13:00:00.000Z",
-            filePath: TEST_PDF,
+            filePath: REMOTE_TEST_PDF,
             uploadedById: "LiyoID",
             abstract: "Abstract Ngani",
             institute: "Institute of Computing Studies",
@@ -102,7 +110,7 @@ function buildVersions(): Map<string, ThesisVersion[]> {
             id: "v1-t2",
             thesisId: "t2",
             versionNumber: 1,
-            filePath: TEST_PDF,
+            filePath: REMOTE_TEST_PDF,
             uploadedById: "LiyoID",
             uploadedAt: "2023-06-10T00:00:00.000Z",
             changeNote: "Initial submission",
