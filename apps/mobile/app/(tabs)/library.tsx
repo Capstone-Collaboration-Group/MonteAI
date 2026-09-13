@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
@@ -24,20 +25,24 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
 
+  const loadTheses = useCallback(async () => {
+    try {
+      const data = await thesisService.getTheses();
+      setTheses(data);
+    } catch {
+      // stays empty
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        const data = await thesisService.getTheses();
-        if (active) setTheses(data);
-      } catch {
-        // stays empty
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
+    loadTheses().finally(() => {
+      if (active) setLoading(false);
+    });
     return () => { active = false; };
-  }, []);
+  }, [loadTheses]);
+
+  const { refreshControl } = usePullToRefresh(loadTheses);
 
   return (
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
@@ -46,7 +51,7 @@ export default function LibraryScreen() {
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
         <AppHeader title="MonteScholar" onLeftPress={openDrawer} rightIcons={[{ icon: 'notifications-none' }]} />
       </SafeAreaView>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         {/* Header */}
         <Text style={[s.heading, { color: heading }]}>Published Theses</Text>
         <Text style={[s.sub, { color: body }]}>
