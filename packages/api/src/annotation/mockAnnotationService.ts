@@ -20,26 +20,81 @@ function annotationKey(thesisId: string, thesisVersionId: string) {
 const annotationsMap = new Map<string, AnnotationResponseDto[]>();
 const listeners = new Map<string, Set<AnnotationListener>>();
 
-// Seed one resolved comment on t1/v2-t1 so the viewer shows something in mock mode.
-annotationsMap.set(annotationKey("t1", "v2-t1"), [
-    {
-        id: "mock-ann-1",
+// Seed a few comments on t1/v2-t1 (the mock thesis PDF) so the viewer shows a
+// realistic mix of resolved and unresolved annotations across several pages.
+// Each `positionJson` holds rects in unscaled PDF viewport coordinates
+// (matching how the web viewer records selections) so both frontends can draw
+// the highlight overlays at any zoom level.
+function seedAnnotation(
+    id: string,
+    pageNumber: number,
+    rect: { x: number; y: number; width: number; height: number },
+    comment: string,
+    highlightedText: string,
+    options: {
+        isResolved: boolean;
+        resolverNote?: string;
+        reviewerId?: string;
+        createdAt: string;
+    }
+): AnnotationResponseDto {
+    return {
+        id,
         thesisId: "t1",
         thesisVersionId: "v2-t1",
-        reviewerId: "mock-reviewer",
-        comment: "Please clarify the methodology in this section.",
-        highlightedText: "The proposed framework was evaluated using…",
-        positionJson: JSON.stringify({
-            boundingRect: { x1: 100, y1: 200, x2: 400, y2: 220, width: 800, height: 1100, pageNumber: 1 },
-            rects: [{ x1: 100, y1: 200, x2: 400, y2: 220, width: 800, height: 1100, pageNumber: 1 }],
-            pageNumber: 1,
-        }),
-        pageNumber: 1,
-        isResolved: true,
-        resolvedAt: "2026-04-01T10:00:00.000Z",
-        createdAt: "2026-04-01T09:00:00.000Z",
-        resolverNote: "Addressed in the latest revision.",
-    },
+        reviewerId: options.reviewerId ?? "mock-reviewer",
+        comment,
+        highlightedText,
+        positionJson: JSON.stringify({ pageNumber, rects: [rect] }),
+        pageNumber,
+        isResolved: options.isResolved,
+        resolvedAt: options.isResolved ? options.createdAt : "",
+        createdAt: options.createdAt,
+        resolverNote: options.resolverNote,
+    };
+}
+
+annotationsMap.set(annotationKey("t1", "v2-t1"), [
+    seedAnnotation(
+        "mock-ann-1",
+        3,
+        { x: 72, y: 262, width: 468, height: 32 },
+        "Please clarify the statement of the problem. It feels too broad.",
+        "This study seeks to determine how a retrieval-augmented assistant can support thesis review and knowledge access.",
+        { isResolved: true, resolverNote: "Narrowed the scope in the latest revision.", createdAt: "2026-04-01T09:00:00.000Z" }
+    ),
+    seedAnnotation(
+        "mock-ann-2",
+        3,
+        { x: 72, y: 114, width: 320, height: 24 },
+        "The title of this chapter should match the approved format.",
+        "The Problem and its Background",
+        { isResolved: false, createdAt: "2026-04-02T08:15:00.000Z" }
+    ),
+    seedAnnotation(
+        "mock-ann-3",
+        4,
+        { x: 72, y: 182, width: 420, height: 24 },
+        "Add at least two more local studies to this section.",
+        "Prior work highlights the value of indexed, searchable collections for institutional research.",
+        { isResolved: false, createdAt: "2026-04-03T14:30:00.000Z" }
+    ),
+    seedAnnotation(
+        "mock-ann-4",
+        5,
+        { x: 72, y: 182, width: 430, height: 24 },
+        "Describe the sampling procedure in more detail.",
+        "The study employs an iterative development methodology.",
+        { isResolved: false, createdAt: "2026-04-04T10:05:00.000Z" }
+    ),
+    seedAnnotation(
+        "mock-ann-5",
+        6,
+        { x: 72, y: 168, width: 440, height: 24 },
+        "Tie the results back to your objectives.",
+        "The system achieved accurate retrieval across the corpus.",
+        { isResolved: true, resolverNote: "Added a mapping table to the objectives.", createdAt: "2026-04-05T16:45:00.000Z" }
+    ),
 ]);
 
 function sortedCopy(items: AnnotationResponseDto[]) {
