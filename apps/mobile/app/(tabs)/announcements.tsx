@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { AnnouncementDetailModal } from '@/components/announcement/AnnouncementDetailModal';
@@ -51,20 +52,29 @@ export default function AnnouncementsScreen() {
   }, []);
   const closeAnnouncement = useCallback(() => setSelectedAnnouncement(null), []);
 
+  const openAnnouncement = useCallback((announcement: AnnouncementResponseDto) => {
+    setSelectedAnnouncement(announcement);
+  }, []);
+  const closeAnnouncement = useCallback(() => setSelectedAnnouncement(null), []);
+
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const data = await announcementService.getAnnouncements();
+      setAnnouncements(data);
+    } catch {
+      // stays empty
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        const data = await announcementService.getAnnouncements();
-        if (active) setAnnouncements(data);
-      } catch {
-        // stays empty
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
+    loadAnnouncements().finally(() => {
+      if (active) setLoading(false);
+    });
     return () => { active = false; };
-  }, []);
+  }, [loadAnnouncements]);
+
+  const { refreshControl } = usePullToRefresh(loadAnnouncements);
 
   return (
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
@@ -73,7 +83,7 @@ export default function AnnouncementsScreen() {
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
         <AppHeader title="MonteSkolar" onLeftPress={openDrawer} rightIcons={[{ icon: 'notifications-none' }]} />
       </SafeAreaView>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         {/* Header */}
         <Text style={[s.heading, { color: heading }]}>Institutional Announcements</Text>
         <Text style={[s.sub, { color: body }]}>

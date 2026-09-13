@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
@@ -38,22 +39,26 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
 
+  const loadStudent = useCallback(async () => {
+    try {
+      const students = await studentService.getStudents();
+      if (students.length > 0) {
+        setStudent(students[0]); // first student as current user
+      }
+    } catch {
+      // stays null
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        const students = await studentService.getStudents();
-        if (active && students.length > 0) {
-          setStudent(students[0]); // first student as current user
-        }
-      } catch {
-        // stays null
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
+    loadStudent().finally(() => {
+      if (active) setLoading(false);
+    });
     return () => { active = false; };
-  }, []);
+  }, [loadStudent]);
+
+  const { refreshControl } = usePullToRefresh(loadStudent);
 
   const fullName = student
     ? `${student.firstName} ${student.middleInitial ? student.middleInitial + '. ' : ''}${student.lastName}${student.suffix ? ' ' + student.suffix : ''}`
@@ -69,7 +74,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
         <AppHeader title="MonteSkolar" onLeftPress={openDrawer} rightIcons={[{ icon: 'settings' }]} />
       </SafeAreaView>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         {/* Avatar */}
         <View style={s.avatarSection}>
           {loading ? (

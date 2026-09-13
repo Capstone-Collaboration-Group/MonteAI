@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
@@ -53,27 +54,28 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
 
+  const loadHome = useCallback(async () => {
+    try {
+      const [s, t] = await Promise.all([
+        scheduleService.getSchedules(),
+        thesisService.getTheses(),
+      ]);
+      setSchedules(s.slice(0, 3));
+      setTheses(t.slice(0, 3));
+    } catch {
+      // silently fail — UI stays empty
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
-    async function load() {
-      try {
-        const [s, t] = await Promise.all([
-          scheduleService.getSchedules(),
-          thesisService.getTheses(),
-        ]);
-        if (active) {
-          setSchedules(s.slice(0, 3));
-          setTheses(t.slice(0, 3));
-        }
-      } catch {
-        // silently fail — UI stays empty
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    load();
+    loadHome().finally(() => {
+      if (active) setLoading(false);
+    });
     return () => { active = false; };
-  }, []);
+  }, [loadHome]);
+
+  const { refreshControl } = usePullToRefresh(loadHome);
 
   return (
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
@@ -82,7 +84,7 @@ export default function HomeScreen() {
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
         <AppHeader title="MonteSkolar" onLeftPress={openDrawer} rightIcons={[{ icon: 'notifications-none' }]} />
       </SafeAreaView>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         {/* Welcome */}
         <View style={s.welcome}>
           <Text style={[s.greeting, { color: body }]}>Welcome back,</Text>

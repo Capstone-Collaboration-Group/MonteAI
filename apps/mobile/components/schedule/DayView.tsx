@@ -1,6 +1,6 @@
 // apps/mobile/components/schedule/DayView.tsx
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
 import type { ScheduleResponseDto } from '@monteai/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
@@ -13,10 +13,11 @@ interface DayViewProps {
   schedules: ScheduleResponseDto[];
   activeId?: string;
   onSelect: (schedule: ScheduleResponseDto) => void;
+  refreshControl?: ScrollViewProps['refreshControl'];
 }
 
 /** Single-day timeline (07:00–19:00) with absolutely positioned defense cards. */
-export function DayView({ date, schedules, activeId, onSelect }: DayViewProps) {
+export function DayView({ date, schedules, activeId, onSelect, refreshControl }: DayViewProps) {
   const body = useThemeColor({}, 'onSurfaceVariant');
   const outline = useThemeColor({}, 'outlineVariant');
 
@@ -28,7 +29,10 @@ export function DayView({ date, schedules, activeId, onSelect }: DayViewProps) {
 
   return (
     <View style={s.root}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}>
         <View style={s.row}>
           <View style={[s.timeCol, { borderRightColor: outline }]}>
             {HOUR_LABELS.map((label) => (

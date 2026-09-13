@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { DayView } from '@/components/schedule/DayView';
@@ -73,25 +74,29 @@ export default function SchedulesScreen() {
   const [selected, setSelected] = useState<ScheduleResponseDto | null>(null);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
 
+  const loadSchedules = useCallback(async () => {
+    try {
+      const data = await scheduleService.getSchedules();
+      setSchedules(Array.isArray(data) ? data : []);
+    } catch {
+      // stays empty — the calendar renders an empty grid
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
-    (async () => {
-      try {
-        const data = await scheduleService.getSchedules();
-        if (active) setSchedules(Array.isArray(data) ? data : []);
-      } catch {
-        // stays empty — the calendar renders an empty grid
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
+    loadSchedules().finally(() => {
+      if (active) setLoading(false);
+    });
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [loadSchedules, reloadKey]);
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  const { refreshControl } = usePullToRefresh(loadSchedules);
 
   const rooms = useMemo(() => {
     const roomSet = new Set(schedules.map((s) => s.roomVenue).filter(Boolean));
@@ -231,6 +236,7 @@ export default function SchedulesScreen() {
                   schedules={filtered}
                   activeId={selected?.scheduleId}
                   onSelect={openDefense}
+                  refreshControl={refreshControl}
                 />
               )}
               {view === 'week' && (
@@ -239,6 +245,7 @@ export default function SchedulesScreen() {
                   schedules={filtered}
                   activeId={selected?.scheduleId}
                   onSelect={openDefense}
+                  refreshControl={refreshControl}
                 />
               )}
               {view === 'month' && (
@@ -247,6 +254,7 @@ export default function SchedulesScreen() {
                   schedules={filtered}
                   activeId={selected?.scheduleId}
                   onSelect={openDefense}
+                  refreshControl={refreshControl}
                   onDayPress={(date) => {
                     setCurrentDate(date);
                     setView('day');

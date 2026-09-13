@@ -22,6 +22,7 @@ import Animated, {
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
@@ -104,33 +105,34 @@ export default function ResearchGroupScreen() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteQuery, setInviteQuery] = useState('');
 
+  const loadGroups = useCallback(async () => {
+    try {
+      const [studentList, groupList] = await Promise.all([
+        studentService.getStudents(),
+        researchGroupService.getResearchGroups(),
+      ]);
+      setStudents(Array.isArray(studentList) ? studentList : []);
+      setGroups(Array.isArray(groupList) ? groupList : []);
+    } catch {
+      setStudents([]);
+      setGroups([]);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
-    (async () => {
-      try {
-        const [studentList, groupList] = await Promise.all([
-          studentService.getStudents(),
-          researchGroupService.getResearchGroups(),
-        ]);
-        if (!active) return;
-        setStudents(Array.isArray(studentList) ? studentList : []);
-        setGroups(Array.isArray(groupList) ? groupList : []);
-      } catch {
-        if (active) {
-          setStudents([]);
-          setGroups([]);
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
+    loadGroups().finally(() => {
+      if (active) setLoading(false);
+    });
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [loadGroups, reloadKey]);
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  const { refreshControl } = usePullToRefresh(loadGroups);
 
   const currentStudent = useMemo(() => {
     if (students.length === 0) return null;
@@ -264,7 +266,7 @@ export default function ResearchGroupScreen() {
             />
           </SafeAreaView>
 
-          <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
             {loading ? (
               <View style={s.loaderWrap}>
                 <ActivityIndicator size="large" color={primary} />
