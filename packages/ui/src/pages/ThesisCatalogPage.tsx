@@ -36,15 +36,6 @@ export function ThesisCatalogPage({
     return { active, archived };
   }, [theses]);
 
-  const healthStats = useMemo(() => {
-    const total = theses.length;
-    const approved = theses.filter((t) => t.status === "approved").length;
-    return {
-      approvalRate: total > 0 ? Math.round((approved / total) * 100) : 0,
-      yearLabel: new Date().getFullYear().toString(),
-    };
-  }, [theses]);
-
   if (isLoading || !featuredThesis) {
     return <ThesisCatalogSkeleton />;
   }
@@ -53,7 +44,7 @@ export function ThesisCatalogPage({
     <ThesisCatalog
       featuredThesis={featuredThesis}
       theses={theses}
-      healthStats={healthStats}
+      thesisData={rawTheses}
       counts={counts}
       isLoading={isLoading}
       onViewDetails={onViewDetails}

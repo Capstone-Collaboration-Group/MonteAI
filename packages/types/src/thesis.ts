@@ -60,12 +60,6 @@ export interface ThesisSummary {
   institute: string;
 }
 
-export interface SubmissionHealthStatus { 
-  approvalRate: number;
-  yearLabel: string;
-  note?: string;
-}
-
 
 export function toThesisSummary(dto: ThesisResponseDto): ThesisSummary { 
   return { 
