@@ -9,11 +9,24 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ profileService }: ProtectedRouteProps) {
   const { user, loading: authLoading } = useAuth();
-  const { profile, isLoading: profileLoading, error } = useUserProfile(profileService);
+  const {
+    profile,
+    isLoading: profileLoading,
+    error,
+  } = useUserProfile(profileService);
 
   if (authLoading || (user && profileLoading)) return <p>Loading...</p>;
   if (!user) return <Navigate to="/login" replace />;
   if (error || !profile) return <Navigate to="/login" replace />;
+  if (profile.isEmailVerified === false) {
+    return (
+      <Navigate
+        to="/verify-email"
+        replace
+        state={{ email: user.email ?? "" }}
+      />
+    );
+  }
 
   return <Outlet />;
 }

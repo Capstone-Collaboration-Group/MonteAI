@@ -7,15 +7,15 @@ import React, {
   useMemo,
   useState,
   type ReactNode,
-} from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { firebaseAuth } from '@/lib/firebase';
+} from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { firebaseAuth } from "@/lib/firebase";
 import {
   registerStudentAccount,
   signInWithStudentNumber as authServiceSignIn,
   signOut as authServiceSignOut,
-} from '@/lib/authService';
+} from "@/lib/authService";
 
 export interface AuthSession {
   email: string;
@@ -41,23 +41,29 @@ export interface StudentRegistration {
 export interface AuthSessionContextValue {
   session: AuthSession | null;
   restoring: boolean;
-  signInWithStudentNumber: (studentNumber: string, password: string) => Promise<void>;
+  signInWithStudentNumber: (
+    studentNumber: string,
+    password: string,
+  ) => Promise<void>;
   registerStudent: (payload: StudentRegistration) => Promise<void>;
+  pendingVerificationEmail: string | null;
+  completeEmailVerification: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
-const MOCK_SESSION_KEY = 'monteai.auth.session';
-const STUDENT_NUMBER_KEY = 'monteai.auth.studentNumber';
+const MOCK_SESSION_KEY = "monteai.auth.session";
+const STUDENT_NUMBER_KEY = "monteai.auth.studentNumber";
+const PENDING_VERIFICATION_KEY = "monteai.auth.pendingVerificationEmail";
 
 const useMock =
-  (process.env.EXPO_PUBLIC_USE_MOCK ?? (__DEV__ ? 'true' : 'false')) === 'true';
+  (process.env.EXPO_PUBLIC_USE_MOCK ?? (__DEV__ ? "true" : "false")) === "true";
 
 const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
 
 export function useAuthSession(): AuthSessionContextValue {
   const context = useContext(AuthSessionContext);
   if (!context) {
-    throw new Error('useAuthSession must be used within <AuthSessionProvider>');
+    throw new Error("useAuthSession must be used within <AuthSessionProvider>");
   }
   return context;
 }
@@ -74,9 +80,16 @@ export function useAuthSession(): AuthSessionContextValue {
  */
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
   // undefined = first onAuthStateChanged callback still pending (restore).
-  const [firebaseUser, setFirebaseUser] = useState<User | null | undefined>(undefined);
+  const [firebaseUser, setFirebaseUser] = useState<User | null | undefined>(
+    undefined,
+  );
   const [mockSession, setMockSession] = useState<AuthSession | null>(null);
-  const [studentNumberCache, setStudentNumberCache] = useState<string | null>(null);
+  const [studentNumberCache, setStudentNumberCache] = useState<string | null>(
+    null,
+  );
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<
+    string | null
+  >(null);
   const [mockRestoring, setMockRestoring] = useState(true);
 
   // Restore the mock session + cached student number, then subscribe to
@@ -87,15 +100,18 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     let unsubscribe: (() => void) | undefined;
     (async () => {
       try {
-        const [mockRaw, studentNumberRaw] = await Promise.all([
+        const [mockRaw, studentNumberRaw, pendingRaw] = await Promise.all([
           AsyncStorage.getItem(MOCK_SESSION_KEY),
           AsyncStorage.getItem(STUDENT_NUMBER_KEY),
+          AsyncStorage.getItem(PENDING_VERIFICATION_KEY),
         ]);
         if (!active) return;
         if (mockRaw) setMockSession(JSON.parse(mockRaw) as AuthSession);
         if (studentNumberRaw) {
           setStudentNumberCache(JSON.parse(studentNumberRaw) as string);
         }
+        if (pendingRaw)
+          setPendingVerificationEmail(JSON.parse(pendingRaw) as string);
       } catch {
         // no persisted state — signed-out boot
       } finally {
@@ -118,7 +134,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     if (firebaseUser) {
       return {
         uid: firebaseUser.uid,
-        email: firebaseUser.email ?? '',
+        email: firebaseUser.email ?? "",
         studentNumber: studentNumberCache ?? undefined,
       };
     }
@@ -128,7 +144,10 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const cacheStudentNumber = useCallback(async (studentNumber: string) => {
     setStudentNumberCache(studentNumber);
     try {
-      await AsyncStorage.setItem(STUDENT_NUMBER_KEY, JSON.stringify(studentNumber));
+      await AsyncStorage.setItem(
+        STUDENT_NUMBER_KEY,
+        JSON.stringify(studentNumber),
+      );
     } catch {
       // storage failures shouldn't break sign-in
     }
@@ -145,7 +164,10 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         setMockSession(next);
         try {
           await AsyncStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(next));
-          await AsyncStorage.setItem(STUDENT_NUMBER_KEY, JSON.stringify(studentNumber.trim()));
+          await AsyncStorage.setItem(
+            STUDENT_NUMBER_KEY,
+            JSON.stringify(studentNumber.trim()),
+          );
         } catch {
           // ignore storage failures
         }
@@ -170,8 +192,13 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
           studentNumber: payload.studentNumber,
         };
         setMockSession(next);
+        setPendingVerificationEmail(payload.email);
         try {
           await AsyncStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(next));
+          await AsyncStorage.setItem(
+            PENDING_VERIFICATION_KEY,
+            JSON.stringify(payload.email),
+          );
         } catch {
           // ignore storage failures
         }
@@ -193,7 +220,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
           ...(middleInitial ? { MiddleInitial: middleInitial } : {}),
           LastName: payload.lastName.trim(),
           Suffix: payload.suffix?.trim() || null,
-          Role: 'Student',
+          Role: "Student",
           StudentNumber: payload.studentNumber.trim(),
           Position: payload.position,
           Institute: payload.institute,
@@ -203,6 +230,11 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         }),
       });
       setFirebaseUser(user);
+      setPendingVerificationEmail(payload.email);
+      await AsyncStorage.setItem(
+        PENDING_VERIFICATION_KEY,
+        JSON.stringify(payload.email),
+      );
       await cacheStudentNumber(payload.studentNumber.trim());
     },
     [cacheStudentNumber],
@@ -212,6 +244,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     try {
       await AsyncStorage.removeItem(MOCK_SESSION_KEY);
       await AsyncStorage.removeItem(STUDENT_NUMBER_KEY);
+      await AsyncStorage.removeItem(PENDING_VERIFICATION_KEY);
     } catch {
       // ignore storage failures
     }
@@ -223,10 +256,35 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     setFirebaseUser(null);
   }, []);
 
+  const completeEmailVerification = useCallback(async () => {
+    setPendingVerificationEmail(null);
+    await AsyncStorage.removeItem(PENDING_VERIFICATION_KEY);
+  }, []);
+
   const value = useMemo(
-    () => ({ session, restoring, signInWithStudentNumber, registerStudent, signOut }),
-    [session, restoring, signInWithStudentNumber, registerStudent, signOut],
+    () => ({
+      session,
+      restoring,
+      signInWithStudentNumber,
+      registerStudent,
+      pendingVerificationEmail,
+      completeEmailVerification,
+      signOut,
+    }),
+    [
+      session,
+      restoring,
+      signInWithStudentNumber,
+      registerStudent,
+      pendingVerificationEmail,
+      completeEmailVerification,
+      signOut,
+    ],
   );
 
-  return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;
+  return (
+    <AuthSessionContext.Provider value={value}>
+      {children}
+    </AuthSessionContext.Provider>
+  );
 }

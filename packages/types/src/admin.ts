@@ -1,4 +1,3 @@
-
 export interface CreateAdminDto {
   id: string;
   email: string;
@@ -29,6 +28,7 @@ export interface AdminResponseDto {
   position: string;
   role: string;
   isActive?: boolean;
+  isEmailVerified?: boolean;
   createdAt: string;
   updatedAt: string;
 }

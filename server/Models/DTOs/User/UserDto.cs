@@ -96,6 +96,22 @@ namespace server.Models.DTOs.User
         public string StudentNumber { get; set; } = null!;
         public string Email { get; set; } = null!;
     }
+
+    public class VerifyOtpDto
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = null!;
+
+        [Required, RegularExpression("^[0-9]{6}$")]
+        public string Otp { get; set; } = null!;
+    }
+
+    public class ResendOtpDto
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = null!;
+    }
+
     public class UserResponseDto
     {
         public string Id { get; set; } = null!;
@@ -106,6 +122,7 @@ namespace server.Models.DTOs.User
         public string? Suffix { get; set; }
         public string Role { get; set; } = null!;
         public bool? IsActive { get; set; }
+        public bool IsEmailVerified { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

@@ -10,12 +10,7 @@ function normalizeEmail(email: string): string {
 
 /**
  * Live OTP service. Endpoint paths intentionally mirror the existing
- * `AuthService` (`/auth/verify-email`, `/auth/resend-otp`) so the backend
- * only needs one contract to implement.
- *
- * NOTE: the .NET `AuthController` does not expose these routes yet —
- * live calls will fail until the backend adds them. Use the mock service
- * (`VITE_USE_MOCK=true`) until then.
+ * `AuthController` (`/auth/verify-otp`, `/auth/resend-otp`).
  */
 export class LiveOtpService implements OtpService {
   private readonly client: AxiosInstance;
@@ -25,24 +20,33 @@ export class LiveOtpService implements OtpService {
   }
 
   async sendOtp(email: string): Promise<boolean> {
-    const { data } = await this.client.post<boolean>("/auth/send-otp", {
-      email: normalizeEmail(email),
-    });
-    return data;
+    const { data } = await this.client.post<{ sent: boolean }>(
+      "/auth/resend-otp",
+      {
+        email: normalizeEmail(email),
+      },
+    );
+    return data.sent;
   }
 
   async resendOtp(email: string): Promise<boolean> {
-    const { data } = await this.client.post<boolean>("/auth/resend-otp", {
-      email: normalizeEmail(email),
-    });
-    return data;
+    const { data } = await this.client.post<{ sent: boolean }>(
+      "/auth/resend-otp",
+      {
+        email: normalizeEmail(email),
+      },
+    );
+    return data.sent;
   }
 
   async verifyOtp(dto: VerifyOTPDto): Promise<boolean> {
-    const { data } = await this.client.post<boolean>("/auth/verify-email", {
-      email: normalizeEmail(dto.email),
-      otp: dto.otp.trim(),
-    });
-    return data;
+    const { data } = await this.client.post<{ verified: boolean }>(
+      "/auth/verify-otp",
+      {
+        email: normalizeEmail(dto.email),
+        otp: dto.otp.trim(),
+      },
+    );
+    return data.verified;
   }
 }

@@ -15,19 +15,22 @@ namespace server.Controllers
         private readonly IFacultyService _facultyService;
         private readonly IProgramHeadService _programHeadService;
         private readonly IAdminService _adminService;
+        private readonly IEmailVerificationService _emailVerificationService;
 
         public AuthController(
             ILogger<AuthController> logger,
             IStudentService studentService,
             IFacultyService facultyService,
             IProgramHeadService programHeadService,
-            IAdminService adminService)
+            IAdminService adminService,
+            IEmailVerificationService emailVerificationService)
         {
             _logger = logger;
             _studentService = studentService;
             _facultyService = facultyService;
             _programHeadService = programHeadService;
             _adminService = adminService;
+            _emailVerificationService = emailVerificationService;
         }
 
         [HttpPost("register")]
@@ -46,8 +49,32 @@ namespace server.Controllers
             };
             if (result == null)
                 return BadRequest(new { Message = $"Unknown Role {dto.Role}" });
+            await _emailVerificationService.IssueOtpAsync(dto.Email);
             _logger.LogInformation("User registered: {Id} as {Role}", dto.Id, dto.Role);
             return CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, result);
+        }
+
+        [HttpPost("verify-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto dto)
+        {
+            var result = await _emailVerificationService.VerifyOtpAsync(dto.Email, dto.Otp);
+            return result.Success ? Ok(new { verified = true }) : BadRequest(new { Message = result.Error });
+        }
+
+        [HttpPost("resend-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResendOtp([FromBody] ResendOtpDto dto)
+        {
+            try
+            {
+                var sent = await _emailVerificationService.IssueOtpAsync(dto.Email);
+                return sent ? Ok(new { sent = true }) : NotFound(new { Message = "No account was found for this email." });
+            }
+            catch (InvalidOperationException error)
+            {
+                return StatusCode(StatusCodes.Status429TooManyRequests, new { Message = error.Message });
+            }
         }
 
         [HttpPost("login")]
