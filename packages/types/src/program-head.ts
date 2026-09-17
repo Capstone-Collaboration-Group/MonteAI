@@ -29,6 +29,7 @@ export interface ProgramHeadResponseDto {
   suffix?: string;
   role: string;
   isActive?: boolean;
+  isEmailVerified?: boolean;
   institute: string;
   programHandled: string;
   createdAt: string;

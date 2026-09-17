@@ -1,9 +1,12 @@
-import React, { useEffect } from 'react';
-import { View } from 'react-native';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useFonts } from 'expo-font';
-import { AuthSessionProvider, useAuthSession } from '@/contexts/AuthSessionContext';
+import React, { useEffect } from "react";
+import { View } from "react-native";
+import { Stack, usePathname, useRouter } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { useFonts } from "expo-font";
+import {
+  AuthSessionProvider,
+  useAuthSession,
+} from "@/contexts/AuthSessionContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,7 +17,9 @@ SplashScreen.preventAutoHideAsync();
  * splash/auth entry and the tabbed app.
  */
 function AppShell() {
-  const { restoring } = useAuthSession();
+  const { restoring, pendingVerificationEmail } = useAuthSession();
+  const pathname = usePathname();
+  const router = useRouter();
   const [fontsLoaded] = useFonts({});
 
   const appReady = fontsLoaded && !restoring;
@@ -24,6 +29,15 @@ function AppShell() {
       SplashScreen.hideAsync();
     }
   }, [appReady]);
+
+  useEffect(() => {
+    if (appReady && pendingVerificationEmail && pathname !== "/verify-email") {
+      router.replace({
+        pathname: "/verify-email" as never,
+        params: { email: pendingVerificationEmail },
+      });
+    }
+  }, [appReady, pathname, pendingVerificationEmail, router]);
 
   if (!appReady) {
     return null;

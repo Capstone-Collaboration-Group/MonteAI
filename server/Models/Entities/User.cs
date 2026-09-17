@@ -26,6 +26,12 @@ namespace server.Models.Entities
         [Required]
         public string? Role { get; set; }
         public bool? IsActive { get; set; }
+        public bool IsEmailVerified { get; set; }
+        [MaxLength(6)]
+        public string? OtpCode { get; set; }
+        public DateTime? OtpExpiresAt { get; set; }
+        public DateTime? OtpWindowStartedAt { get; set; }
+        public int OtpResendCount { get; set; }
        
         
         public DateTime CreatedAt { get; set; }
