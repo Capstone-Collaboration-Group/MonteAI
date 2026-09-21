@@ -52,11 +52,6 @@ export default function AnnouncementsScreen() {
   }, []);
   const closeAnnouncement = useCallback(() => setSelectedAnnouncement(null), []);
 
-  const openAnnouncement = useCallback((announcement: AnnouncementResponseDto) => {
-    setSelectedAnnouncement(announcement);
-  }, []);
-  const closeAnnouncement = useCallback(() => setSelectedAnnouncement(null), []);
-
   const loadAnnouncements = useCallback(async () => {
     try {
       const data = await announcementService.getAnnouncements();

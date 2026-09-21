@@ -28,6 +28,26 @@ namespace server.Repositories
         public async Task<Thesis?> GetThesisByIdAsync(Guid id)
             => await _db.Theses.FindAsync(id);
 
+        /// <summary>
+        /// Exact-match (LIKE) search over titles and abstracts. LIKE
+        /// wildcards inside the term are escaped so user input is matched
+        /// literally. The result set is intentionally small (agent tool use).
+        /// </summary>
+        public async Task<IReadOnlyList<Thesis>> SearchByKeywordAsync(string term, int limit, CancellationToken cancellationToken = default)
+        {
+            var escaped = term
+                .Replace("[", "[[]")
+                .Replace("%", "[%]")
+                .Replace("_", "[_]");
+            var pattern = $"%{escaped}%";
+
+            return await _db.Theses
+                .Where(t => EF.Functions.Like(t.Title!, pattern) || EF.Functions.Like(t.Abstract!, pattern))
+                .OrderByDescending(t => t.SubmittedAt)
+                .Take(Math.Clamp(limit, 1, 10))
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<Thesis> SubmitAsync(Thesis submitThesis)
         {
             var existing = await _db.Theses
