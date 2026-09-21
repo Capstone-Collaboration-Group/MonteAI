@@ -48,6 +48,7 @@ export interface StudentResponseDto {
   section: string;
   role: string;
   isActive?: boolean;
+  isEmailVerified?: boolean;
   createdAt: string;
   updatedAt: string;
 }

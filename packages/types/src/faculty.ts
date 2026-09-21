@@ -29,6 +29,7 @@ export interface FacultyResponseDto {
   suffix?: string;
   role: string;
   isActive?: boolean;
+  isEmailVerified?: boolean;
   institute: string;
   createdAt: string;
   updatedAt: string;

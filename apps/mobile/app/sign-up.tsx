@@ -1,10 +1,10 @@
-import { Stack, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert } from 'react-native';
+import { Stack, useRouter } from "expo-router";
+import React, { useState } from "react";
+import { Alert } from "react-native";
 
-import SignUpFlow, { type SignUpPayload } from '@/components/SignUpFlow';
-import { useAuthSession } from '@/contexts/AuthSessionContext';
-import { describeAuthError } from '@/lib/authService';
+import SignUpFlow, { type SignUpPayload } from "@/components/SignUpFlow";
+import { useAuthSession } from "@/contexts/AuthSessionContext";
+import { describeAuthError } from "@/lib/authService";
 
 /**
  * Sign-up route — Figma "Sign Up Step by Step" (node 492:26).
@@ -34,9 +34,12 @@ export default function SignUpRoute() {
         position: payload.position,
         password: payload.password,
       });
-      router.replace('/(tabs)/home');
+      router.replace({
+        pathname: "/verify-email" as never,
+        params: { email: payload.email },
+      });
     } catch (err) {
-      Alert.alert('Registration failed', describeAuthError(err));
+      Alert.alert("Registration failed", describeAuthError(err));
     } finally {
       setSubmitting(false);
     }
@@ -48,11 +51,11 @@ export default function SignUpRoute() {
       <SignUpFlow
         onExit={() => {
           if (router.canGoBack()) router.back();
-          else router.replace('/auth-entry');
+          else router.replace("/auth-entry");
         }}
         onLoginPress={() => {
           if (router.canGoBack()) router.back();
-          else router.replace('/auth-entry');
+          else router.replace("/auth-entry");
         }}
         onComplete={handleComplete}
       />

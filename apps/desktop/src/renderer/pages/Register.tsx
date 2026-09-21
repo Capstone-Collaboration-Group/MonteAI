@@ -12,7 +12,7 @@ import {
   Mail,
   UserRound,
 } from "lucide-react";
-import { LeftPanel, Modal,  Button, Card, Input  }  from "@monteai/ui";
+import { LeftPanel, Modal, Button, Card, Input } from "@monteai/ui";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import type { RegisterFormDto } from "@monteai/types";
 import { auth } from "../lib/firebaseServices";
@@ -117,11 +117,10 @@ export default function Register() {
       } as unknown as RegisterFormDto;
 
       await authService.register(payload);
-      setMessage({
-        type: "success",
-        text: "Registration complete. You can continue to your dashboard.",
+      navigate("/verify-email", {
+        replace: true,
+        state: { email: form.email.trim() },
       });
-      window.setTimeout(() => navigate("/home"), 900);
     } catch (error) {
       const text =
         error instanceof Error
