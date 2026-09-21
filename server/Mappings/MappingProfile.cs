@@ -27,6 +27,7 @@ namespace server.Mappings
             CreateMap<UpdateThesisDto, Thesis>();
             CreateMap<UpdateThesisStatusDto, Thesis>();
             CreateMap<ThesisChunkDto, Chunk>()
+                .ForCtorParam(nameof(Chunk.ThesisId), opt => opt.MapFrom(_ => (string?)null))
                 .ForCtorParam(nameof(Chunk.RelevanceScore), opt => opt.MapFrom(_ => (string?)null));
 
             //ThesisVersion Mappings
@@ -75,8 +76,13 @@ namespace server.Mappings
             CreateMap<UpdateChatSessionDto, ChatSession>();
 
             // ChatMessage
-            CreateMap<ChatMessage, ChatMessageResponseDto>();
-            CreateMap<CreateChatMessageDto, ChatMessage>();
+            // Sources (structured citations) are stored as JSON on the entity;
+            // deserialize them when projecting back to the response DTO so a
+            // reloaded session still renders its citation panel.
+            CreateMap<ChatMessage, ChatMessageResponseDto>()
+                .ForMember(dest => dest.Sources, opt => opt.MapFrom(src => DeserializeSources(src.SourcesJson)));
+            CreateMap<CreateChatMessageDto, ChatMessage>()
+                .ForMember(dest => dest.SourcesJson, opt => opt.Ignore());
 
             //  PanelistSchedule  
             CreateMap<PanelistSchedule, PanelistScheduleResponseDto>();
@@ -135,6 +141,21 @@ namespace server.Mappings
            
 
         }
+        /// <summary>Deserializes the SourcesJson Firestore field into citation DTOs (null when absent/invalid).</summary>
+        private static List<ChatSourceDto>? DeserializeSources(string? sourcesJson)
+        {
+            if (string.IsNullOrWhiteSpace(sourcesJson)) return null;
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<List<ChatSourceDto>>(
+                    sourcesJson, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return null;
+            }
+        }
+
         private static AnnouncementAuthorDto ResolveAnnouncementAuthor(Announcement src)
         {
             if (src.CreatedByAdmin != null)

@@ -1,4 +1,21 @@
 // packages/ui/src/pages/ChatPage.tsx
+//
+// Chat page orchestration: session bootstrap, message history, sending, and
+// STREAMING the agent's answer.
+//
+// Send flow (streaming path):
+//   1. Optimistically append the user's message.
+//   2. Append an empty assistant "placeholder" bubble (its id is tracked in
+//      streamingAssistantId so ChatView renders a typing cursor).
+//   3. chatService.sendMessageStream fires:
+//        onSources -> fills the placeholder's sources (citation panel)
+//        onDelta   -> grows the placeholder's content token by token
+//      and resolves with the final persisted message.
+//   4. Replace the placeholder with the canonical server message.
+//
+//   Falls back to the blocking sendMessage when a custom chatService does
+//   not implement streaming.
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatService } from "@monteai/api";
 import type { ChatMessageResponseDto } from "@monteai/types";
@@ -31,6 +48,8 @@ export function ChatPage({
   const [isSending, setIsSending] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(!!sessionId);
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
+  /** Id of the assistant bubble currently being streamed into (drives the typing cursor). */
+  const [streamingAssistantId, setStreamingAssistantId] = useState<string | null>(null);
   const hasAutoSent = useRef(false);
 
   // Fetch the selected session's messages. The API returns them latest-first;
@@ -85,11 +104,62 @@ export function ChatPage({
         };
         setMessages((prev) => [...prev, optimisticUser]);
 
-        const assistantMessage = await chatService.sendMessage(activeSessionId, {
-          role: "user",
-          content,
-        });
-        setMessages((prev) => [...prev, assistantMessage]);
+        // ── Streaming path ──
+        if (typeof chatService.sendMessageStream === "function") {
+          const placeholderId = crypto.randomUUID();
+          setStreamingAssistantId(placeholderId);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: placeholderId,
+              sessionId: activeSessionId,
+              role: "assistant",
+              content: "",
+              timestamp: new Date().toISOString(),
+              sources: null,
+            },
+          ]);
+
+          try {
+            const finalMessage = await chatService.sendMessageStream(
+              activeSessionId,
+              { role: "user", content },
+              {
+                onSources: (sources) =>
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === placeholderId ? { ...m, sources } : m))
+                  ),
+                onDelta: (text) =>
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === placeholderId ? { ...m, content: m.content + text } : m
+                    )
+                  ),
+              }
+            );
+            setMessages((prev) =>
+              prev.map((m) => (m.id === placeholderId ? finalMessage : m))
+            );
+          } catch (err) {
+            console.error("Chat stream failed, falling back to blocking send:", err);
+            setMessages((prev) => prev.filter((m) => m.id !== placeholderId));
+            const assistantMessage = await chatService.sendMessage(activeSessionId, {
+              role: "user",
+              content,
+            });
+            setMessages((prev) => [...prev, assistantMessage]);
+          } finally {
+            setStreamingAssistantId(null);
+          }
+        } else {
+          // ── Blocking fallback ──
+          const assistantMessage = await chatService.sendMessage(activeSessionId, {
+            role: "user",
+            content,
+          });
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
+
         onSessionActivity?.();
       } catch (err) {
         console.error("Chat send failed:", err);
@@ -124,6 +194,7 @@ export function ChatPage({
       messages={messages}
       input={input}
       isSending={isSending}
+      streamingMessageId={streamingAssistantId}
       onInputChange={setInput}
       onSend={() => send(input)}
     />
