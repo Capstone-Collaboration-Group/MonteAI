@@ -66,12 +66,13 @@ namespace server.Controllers
             return Ok(result);
         }
 
-        // Need to implement the pinecone ingestion of thesis after approval.
+        // Desktop-driven ingestion: the Electron pipeline extracts + chunks the
+        // abstract, then this endpoint embeds and upserts it (see ThesisService).
         [HttpPost("ingest")]
         public async Task<IActionResult> IngestThesis([FromBody] IngestThesisDto dto)
         {
             var result = await _service.IngestAsync(dto);
-            _logger.LogInformation("Haaaa");
+            _logger.LogInformation("Thesis {ThesisId} ingestion finished with status {Status}", dto.ThesisId, result.Status);
             return Ok(new { result, Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
         }
         [HttpPut("update/details/{id}")]

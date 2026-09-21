@@ -1,4 +1,6 @@
 using AutoMapper;
+using Microsoft.Extensions.Options;
+using server.Configuration;
 using server.Models.DTOs.Thesis;
 using server.Services.Interfaces;
 using ThesisEntity = server.Models.Entities.Thesis;
@@ -7,6 +9,24 @@ using server.Repositories.Interfaces;
 using server.Models.Retrieval;
 using server.Models.Entities;
 
+
+// server/Services/Theses/ThesisService.cs
+//
+// Thesis lifecycle, including the INGESTION hop of the RAG pipeline:
+//
+//   Desktop (Electron)                        Server (this service)
+//   ─────────────────                         ─────────────────────
+//   approve thesis                          -> IngestAsync(chunks):
+//   download PDF via SAS URL                   1. load thesis from SQL (authoritative
+//   extract text (first 5 pages)                  Title/FilePath — client-sent URLs are
+//   isolate abstract + metadata                   ignored, SAS links expire in minutes)
+//   chunk abstract (512 words/50 overlap)      2. cap chunk count (protects embedding bill)
+//   POST /thesis/ingest                       3. DELETE old vectors for this thesis
+//                                               (idempotent re-ingestion, no stale data)
+//                                             4. batch-embed + bulk-upsert to Pinecone
+//                                             5. update SQL status/timestamps
+//
+//   Chat query time never touches this service — see MonteAiAgentService.
 
 namespace server.Services.Theses
 {
@@ -19,8 +39,17 @@ namespace server.Services.Theses
         private readonly IMapper _mapper;
         private readonly IPineconeService _pineconeService;
         private readonly IBlobService _blobService;
+        private readonly PineconeConfig _pineconeConfig;
 
-        public ThesisService(IThesisRepository repo, IThesisVersionRepository thesisVersionRepo, IScheduleRepository scheduleRepository, ILogger<ThesisService> logger, IMapper mapper, IPineconeService pineconeService, IBlobService blobService)
+        public ThesisService(
+            IThesisRepository repo,
+            IThesisVersionRepository thesisVersionRepo,
+            IScheduleRepository scheduleRepository,
+            ILogger<ThesisService> logger,
+            IMapper mapper,
+            IPineconeService pineconeService,
+            IBlobService blobService,
+            IOptions<PineconeConfig> pineconeConfig)
         {
             _thesisRepo = repo;
             _thesisVersionRepo = thesisVersionRepo;
@@ -29,6 +58,7 @@ namespace server.Services.Theses
             _mapper = mapper;
             _pineconeService = pineconeService;
             _blobService = blobService;
+            _pineconeConfig = pineconeConfig.Value;
         }
 
         public async Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync()
@@ -47,14 +77,12 @@ namespace server.Services.Theses
                 if (schedule is not null)
                 {
                     dto.GroupId = schedule.GroupId;
-                    Console.WriteLine(dto.GroupId.ToString());
                     dto.ScheduledAt = schedule.Date.ToDateTime(schedule.StartTime);
                     dto.ScheduledVenue = schedule.RoomVenue;
                 }
 
                 return dto;
             });
-            _logger.LogInformation("Nandito ka yowww");
 
             return dtos;
 
@@ -91,39 +119,94 @@ namespace server.Services.Theses
             
             return _mapper.Map<ThesisResponseDto>(result);
         } 
+        /// <summary>
+        /// Ingestion hop of the RAG pipeline — see the file header for the flow.
+        /// Chunks arrive from the desktop pipeline; this method makes the
+        /// write idempotent (delete-then-upsert), authoritative (SQL overrides
+        /// client metadata), and bounded (chunk cap).
+        /// </summary>
         public async Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto)
         {
+            if (dto.Chunks is null || dto.Chunks.Count == 0)
+            {
+                _logger.LogWarning("Ingestion for thesis {ThesisId} contained no chunks", dto.ThesisId);
+                return new IngestThesisResponseDto
+                {
+                    ThesisId = dto.ThesisId,
+                    VectorCount = 0,
+                    Status = "Failed"
+                };
+            }
+
+            var thesis = await _thesisRepo.GetThesisByIdAsync(dto.ThesisId);
+            if (thesis == null)
+            {
+                _logger.LogWarning("Ingestion rejected: thesis {ThesisId} does not exist in SQL", dto.ThesisId);
+                return new IngestThesisResponseDto
+                {
+                    ThesisId = dto.ThesisId,
+                    VectorCount = 0,
+                    Status = "Failed"
+                };
+            }
+
             try
             {
-                 var upsertTasks = dto.Chunks.Select((chunkDto, index) => 
-                    _pineconeService.UpsertAbstractAsync(
-                        id: $"thesis_{dto.ThesisId}_chunk_{chunkDto.ChunkIndex}",
-                        chunk: _mapper.Map<Chunk>(chunkDto)
-                    )
-                );
-            var results = await Task.WhenAll(upsertTasks);
-            var upsertedCount =  results.Count(r => r);
+                // Map DTOs -> chunks. The SQL record is the source of truth for
+                // the URL: chunk.Url becomes the permanent blob path, NEVER a
+                // SAS link (those expire within minutes and would break citations).
+                var chunks = dto.Chunks
+                    .Take(Math.Clamp(_pineconeConfig.MaxChunksPerIngest, 1, 256))
+                    .Select(c =>
+                    {
+                        var chunk = _mapper.Map<Chunk>(c);
+                        return chunk with
+                        {
+                            ThesisId = dto.ThesisId.ToString(),
+                            Url = thesis.FilePath,
+                        };
+                    })
+                    .ToList();
 
-            if(upsertedCount < dto.Chunks.Count)
-            {
-                _logger.LogWarning("Thesis {ThesisId} partially ingested — {Upserted}/{Total} chunks succeeded",
-                dto.ThesisId, upsertedCount, dto.Chunks.Count);
-            };
+                // Idempotent re-ingestion: remove any vectors from a previous
+                // ingestion of this thesis before writing the new ones.
+                await _pineconeService.DeleteThesisVectorsAsync(dto.ThesisId);
 
-            await _thesisRepo.UpdateStatusAsync(dto.ThesisId, _mapper.Map<ThesisEntity>(new UpdateThesisStatusDto 
+                // Batched embed (16/call) + bulk upsert (100/request).
+                var upsertedCount = await _pineconeService.UpsertAbstractsAsync(dto.ThesisId, chunks);
+
+                if (upsertedCount == 0)
+                {
+                    _logger.LogError("Thesis {ThesisId} ingestion failed — no vectors were upserted", dto.ThesisId);
+                    return new IngestThesisResponseDto
+                    {
+                        ThesisId = dto.ThesisId,
+                        VectorCount = 0,
+                        Status = "Failed"
+                    };
+                }
+
+                if (upsertedCount < chunks.Count)
+                {
+                    _logger.LogWarning("Thesis {ThesisId} partially ingested — {Upserted}/{Total} chunks succeeded",
+                        dto.ThesisId, upsertedCount, chunks.Count);
+                }
+
+                // SQL is only marked Indexed when at least one vector landed.
+                await _thesisRepo.UpdateStatusAsync(dto.ThesisId, _mapper.Map<ThesisEntity>(new UpdateThesisStatusDto
                 {
                     Status = "Indexed"
                 }));
+
                 _logger.LogInformation(
                     "Thesis {ThesisId} ingested — {Count} vectors upserted",
-                    dto.ThesisId, upsertedCount
+                    dto.ThesisId, upsertedCount);
 
-                );
                 return new IngestThesisResponseDto
                 {
                     ThesisId = dto.ThesisId,
                     VectorCount = upsertedCount,
-                    Status = "Indexed"
+                    Status = upsertedCount == chunks.Count ? "Indexed" : "Partial"
                 };
             }
             catch (Exception ex)
@@ -132,12 +215,11 @@ namespace server.Services.Theses
 
                 return new IngestThesisResponseDto
                 {
-                    ThesisId    = dto.ThesisId,
+                    ThesisId = dto.ThesisId,
                     VectorCount = 0,
-                    Status      = "Failed"
+                    Status = "Failed"
                 };
             }
-           
         }
         public async Task<string?> GetDownloadUrlAsync(Guid thesisId)
         {
@@ -166,6 +248,24 @@ namespace server.Services.Theses
         public async Task<bool> DeleteAsync(Guid id)
         {
             var result = await _thesisRepo.DeleteThesisAsync(id);
+
+            if (result)
+            {
+                // Keep the vector store in sync: deleting a thesis must also
+                // remove its embeddings, otherwise the chat would keep
+                // answering from a document that no longer exists.
+                try
+                {
+                    await _pineconeService.DeleteThesisVectorsAsync(id);
+                }
+                catch (Exception ex)
+                {
+                    // The SQL delete already succeeded — log and continue rather
+                    // than failing the whole request over orphaned vectors.
+                    _logger.LogWarning(ex, "Thesis {ThesisId} deleted from SQL but vector cleanup failed", id);
+                }
+            }
+
             return result;
         }
 

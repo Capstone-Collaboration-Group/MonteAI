@@ -125,6 +125,10 @@ try
     builder.Services.Configure<PineconeConfig>(
             builder.Configuration.GetSection(PineconeConfig.SectionName)
             );
+
+    // Agent behaviour + cost caps (see MonteAiAgentConfig for every knob).
+    builder.Services.Configure<MonteAiAgentConfig>(
+        builder.Configuration.GetSection(MonteAiAgentConfig.SectionName));
     // Add services to the container.
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(
@@ -143,6 +147,15 @@ try
         options.AddFixedWindowLimiter("HealthCheckLimit", opt =>
         {
             opt.PermitLimit = 5 ;
+            opt.Window = TimeSpan.FromMinutes(1);
+            opt.QueueLimit = 0;
+        });
+
+        // Chat generates paid LLM calls per message — cap the blast radius of
+        // a spamming client (or a runaway frontend loop).
+        options.AddFixedWindowLimiter("ChatLimit", opt =>
+        {
+            opt.PermitLimit = 30;
             opt.Window = TimeSpan.FromMinutes(1);
             opt.QueueLimit = 0;
         });
@@ -172,7 +185,9 @@ try
 
     builder.Services.AddSingleton<IBlobService, BlobService>();
 
-    builder.Services.AddScoped<IPineconeService, PineconeService>();
+    // Note: IPineconeService, IAgentToolbox, and IMonteAiAgentService are
+    // auto-registered by the Scrutor scan above (namespace server.Services.*
+    // with matching interfaces).
     builder.Services.AddControllers()
         .AddJsonOptions(o =>
         {
