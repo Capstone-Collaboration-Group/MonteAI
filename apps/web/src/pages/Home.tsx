@@ -7,16 +7,16 @@ import { Card } from "@monteai/ui";
 const suggestions = [
   {
     tag: "Resume",
-    title: "Can you help me refine my related literature review section?",
+    title: "Can you look for studies about gamification?",
     meta: "New chat · Apr 28",
   },
   {
     tag: "Suggested",
-    title: "Justifications for weighted mean and standard deviation in IT studies",
+    title: "Can you look for related studies about IoT-based smart irrigation.",
   },
   {
     tag: "Suggested",
-    title: "Compare frequency count, percentage distribution, and weighted mean usage in IT surveys",
+    title: "Can you look for studies about student benefits on cloud platforms?",
   },
 ];
 
@@ -63,7 +63,7 @@ export default function Home() {
               autoFocus
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Ask MonteAI anything about your thesis..."
+              placeholder="Ask MonteAI to look for related studies about your Thesis"
               rows={3}
               className="w-full resize-none bg-transparent text-base text-on-surface outline-none placeholder:text-on-surface-variant"
               onKeyDown={(e) => {

@@ -87,7 +87,7 @@ function AppSidebar() {
             />
           )}
         </NavLink>
-        <NavLink to="/thesis">
+        <NavLink to="/theses">
           {({ isActive }) => (
             <Sidebar.Item
               icon={<Search className="h-4 w-4" />}
