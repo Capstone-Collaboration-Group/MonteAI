@@ -1,11 +1,11 @@
 // packages/ui/src/components/Thesis/PDFHighlightViewer.tsx
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Document, Page } from "react-pdf";
 import type {
   AnnotationResponseDto,
   CreateAnnotationDto,
 } from "@monteai/types";
-import { ChevronLeft, ChevronRight, MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { Spinner } from "../common/Spinner";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -189,39 +189,106 @@ export function PDFHighlightViewer({
   const [numPages, setNumPages] = useState<number>(0);
   const [scale, setScale] = useState<number>(1.2);
   const [pending, setPending] = useState<PendingSelection | null>(null);
-  const pageRef = useRef<HTMLDivElement>(null);
+  const [visiblePage, setVisiblePage] = useState<number>(1);
+  const viewerScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const updateVisiblePage = useCallback(() => {
+    const container = viewerScrollRef.current;
+    if (!container || numPages === 0) return;
+
+    const pageEls = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-page-number]")
+    );
+
+    if (pageEls.length === 0) return;
+
+    const middleOfView = container.scrollTop + container.clientHeight / 2;
+    let closestPage = 1;
+    let closestDistance = Number.MAX_SAFE_INTEGER;
+
+    for (const pageEl of pageEls) {
+      const pageNumber = Number(pageEl.dataset.pageNumber ?? 1);
+      const pageTop = pageEl.offsetTop;
+      const pageMiddle = pageTop + pageEl.offsetHeight / 2;
+      const distance = Math.abs(pageMiddle - middleOfView);
+
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestPage = pageNumber;
+      }
+    }
+
+    setVisiblePage(closestPage);
+    if (closestPage !== currentPage) {
+      onPageChange(closestPage);
+    }
+  }, [currentPage, numPages, onPageChange]);
 
   const onDocumentLoadSuccess = useCallback(
     ({ numPages }: { numPages: number }) => {
       setNumPages(numPages);
+      setVisiblePage(1);
+      if (numPages > 0) {
+        onPageChange(1);
+      }
     },
-    [],
+    [onPageChange],
   );
 
-  const handleMouseUp = useCallback(() => {
+  useEffect(() => {
+    updateVisiblePage();
+  }, [scale, updateVisiblePage]);
+
+  // Ctrl + scroll to zoom the PDF.
+  // This MUST be a native (non-React) event listener registered with
+  // { passive: false }. React's built-in onWheel prop is passive by
+  // default, which means event.preventDefault() inside a JSX onWheel
+  // handler silently does nothing — the browser's own zoom/scroll still
+  // fires alongside it. Attaching the listener manually like this is
+  // the only reliable way to actually stop the browser's default
+  // behavior and let our custom zoom take over cleanly.
+  useEffect(() => {
+    const container = viewerScrollRef.current;
+    if (!container) return;
+
+    const handleWheelNative = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+
+      setScale((prevScale) => {
+        const next =
+          event.deltaY > 0
+            ? Math.max(0.7, prevScale - 0.1)
+            : Math.min(2.5, prevScale + 0.1);
+        return next;
+      });
+    };
+
+    container.addEventListener("wheel", handleWheelNative, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheelNative);
+  }, []);
+
+  const handleMouseUp = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!canAnnotate) return;
 
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.toString().trim())
       return;
 
-    const pageEl = pageRef.current;
-    if (!pageEl) return;
+    const pageEl = event.currentTarget;
+    if (!pageEl || !pageEl.contains(selection.anchorNode)) return;
 
-    // Ensure selection is inside the PDF page
-    if (!pageEl.contains(selection.anchorNode)) return;
-
+    const pageNumber = Number(pageEl.dataset.pageNumber ?? currentPage);
     const rects = getRectsFromSelection(selection, pageEl, scale);
     if (rects.length === 0) return;
 
-    // Position popup near the end of the selection
     const lastRect = rects[rects.length - 1];
     const pageRect = pageEl.getBoundingClientRect();
-    const containerRect = pageEl.parentElement!.getBoundingClientRect();
+    const containerRect = pageEl.parentElement?.getBoundingClientRect() ?? pageRect;
 
     setPending({
       text: selection.toString().trim(),
-      position: { pageNumber: currentPage, rects },
+      position: { pageNumber, rects },
       popupX: pageRect.left - containerRect.left,
       popupY:
         pageRect.top -
@@ -253,35 +320,15 @@ export function PDFHighlightViewer({
 
   return (
     <div className="relative flex h-full w-full flex-col bg-surface-container-low">
-      {/* ── Toolbar ── */}
       <div className="flex items-center justify-between border-b border-outline-variant bg-white px-4 py-2">
-        {/* Page nav */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-            disabled={currentPage <= 1}
-            className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-low disabled:opacity-40"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-sm text-on-surface-variant">
-            <span className="font-semibold text-on-surface">{currentPage}</span>
-            {" / "}
-            {numPages}
+        <div className="flex items-center gap-3 text-sm text-on-surface-variant">
+          <span className="inline-flex items-center justify-center rounded-md border border-outline-variant bg-surface px-2 py-1 font-medium text-on-surface">
+            {visiblePage} / {numPages}
           </span>
-          <button
-            type="button"
-            onClick={() => onPageChange(Math.min(numPages, currentPage + 1))}
-            disabled={currentPage >= numPages}
-            className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-low disabled:opacity-40"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <span className="text-on-surface-variant">pages</span>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Annotate hint */}
           {canAnnotate && (
             <span className="flex items-center gap-1.5 text-xs text-outline">
               <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -289,11 +336,10 @@ export function PDFHighlightViewer({
             </span>
           )}
 
-          {/* Zoom */}
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}
+              onClick={() => setScale((s) => Math.max(0.7, s - 0.1))}
               className="rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
             >
               − Zoom
@@ -303,7 +349,7 @@ export function PDFHighlightViewer({
             </span>
             <button
               type="button"
-              onClick={() => setScale((s) => Math.min(3, s + 0.2))}
+              onClick={() => setScale((s) => Math.min(2.5, s + 0.1))}
               className="rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
             >
               + Zoom
@@ -312,12 +358,11 @@ export function PDFHighlightViewer({
         </div>
       </div>
 
-      {/* ── PDF + overlays ── */}
       <div
-        className="relative flex flex-1 justify-center overflow-auto px-6 py-6"
-        onMouseUp={handleMouseUp}
+        ref={viewerScrollRef}
+        className="relative flex flex-1 overflow-auto px-6 py-6"
+        onScroll={updateVisiblePage}
       >
-        {/* Annotation popup */}
         {pending && (
           <AnnotationPopup
             x={pending.popupX}
@@ -328,8 +373,7 @@ export function PDFHighlightViewer({
           />
         )}
 
-        {/* PDF page wrapper — highlights are positioned relative to this */}
-        <div ref={pageRef} className="relative">
+        <div className="mx-auto flex w-full max-w-[900px] flex-col items-center gap-6">
           <Document
             file={fileUrl}
             onLoadSuccess={onDocumentLoadSuccess}
@@ -349,25 +393,35 @@ export function PDFHighlightViewer({
               </div>
             }
           >
-            <Page
-              pageNumber={currentPage}
-              scale={scale}
-              className="shadow-lg"
-              renderAnnotationLayer
-              renderTextLayer
-            />
-          </Document>
+            {Array.from({ length: numPages }, (_, index) => {
+              const pageNumber = index + 1;
+              return (
+                <div
+                  key={pageNumber}
+                  data-page-number={pageNumber}
+                  onMouseUp={handleMouseUp}
+                  className="relative mb-6 last:mb-0 rounded-md border border-slate-200 bg-white p-3 shadow-sm"
+                >
+                  <Page
+                    pageNumber={pageNumber}
+                    scale={scale}
+                    className="shadow-none"
+                    renderAnnotationLayer
+                    renderTextLayer
+                  />
 
-          {/* Highlight overlays sit on top of the page */}
-          <HighlightOverlay
-            annotations={annotations}
-            pageNumber={currentPage}
-            scale={scale}
-          />
+                  <HighlightOverlay
+                    annotations={annotations}
+                    pageNumber={pageNumber}
+                    scale={scale}
+                  />
+                </div>
+              );
+            })}
+          </Document>
         </div>
       </div>
 
-      {/* Creating overlay */}
       {isCreating && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/50">
           <Spinner className="h-6 w-6 text-primary" />
