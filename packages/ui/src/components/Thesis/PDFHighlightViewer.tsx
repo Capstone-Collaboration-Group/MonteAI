@@ -5,7 +5,7 @@ import type {
   AnnotationResponseDto,
   CreateAnnotationDto,
 } from "@monteai/types";
-import { ChevronLeft, ChevronRight, MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { Spinner } from "../common/Spinner";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
