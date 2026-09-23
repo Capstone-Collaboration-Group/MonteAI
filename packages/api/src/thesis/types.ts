@@ -10,7 +10,7 @@ import type {
     ThesisVersion
 } from "@monteai/types";
 export interface ThesisService { 
-    submitThesis(dto: SubmitThesisDto): Promise<ThesisResponseDto>;
+    submitThesis(dto: SubmitThesisDto, file: File): Promise<ThesisResponseDto>;
     ingestThesis(dto: IngestThesisDto): Promise<IngestThesisResponseDto>;
     getDownloadUrl(thesisId: string): Promise<{url: string} | null>
     getThesis(thesisId: string): Promise<ThesisResponseDto | null>;
@@ -28,6 +28,7 @@ export interface ThesisService {
     // versions
     getVersions(thesisId: string): Promise<ThesisVersion[]>;
     getVersionFile(versionId: string): Promise<{ url: string } | null>;
+    createThesisVersion(thesisId: string, file: File, changeNote?: string): Promise<boolean>;
     
     // Proceedings
     generateProceedings(thesisId: string): Promise<Blob>;

@@ -23,6 +23,8 @@ namespace server.Repositories.Interfaces
 
         Task<Thesis> SubmitAsync(Thesis thesis);
 
+        Task<bool> ExistsByGroupIdAsync(Guid groupId);
+
         Task<bool> UpdateDetailsAsync(Guid id, Thesis thesis);
 
         Task<bool> UpdateStatusAsync(Guid id, Thesis updateStatusDto);

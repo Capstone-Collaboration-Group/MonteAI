@@ -63,6 +63,12 @@ namespace server.Repositories
 
         }
 
+        public async Task<bool> ExistsByGroupIdAsync(Guid groupId)
+        {
+            return await _db.Theses
+            .AnyAsync(t => t.GroupId == groupId);
+        }
+
         public async Task<bool> UpdateDetailsAsync(Guid id, Thesis updatedThesis)
         {
 

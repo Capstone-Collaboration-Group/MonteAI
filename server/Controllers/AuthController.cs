@@ -89,7 +89,7 @@ namespace server.Controllers
 
             // TPC = no shared table to query by UID alone, so check each
             // role's service until one matches.
-            var student = await _studentService.GetByIdAsync(uid);
+            var student = await _studentService.GetProfileByIdAsync(uid);
             if (student != null) return Ok(student);
 
             var faculty = await _facultyService.GetByIdAsync(uid);

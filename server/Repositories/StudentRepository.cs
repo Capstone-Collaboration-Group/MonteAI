@@ -28,7 +28,10 @@ namespace server.Repositories
         }
 
         public async Task<Student?> GetByIdAsync(string id)
-            => await _db.Students.FindAsync(id);
+        => await _db.Students
+        .Include(s => s.ResearchGroup)
+        .ThenInclude(g => g.Students)
+        .FirstOrDefaultAsync(s => s.Id == id);
 
         public async Task<Student?> GetByStudentNumberAsync(string studentNumber)
             => await _db.Students.FirstOrDefaultAsync(s => s.StudentNumber == studentNumber);
