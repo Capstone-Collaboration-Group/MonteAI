@@ -99,6 +99,14 @@ namespace server.Services.AI
         {
             var query = SanitizeQuery(request.UserQuery);
 
+            if(IsOutOfScope(query))
+            {
+                const string refusal = "I'm MonteAI, a thesis research assistant for Colegio de Montalban's institutional repository. " +
+                           "I can only help with questions about academic theses and research papers. " +
+                           "Try asking something like: *\"What theses are about machine learning in education?\"*";
+                return new AgentChatResult(refusal, [], [], false);
+            }
+
             var loop = await RunAgentLoopAsync(query, request.History, cancellationToken);
             var answer = await SynthesizeAsync(query, request.History, loop, cancellationToken);
             answer = EnforceGrounding(answer, loop.Sources.Count);
@@ -134,6 +142,41 @@ namespace server.Services.AI
             var answer = EnforceGrounding(answerBuilder.ToString(), loop.Sources.Count);
             yield return new AgentStreamEvent.Completed(
                 new AgentChatResult(answer, loop.Sources, loop.Trace, loop.UsedFallback));
+        }
+        private static readonly HashSet<string> OutOfScopePatterns = new(StringComparer.OrdinalIgnoreCase)
+        {
+             "write code", "loop code", "generate code", "fix my code", "debug",
+            "write a function", "write a program", "write a script",
+            "translate", "essay", "poem", "story", "recipe", "calculate",
+
+            // System prompt extraction — direct
+            "system prompt", "your prompt", "your instructions", "your configuration",
+            "your config", "your rules", "what were you told", "what is your prompt",
+            "print your", "repeat your", "output your", "reveal your", "show your",
+            "display your", "share your instructions",
+
+            // System prompt extraction — indirect/creative (#1, #3, #7)
+            "simulate a debug", "debug error", "simulate an error",
+            "write a story where", "write a poem", "output as a poem",
+            "as a poem", "in a poem", "in french", "in spanish", // translate-the-prompt attacks (#5)
+
+            // Structured output attacks (#4)
+            "system_prompt", "\"system_prompt\"",
+
+            // Encoding attacks (#6)
+            "base64", "encode your", "base64-encode",
+
+            // Anchor compliance attacks (#9)
+            "first say", "say ok then", "say \"ok\"",
+
+            // Role-play override (#2)
+            "pretend you are", "you are now", "act as", "developer mode",
+            "ignore previous", "ignore all previous", "disregard your",
+            "you are a helpful assistant that",
+        };
+        private bool IsOutOfScope(string query)
+        {
+            return OutOfScopePatterns.Any(p => query.Contains(p, StringComparison.OrdinalIgnoreCase));
         }
 
         // ────────────────────── phase 1: plan / act / observe ──────────────────────
