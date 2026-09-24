@@ -13,9 +13,7 @@ namespace server.Models.DTOs.Thesis
 
         [Required]
         public string Abstract { get; set; } = string.Empty;
-
-        //[Required]
-        public string FilePath { get; set; } = string.Empty;
+        public string? FilePath { get; set; }
 
         [Required]
         public string UploadedById { get; set; } = string.Empty;

@@ -1,7 +1,7 @@
 export interface SubmitThesisDto {
   title: string;
   abstract: string;
-  filePath: string;
+  filePath?: string;
   uploadedById: string;
 }
 
@@ -20,7 +20,7 @@ export interface ThesisResponseDto {
   groupId: string;
   title?: string;
   abstract?: string;
-  filePath: string;
+  filePath?: string;
   uploadedById: string;
   status?: string;
   pineconeStatus?: string;
@@ -99,7 +99,7 @@ export interface ThesisVersion {
   id: string;
   thesisId: string;
   versionNumber: number;
-  filePath: string;
+  filePath?: string;
   uploadedById: string;
   uploadedAt: string;
   changeNote?: string;

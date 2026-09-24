@@ -218,7 +218,7 @@ export const mockThesisService: ThesisService = {
     async getDownloadUrl(thesisId) {
         await delay(300);
         const existing = thesesMap.get(thesisId);
-        if (!existing) return null;
+        if (!existing || !existing.filePath) return null;
         return { url: existing.filePath };
     },
 
@@ -248,7 +248,7 @@ export const mockThesisService: ThesisService = {
         await delay(150);
         for (const versions of versionsMap.values()) {
             const version = versions.find((v) => v.id === versionId);
-            if (version) return { url: version.filePath };
+            if (version?.filePath) return { url: version.filePath };
         }
         return null;
     },

@@ -18,7 +18,6 @@ namespace server.Models.Entities
         [Required]
         public string? Abstract { get; set; }
 
-        [Required]
         public string FilePath { get; set; } = string.Empty;
 
         [Required]
