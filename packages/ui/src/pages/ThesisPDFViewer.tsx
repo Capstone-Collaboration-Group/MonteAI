@@ -40,6 +40,7 @@ interface ThesisPDFViewerProps {
   scheduleService: ScheduleService;
   role?: ViewerRole;
   onBack?: () => void;
+  onSubmitRevision?: () => void;
 }
 
 const ANNOTATOR_ROLES: ViewerRole[] = [
@@ -59,6 +60,7 @@ export function ThesisPDFViewerPage({
   scheduleService,
   role = "student",
   onBack,
+  onSubmitRevision,
 }: ThesisPDFViewerProps) {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
 
@@ -168,6 +170,7 @@ export function ThesisPDFViewerPage({
       onDelete={handleDelete}
       onGenerateProceedings={handleGenerateProceedings}
       onBack={onBack}
+      onSubmitRevision={onSubmitRevision}
       panelistPool={panelistPool ?? []}
       scheduledBy={scheduledBy}
       onConfirmSchedule={(payload) => {

@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
@@ -147,7 +147,7 @@ export function SidebarDrawer({
               <Pressable
                 key={item.label}
                 onPress={() => {
-                  if (item.route) router.push(item.route);
+                  if (item.route) router.push(item.route as Href);
                   item.onPress?.();
                   onNavigate?.(item.label);
                   onClose();

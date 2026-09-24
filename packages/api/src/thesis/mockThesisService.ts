@@ -1,9 +1,9 @@
 // packages/api/src/mockThesisService.ts
 import type { ThesisService } from "./types";
 import type {
+    SubmitThesisDto,
     ThesisResponseDto,
     UpdateThesisDto,
-    SubmitThesisDto,
     IngestThesisDto,
     IngestThesisResponseDto,
     CreateAnnotationDto,
@@ -169,12 +169,17 @@ export const mockThesisService: ThesisService = {
         return Array.from(thesesMap.values());
     },
 
-    async submitThesis(dto: SubmitThesisDto) {
+    async submitThesis(dto: SubmitThesisDto, file: File) {
         await delay(300);
+
         const id = crypto.randomUUID();
+
         const newThesis = {
             id,
-            ...dto,
+            title: dto.title,
+            abstract: dto.abstract,
+            filePath: file.name,
+            uploadedById: dto.uploadedById,
             status: "Pending",
             authors: [],
             institute: "",
@@ -233,6 +238,10 @@ export const mockThesisService: ThesisService = {
     async deleteThesis(thesisId) {
         await delay(300);
         return thesesMap.delete(thesisId);
+    },
+
+    async createThesisVersion(_thesisId: string, _file: File, _changeNote?: string): Promise<boolean> {
+        return true;
     },
 
     // Versions

@@ -9,7 +9,7 @@ namespace server.Services.Interfaces
 
         Task<ThesisResponseDto?> GetByIdAsync(Guid id);
 
-        Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto);
+        Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string studentId);
 
         Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto);
         Task<string?> GetDownloadUrlAsync(Guid thesisId);

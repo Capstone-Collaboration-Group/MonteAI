@@ -34,8 +34,8 @@ export function useTheses(thesisService: ThesisService) {
 export function useSubmitThesis(thesisService: ThesisService) { 
     const queryClient = useQueryClient();
     return useMutation( { 
-        mutationFn: (dto: SubmitThesisDto) => thesisService.submitThesis(dto),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: thesesKeys.all }),
+        mutationFn: ({dto, file}: { dto: SubmitThesisDto; file: File }) => thesisService.submitThesis(dto, file),
+        onSuccess: ()  => queryClient.invalidateQueries({ queryKey: thesesKeys.all }),
     });
 }
 export function useUpdateThesis(thesisService: ThesisService) { 

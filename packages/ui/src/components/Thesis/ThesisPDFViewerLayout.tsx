@@ -44,6 +44,7 @@ interface ThesisPDFViewerLayoutProps {
   panelistPool?: PanelistCandidate[];
   scheduledBy?: string;
   onConfirmSchedule?: (data: CreateScheduleDto) => void;
+  onSubmitRevision?: () => void;
 }
 
 export function ThesisPDFViewerLayout({
@@ -66,6 +67,7 @@ export function ThesisPDFViewerLayout({
   onDelete,
   onGenerateProceedings,
   onBack,
+  onSubmitRevision,
   panelistPool,
   scheduledBy,
   onConfirmSchedule
@@ -113,6 +115,15 @@ export function ThesisPDFViewerLayout({
           )}
 
           {/* ── Schedule For Defense ── */}
+            {role === "student" ? (
+          <Button
+            type="button"
+            onClick={onSubmitRevision}
+            className="flex items-center gap-2 text-sm"
+            >
+             Submit a Revised Version
+          </Button>
+          ) : (
           <Button
             type="button"
             onClick={() => setScheduleModalOpen(true)}
@@ -120,7 +131,7 @@ export function ThesisPDFViewerLayout({
           >
             <Calendar className="h-4 w-4" />
             Schedule For Defense
-          </Button>
+          </Button>)}
 
           {/* ── Generate Proceedings ── */}
           <Button
