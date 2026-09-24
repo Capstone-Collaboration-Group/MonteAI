@@ -149,8 +149,9 @@ if (profile.role !== "Student") {
 
 
     onClose();
-  } catch { 
-  }
+  }  catch (error) {
+  console.error("Submission error:", error);
+}
 };
 
   return (

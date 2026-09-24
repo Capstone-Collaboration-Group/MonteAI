@@ -45,7 +45,7 @@ export class LiveThesisService implements ThesisService {
         formData.append("File", file);
         formData.append("Title", dto.title);
         formData.append("Abstract", dto.abstract);
-        formData.append("FilePath", dto.filePath);
+        formData.append("FilePath", dto.filePath ?? "");
         formData.append("UploadedById", dto.uploadedById);
 
         const { data } = await this.client.post<ThesisResponseDto>(`/thesis/submit`, formData);
