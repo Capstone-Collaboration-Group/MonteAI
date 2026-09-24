@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -79,7 +79,7 @@ export default function LibraryScreen() {
           theses.map((t) => (
             <Pressable
               key={t.id}
-              onPress={() => router.push({ pathname: '/thesis/[id]', params: { id: t.id } })}
+              onPress={() => router.push(`/thesis/${t.id}` as Href)}
               accessibilityRole="button"
               accessibilityLabel={`Open ${t.title}`}
               style={({ pressed }) => [

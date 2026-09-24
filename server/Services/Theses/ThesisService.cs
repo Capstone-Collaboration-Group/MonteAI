@@ -40,11 +40,13 @@ namespace server.Services.Theses
         private readonly IPineconeService _pineconeService;
         private readonly IBlobService _blobService;
         private readonly PineconeConfig _pineconeConfig;
+        private readonly IStudentRepository _studentRepo;
 
         public ThesisService(
             IThesisRepository repo,
             IThesisVersionRepository thesisVersionRepo,
             IScheduleRepository scheduleRepository,
+            IStudentRepository studentRepo,
             ILogger<ThesisService> logger,
             IMapper mapper,
             IPineconeService pineconeService,
@@ -54,6 +56,7 @@ namespace server.Services.Theses
             _thesisRepo = repo;
             _thesisVersionRepo = thesisVersionRepo;
             _scheduleRepository = scheduleRepository;
+            _studentRepo = studentRepo;
             _logger = logger;
             _mapper = mapper;
             _pineconeService = pineconeService;
@@ -97,11 +100,32 @@ namespace server.Services.Theses
             _logger.LogInformation("Thesis with Id: {id} successfully fetched", result.Id);
             return dto;
         }
-        public async Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto)
+        public async Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string studentId)
         {
+            var student = await _studentRepo.GetByIdAsync(studentId);
+
+            if (student == null)
+            {
+                throw new InvalidOperationException($"Student profile could not be found.");
+            }
+
+            if (student.ResearchGroup == null)
+            {
+                throw new InvalidOperationException($"You must be part of a research group before submitting a thesis.");
+            }
+
+            var groupId = student.ResearchGroup.Id;
+
+            var alreadyExists = await _thesisRepo.ExistsByGroupIdAsync(groupId);
+
+            if (alreadyExists)
+            {
+                throw new InvalidOperationException( "This research group already has a thesis submission. " + "Delete the existing thesis before submitting a new one.");
+            }
 
             var thesis = _mapper.Map<ThesisEntity>(submitDto);
 
+            thesis.GroupId = groupId;
             thesis.SubmittedAt = DateTime.UtcNow;
 
             var result = await _thesisRepo.SubmitAsync(thesis);
@@ -305,12 +329,41 @@ namespace server.Services.Theses
 
         public async Task<bool> CreateThesisVersion(CreateThesisVersionDto thesisVersionDto, string uploadedById)
         {
+            var student = await _studentRepo.GetByIdAsync(uploadedById);
+
+            if (student == null)
+            {
+                throw new InvalidOperationException("Student profile could not be found.");
+            }
+
+            if (student.ResearchGroup == null)
+            {
+                throw new InvalidOperationException("You must be part of a research group to submit a revised thesis.");
+           }
+
+            var thesis = await _thesisRepo.GetThesisByIdAsync(thesisVersionDto.ThesisId);
+
+            if (thesis == null)
+            {
+                throw new InvalidOperationException("Thesis could not be found.");
+            }
+
+            if (thesis.GroupId != student.ResearchGroup.Id)
+            {
+                throw new UnauthorizedAccessException("You are not authorized to submit a revision for this thesis.");
+            }
+
+            if (!string.Equals(student.Position, "Leader", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("Only the research group leader can submit a revised thesis.");
+            }
+
             var dto = _mapper.Map<ThesisVersion>(thesisVersionDto);
             dto.UploadedById = uploadedById;
             dto.UploadedAt = DateTime.UtcNow;
             dto.VersionNumber = await _thesisVersionRepo.GetNextVersionNumber(thesisVersionDto.ThesisId);
-            var result = await _thesisVersionRepo.CreateThesisVersion(dto);
-            return result;
+            
+            return await _thesisVersionRepo.CreateThesisVersion(dto);
         }
 
         public async Task<bool> DeleteThesisVersion(Guid thesisId)

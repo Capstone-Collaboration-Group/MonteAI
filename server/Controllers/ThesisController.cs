@@ -48,6 +48,10 @@ namespace server.Controllers
             if (dto.File == null)
                 return BadRequest("File is required");
 
+            var studentId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(studentId))
+                return Unauthorized();
+
             await using var stream = dto.File.OpenReadStream();
 
             var blobUrl = await _blobService.UploadAsync(
@@ -57,14 +61,25 @@ namespace server.Controllers
                 );
 
             dto.FilePath = blobUrl;
-            var result = await _service.SubmitAsync(dto);
 
-            
+           try
+            {
+                var result = await _service.SubmitAsync(dto, studentId);
 
-            _logger.LogInformation("Fetched Data: {result}", result);
+                _logger.LogInformation("Thesis submitted successfully: {ThesisId}", result.Id);
 
-            return Ok(result);
-        }
+                 return Ok(result);
+            }
+           catch (InvalidOperationException ex)
+            {
+           _logger.LogWarning(ex, "Thesis submission rejected for an existing research group.");
+
+            return Conflict(new
+                {
+                    Message = ex.Message
+                });
+            }
+                    }
 
         // Desktop-driven ingestion: the Electron pipeline extracts + chunks the
         // abstract, then this endpoint embeds and upserts it (see ThesisService).
@@ -183,7 +198,10 @@ namespace server.Controllers
             var uploadedById = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(uploadedById))
                 return Unauthorized();
+            
+            try{
             await using var stream = dto.File.OpenReadStream();
+            
             var blobUrl = await _blobService.UploadAsync(
                 stream,
                 dto.File.FileName,
@@ -198,6 +216,26 @@ namespace server.Controllers
 
             _logger.LogInformation("Thesis version created for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
             return Ok(new { Message = "Thesis version created successfully." });
+        }
+
+            catch (UnauthorizedAccessException ex)
+            {
+                 _logger.LogWarning(ex,"Unauthorized thesis revision attempt for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
+                return Forbid();
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(
+            ex,
+            "Thesis revision rejected for ThesisId: {ThesisId}",
+            thesisId
+        );
+
+                return BadRequest(new
+                {
+                Message = ex.Message
+                });
+            }
         }
 
         [HttpDelete("versions/{versionId}")]

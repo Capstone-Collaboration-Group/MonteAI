@@ -1,7 +1,7 @@
 import { type AxiosInstance } from "axios";
 import type {
-    ThesisResponseDto,
     SubmitThesisDto,
+    ThesisResponseDto,
     UpdateThesisDto,
     IngestThesisDto,
     IngestThesisResponseDto,
@@ -39,8 +39,16 @@ export class LiveThesisService implements ThesisService {
         }
     }
     // async submitThesis
-    async submitThesis(dto: SubmitThesisDto): Promise<ThesisResponseDto> {
-        const { data } = await this.client.post<ThesisResponseDto>(`/thesis/submit`, dto);
+    async submitThesis(dto: SubmitThesisDto, file: File): Promise<ThesisResponseDto> {
+        const formData = new FormData();
+
+        formData.append("File", file);
+        formData.append("Title", dto.title);
+        formData.append("Abstract", dto.abstract);
+        formData.append("FilePath", dto.filePath);
+        formData.append("UploadedById", dto.uploadedById);
+
+        const { data } = await this.client.post<ThesisResponseDto>(`/thesis/submit`, formData);
         return data;
     }
     // async ingestThesis(No Embedding currently implemented)
@@ -149,6 +157,29 @@ export class LiveThesisService implements ThesisService {
             return handle404(err, null);
         }
     }
+
+    async createThesisVersion(thesisId: string, file: File, changeNote?: string): Promise<boolean> {
+        const formData = new FormData();
+
+        formData.append("File", file);
+
+        if (changeNote) {
+        formData.append("ChangeNote", changeNote);
+        }
+
+        formData.append("ThesisId", thesisId);
+
+        try {
+        await this.client.post(
+            `/thesis/${thesisId}/versions`,
+            formData
+        );
+
+        return true;
+        } catch (err) {
+        return handle404(err, false);
+    }
+}
 
     // Proceedings 
     async generateProceedings(thesisId: string): Promise<Blob> {
