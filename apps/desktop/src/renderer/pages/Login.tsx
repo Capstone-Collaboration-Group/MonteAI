@@ -23,7 +23,11 @@ export default function Login() {
             <LeftPanel />
 
             <div className="p-6 sm:p-8 lg:p-10">
-              <LoginForm auth={auth} onSuccess={() => navigate("/home")} />
+              <LoginForm
+                auth={auth}
+                onSuccess={() => navigate("/")}
+                onResumeRegistration={() => navigate("/register")}
+              />
             </div>
           </div>
         </Card>
