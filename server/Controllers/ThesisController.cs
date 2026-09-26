@@ -26,6 +26,51 @@ namespace server.Controllers
             _blobService = blobService;
         }
 
+        private const long MaxUploadBytes = 25 * 1024 * 1024;
+
+        // Server-side gate for every thesis upload (initial submission + revisions).
+        // The UI already restricts the file picker to PDFs, but the API must not
+        // trust the client. Returns null when the file is acceptable, otherwise a
+        // message to send back as 400 — always BEFORE anything hits blob storage.
+        private static async Task<string?> ValidatePdfAsync(IFormFile file)
+        {
+            if (file.Length == 0)
+                return "File is empty.";
+
+            if (file.Length > MaxUploadBytes)
+                return "File must be 25 MB or smaller.";
+
+            if (!string.Equals(Path.GetExtension(file.FileName), ".pdf", StringComparison.OrdinalIgnoreCase))
+                return "Only PDF files are allowed.";
+
+            if (!string.Equals(file.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+                return "Only PDF files are allowed.";
+
+            // Magic bytes: a real PDF starts with "%PDF-". Extension and MIME type
+            // are both client-controlled; the header is the only reliable signal.
+            await using var stream = file.OpenReadStream();
+            if (stream.CanSeek) stream.Position = 0;
+
+            var header = new byte[5];
+            var totalRead = 0;
+            while (totalRead < header.Length)
+            {
+                var read = await stream.ReadAsync(header.AsMemory(totalRead, header.Length - totalRead));
+                if (read == 0) break;
+                totalRead += read;
+            }
+            if (stream.CanSeek) stream.Position = 0;
+
+            var isPdf = totalRead == header.Length
+                && header[0] == (byte)'%'
+                && header[1] == (byte)'P'
+                && header[2] == (byte)'D'
+                && header[3] == (byte)'F'
+                && header[4] == (byte)'-';
+
+            return isPdf ? null : "File does not appear to be a valid PDF.";
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetFirst20Thesis()
         {
@@ -42,29 +87,42 @@ namespace server.Controllers
         }
 
         [HttpPost("submit")]
+        [Authorize(Roles = "Student,Admin")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> SubmitThesis([FromForm] SubmitThesisDto dto)
         {
             if (dto.File == null)
                 return BadRequest("File is required");
 
-            var studentId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(studentId))
+            var pdfError = await ValidatePdfAsync(dto.File);
+            if (pdfError != null)
+                return BadRequest(pdfError);
+
+            var uploaderId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(uploaderId))
                 return Unauthorized();
+
+            var isAdmin = User.IsInRole("Admin");
+
+            // Admins may archive legacy (hard-copy) theses on behalf of the repository —
+            // attribute the upload to the acting account instead of trusting the client.
+            if (isAdmin)
+                dto.UploadedById = uploaderId;
 
             await using var stream = dto.File.OpenReadStream();
 
             var blobUrl = await _blobService.UploadAsync(
                     stream,
                     dto.File.FileName,
-                    dto.File.ContentType
+                    dto.File.ContentType,
+                    dto.Title // blob name is derived from the thesis title
                 );
 
             dto.FilePath = blobUrl;
 
            try
             {
-                var result = await _service.SubmitAsync(dto, studentId);
+                var result = await _service.SubmitAsync(dto, uploaderId, isAdmin);
 
                 _logger.LogInformation("Thesis submitted successfully: {ThesisId}", result.Id);
 
@@ -195,17 +253,23 @@ namespace server.Controllers
             if (dto.File == null)
                 return BadRequest("File is required.");
 
+            var pdfError = await ValidatePdfAsync(dto.File);
+            if (pdfError != null)
+                return BadRequest(pdfError);
+
             var uploadedById = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(uploadedById))
                 return Unauthorized();
             
             try{
             await using var stream = dto.File.OpenReadStream();
-            
+
+            var thesisTitle = (await _service.GetByIdAsync(thesisId))?.Title;
             var blobUrl = await _blobService.UploadAsync(
                 stream,
                 dto.File.FileName,
-                dto.File.ContentType
+                dto.File.ContentType,
+                thesisTitle // keep revision blobs named after the thesis title
             );
 
             dto.ThesisId = thesisId;

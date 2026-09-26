@@ -100,32 +100,39 @@ namespace server.Services.Theses
             _logger.LogInformation("Thesis with Id: {id} successfully fetched", result.Id);
             return dto;
         }
-        public async Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string studentId)
+        public async Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false)
         {
-            var student = await _studentRepo.GetByIdAsync(studentId);
-
-            if (student == null)
-            {
-                throw new InvalidOperationException($"Student profile could not be found.");
-            }
-
-            if (student.ResearchGroup == null)
-            {
-                throw new InvalidOperationException($"You must be part of a research group before submitting a thesis.");
-            }
-
-            var groupId = student.ResearchGroup.Id;
-
-            var alreadyExists = await _thesisRepo.ExistsByGroupIdAsync(groupId);
-
-            if (alreadyExists)
-            {
-                throw new InvalidOperationException( "This research group already has a thesis submission. " + "Delete the existing thesis before submitting a new one.");
-            }
-
             var thesis = _mapper.Map<ThesisEntity>(submitDto);
 
-            thesis.GroupId = groupId;
+            // Admin archival upload (e.g. legacy hard-copy theses): skip the student /
+            // research-group checks — GroupId stays null (the one-thesis-per-group rule
+            // does not apply) and Status keeps the entity default "Pending".
+            if (!isAdmin)
+            {
+                var student = await _studentRepo.GetByIdAsync(uploaderId);
+
+                if (student == null)
+                {
+                    throw new InvalidOperationException($"Student profile could not be found.");
+                }
+
+                if (student.ResearchGroup == null)
+                {
+                    throw new InvalidOperationException($"You must be part of a research group before submitting a thesis.");
+                }
+
+                var groupId = student.ResearchGroup.Id;
+
+                var alreadyExists = await _thesisRepo.ExistsByGroupIdAsync(groupId);
+
+                if (alreadyExists)
+                {
+                    throw new InvalidOperationException( "This research group already has a thesis submission. " + "Delete the existing thesis before submitting a new one.");
+                }
+
+                thesis.GroupId = groupId;
+            }
+
             thesis.SubmittedAt = DateTime.UtcNow;
 
             var result = await _thesisRepo.SubmitAsync(thesis);
