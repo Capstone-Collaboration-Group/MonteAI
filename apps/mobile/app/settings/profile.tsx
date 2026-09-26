@@ -25,12 +25,11 @@ export default function ProfileSettingsScreen() {
   const primary = useThemeColor({}, 'primary');
   const border = useThemeColor({}, 'outline');
 
-  const [name, setName] = useState('Miu Ichika');
-  const [email, setEmail] = useState('miu.ichika@student.edu.ph');
-  const [studentNo, setStudentNo] = useState('00-0000');
-  const [institute, setInstitute] = useState('ICS');
-  const [showInstituteOptions, setShowInstituteOptions] = useState(false);
-
+ const [name, setName] = useState('');
+const [email, setEmail] = useState('');
+const [studentNo, setStudentNo] = useState('');
+const [institute, setInstitute] = useState('');
+const [showInstituteOptions, setShowInstituteOptions] = useState(false);
   return (
     <SafeAreaView
       style={[
