@@ -1,46 +1,31 @@
 import { Stack, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert } from 'react-native';
+import React, { useCallback } from 'react';
 
-import SignUpFlow, { type SignUpPayload } from '@/components/SignUpFlow';
+import SignUpFlow from '@/components/SignUpFlow';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
-import { describeAuthError } from '@/lib/authService';
 
 /**
  * Sign-up route — Figma "Sign Up Step by Step" (node 492:26).
- * After the in-flow email OTP verification, the account is created in
- * Firebase and the student profile is registered via /auth/register.
+ * Two-phase registration: create the Firebase account + send the default
+ * Firebase verification link, and only after the link is opened register
+ * the student profile via /auth/register (the profile also carries the
+ * student-number → email mapping future logins depend on).
+ * Errors surface inside SignUpFlow via describeAuthError.
  */
 export default function SignUpRoute() {
   const router = useRouter();
-  const { registerStudent } = useAuthSession();
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    beginRegistration,
+    completeRegistration,
+    checkVerification,
+    resendVerification,
+    cancelRegistration,
+  } = useAuthSession();
 
-  const handleComplete = async (payload: SignUpPayload) => {
-    if (submitting) return;
-    setSubmitting(true);
-    try {
-      await registerStudent({
-        studentNumber: payload.studentNumber,
-        firstName: payload.firstName,
-        middleInitial: payload.middleInitial,
-        lastName: payload.lastName,
-        suffix: payload.suffix,
-        email: payload.email,
-        institute: payload.institute,
-        program: payload.program,
-        yearLevel: payload.yearLevel,
-        section: payload.section,
-        position: payload.position,
-        password: payload.password,
-      });
-      router.replace('/(tabs)/home');
-    } catch (err) {
-      Alert.alert('Registration failed', describeAuthError(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const handleComplete = useCallback(async () => {
+    await completeRegistration();
+    router.replace('/(tabs)/home');
+  }, [completeRegistration, router]);
 
   return (
     <>
@@ -54,7 +39,11 @@ export default function SignUpRoute() {
           if (router.canGoBack()) router.back();
           else router.replace('/auth-entry');
         }}
-        onComplete={handleComplete}
+        onBeginRegistration={beginRegistration}
+        onCompleteRegistration={handleComplete}
+        onCheckVerification={checkVerification}
+        onResendVerification={resendVerification}
+        onCancelRegistration={cancelRegistration}
       />
     </>
   );
