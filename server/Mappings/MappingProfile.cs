@@ -135,7 +135,15 @@ namespace server.Mappings
                    .ForMember(dest => dest.Institute, opt => opt.MapFrom(src =>
                     src.CreatedByProgramHead != null
                         ? src.CreatedByProgramHead.Institute
-                        : "All"));
+                        : "All"))
+                   .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src =>
+                    src.CreatedAt.HasValue
+                        ? DateTime.SpecifyKind(src.CreatedAt.Value, DateTimeKind.Utc)
+                        : (DateTime?)null))
+                   .ForMember(dest => dest.LastModified, opt => opt.MapFrom(src =>
+                    src.LastModified.HasValue
+                        ? DateTime.SpecifyKind(src.LastModified.Value, DateTimeKind.Utc)
+                        : (DateTime?)null));
             CreateMap<CreateAnnouncementDto, Announcement>();
             CreateMap<UpdateAnnouncementDto, Announcement>();
            
