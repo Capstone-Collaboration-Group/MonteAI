@@ -32,14 +32,32 @@ export type RefreshRequestDto = {
 
 
 // packages/types/src/auth.ts — additions
-export interface RegisterFormDto {
-  studentNumber: string;
-  fullName: string;
+export type RegistrationRole = "Student" | "Faculty";
+
+/**
+ * Payload for POST /auth/register. Mirrors the server's `RegisterUserDto`
+ * (ASP.NET binds JSON case-insensitively). Student-only fields must be
+ * omitted for faculty registrations and vice versa.
+ */
+export interface RegisterUserRequest {
+  id: string;
   email: string;
+  firstName: string;
+  middleInitial?: string;
+  lastName: string;
+  suffix?: string;
+  role: RegistrationRole;
+  /** Student only */
+  studentNumber?: string;
+  /** Student only — server column is NOT NULL; send "Member" by default */
+  position?: string;
   institute: string;
-  program: string;
-  year: string;
-  password: string;
+  /** Student only */
+  program?: string;
+  /** Student only */
+  yearLevel?: number;
+  /** Student only — single letter */
+  section?: string;
 }
 
 export interface VerifyOTPDto {

@@ -3,3 +3,4 @@ export * from "./formatDate";
 export * from "./truncate";
 export * from "./cn";
 export * from "./fullNameHelper";
+export * from "./emailRules";

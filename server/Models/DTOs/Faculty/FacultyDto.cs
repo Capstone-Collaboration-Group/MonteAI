@@ -9,6 +9,7 @@ namespace server.Models.DTOs.Faculty
 
         [Required]
         [EmailAddress]
+        [RegularExpression(@"^[a-zA-Z0-9._%+-]+@(student\.)?pnm\.edu\.ph$", ErrorMessage = "Email must be a valid @pnm.edu.ph or @student.pnm.edu.ph address.")]
         [MaxLength(100)]
         public string Email { get; set; } = string.Empty;
 
@@ -37,6 +38,7 @@ namespace server.Models.DTOs.Faculty
     public class UpdateFacultyDto
     {
         [EmailAddress]
+        [RegularExpression(@"^[a-zA-Z0-9._%+-]+@(student\.)?pnm\.edu\.ph$", ErrorMessage = "Email must be a valid @pnm.edu.ph or @student.pnm.edu.ph address.")]
         [MaxLength(100)]
         public string? Email { get; set; }
 

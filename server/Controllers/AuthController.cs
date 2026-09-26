@@ -36,6 +36,18 @@ namespace server.Controllers
         {
             if (string.IsNullOrEmpty(dto.Id))
                 return BadRequest(new { Message = "Firebase UID is required." });
+
+            // Role-specific email domains: students use @student.pnm.edu.ph,
+            // faculty use @pnm.edu.ph (the student domain does not satisfy
+            // EndsWith("@pnm.edu.ph") because of the extra "student." label).
+            var email = dto.Email?.Trim() ?? string.Empty;
+            if (dto.Role == "Student" &&
+                !email.EndsWith("@student.pnm.edu.ph", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { Message = "Students must register with an @student.pnm.edu.ph email address." });
+            if (dto.Role == "Faculty" &&
+                !email.EndsWith("@pnm.edu.ph", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { Message = "Faculty must register with a @pnm.edu.ph email address." });
+
             var result = dto.Role switch
             {
                 "Student" => await _studentService.RegisterAsync(dto, dto.Id),
