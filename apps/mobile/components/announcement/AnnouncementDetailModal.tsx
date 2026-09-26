@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AnnouncementResponseDto } from '@monteai/types';
@@ -104,6 +104,30 @@ export function AnnouncementDetailModal({ announcement, onClose }: AnnouncementD
             </View>
 
             <Text style={[s.contentText, { color: body }]}>{display.content}</Text>
+
+            {!!display.attachmentUrls?.length && (
+              <View style={s.attachments}>
+                <Text style={[s.attachmentsTitle, { color: heading }]}>Attachments</Text>
+                {display.attachmentUrls.map((url) => (
+                  <Pressable
+                    key={url}
+                    onPress={() => Linking.openURL(url).catch(() => {})}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open attachment ${url}`}
+                    style={({ pressed }) => [
+                      s.attachmentRow,
+                      { backgroundColor: surfaceLow, borderColor: outline },
+                      pressed && { opacity: 0.85 },
+                    ]}>
+                    <MaterialIcons name="attach-file" size={16} color={primary} />
+                    <Text style={[s.attachmentText, { color: primary }]} numberOfLines={1}>
+                      {url}
+                    </Text>
+                    <MaterialIcons name="open-in-new" size={14} color={body} />
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </ScrollView>
         )}
       </Animated.View>
@@ -140,4 +164,16 @@ const s = StyleSheet.create({
   label: { fontSize: FontSize.xs },
   value: { fontSize: FontSize.sm, fontWeight: '600' },
   contentText: { fontSize: FontSize.md, lineHeight: 26 },
+  attachments: { gap: Spacing.sm },
+  attachmentsTitle: { fontSize: FontSize.sm, fontWeight: '700' },
+  attachmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  attachmentText: { flex: 1, fontSize: FontSize.xs, textDecorationLine: 'underline' },
 });

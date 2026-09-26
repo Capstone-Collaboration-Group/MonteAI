@@ -44,6 +44,7 @@ namespace server.Services
         public async Task<bool> CreateAsync(CreateAnnouncementDto createDto, string userId, string role)
         {
             var announcement = _mapper.Map<Announcement>(createDto);
+            announcement.CreatedAt = DateTime.UtcNow;
             if (role == "Admin")
                 announcement.CreatedByAdminId = userId;
             if (role == "ProgramHead")

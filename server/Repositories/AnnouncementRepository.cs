@@ -46,7 +46,7 @@ namespace server.Repositories
             existing.Category = announcement.Category;
             existing.Priority = announcement.Priority;
             existing.AttachmentUrls = announcement.AttachmentUrls;
-            existing.LastModified = announcement.LastModified;
+            existing.LastModified = announcement.LastModified ?? DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
             return true;

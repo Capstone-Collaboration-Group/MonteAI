@@ -128,6 +128,14 @@ export default function AnnouncementsScreen() {
                   <View style={s.sourceRow}>
                     <MaterialIcons name="account-circle" size={16} color={body} />
                     <Text style={[s.source, { color: body }]}>{a.author?.fullName ?? 'Admin'}</Text>
+                    {!!a.attachmentUrls?.length && (
+                      <MaterialIcons
+                        name="attach-file"
+                        size={14}
+                        color={body}
+                        accessibilityLabel={`${a.attachmentUrls.length} attachment(s)`}
+                      />
+                    )}
                   </View>
                   <View style={s.readMore}>
                     <Text style={[s.readMoreText, { color: primary }]}>Read Full Message</Text>
