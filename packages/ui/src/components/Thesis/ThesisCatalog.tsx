@@ -7,6 +7,8 @@ import { SubmissionHealthCard } from "./SubmissionHealthCard";
 import { ThesisListView } from "./ThesisListView";
 import { PageHeader, PageLayout} from "../common";
 import { Input } from "../Input";
+import { Button } from "../Button";
+import { UploadCloud } from "lucide-react";
 
 type StatusFilter = "None" | ThesisStatus;
 
@@ -20,6 +22,9 @@ interface ThesisCatalogProps {
   onSelectThesis?: (thesisId: string) => void;
   onThesisAction?: (thesisId: string, action: ThesisActionType) => void;
   allowedActions?: ThesisActionType[];
+  /** RBAC: only render the upload CTA when the viewer is allowed to upload (Admin). */
+  canUpload?: boolean;
+  onUploadThesis?: () => void;
   // onFilterClick?: () => void;
 }
 const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision", "indexed"];
@@ -34,6 +39,8 @@ export function ThesisCatalog({
   onSelectThesis,
   onThesisAction,
   allowedActions = [],
+  canUpload = false,
+  onUploadThesis,
   // onFilterClick,  
 }: ThesisCatalogProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("None");
@@ -64,6 +71,19 @@ export function ThesisCatalog({
           title="Catalog"
           actions={
             <>
+              {canUpload && onUploadThesis && (
+                <Button
+                  type="button"
+                  onClick={onUploadThesis}
+                  className="rounded-full shadow-sm"
+                >
+                  <span className="flex items-center gap-2 whitespace-nowrap">
+                    <UploadCloud className="h-4 w-4" />
+                    Upload thesis
+                  </span>
+                </Button>
+              )}
+
               <div className="w-full sm:w-80">
                 <Input
                   placeholder="Search by title, author, or institute"
