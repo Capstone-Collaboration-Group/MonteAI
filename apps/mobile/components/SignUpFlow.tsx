@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -14,9 +14,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { OTP_LENGTH, type OtpService } from '@monteai/api';
-import { otpService as defaultOtpService } from '@/lib/otpService';
 import type { CreateStudentDto } from '@monteai/types';
+import { describeAuthError } from '@/lib/authService';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { TextField } from '@/components/ui/TextField';
 import { SelectDropdown } from '@/components/ui/SelectDropdown';
@@ -43,20 +42,28 @@ const YEAR_LEVELS = [
 
 const DEFAULT_POSITION = 'Member';
 const TOTAL_FORM_STEPS = 5;
+const VERIFY_STEP = 6;
+const RESEND_COOLDOWN_SECONDS = 60;
+const VERIFY_POLL_INTERVAL_MS = 4000;
 
 // ── Types ──────────────────────────────────────────────────────────
 export type SignUpPayload = Omit<CreateStudentDto, 'id' | 'groupId'> & {
   fullName: string;
   password: string;
-  otp: string;
 };
 
 interface SignUpFlowProps {
   onExit?: () => void;
   onLoginPress?: () => void;
-  onResendCode?: (email: string) => void | Promise<void>;
-  otpService?: OtpService;
-  onComplete?: (payload: SignUpPayload) => void;
+  /** Phase 1: create the Firebase account + send the verification link. */
+  onBeginRegistration?: (payload: SignUpPayload) => Promise<{ verificationRequired: boolean }>;
+  /** Phase 2: register the profile once the link was opened. */
+  onCompleteRegistration?: () => Promise<void>;
+  /** True once Firebase reports emailVerified for the current user. */
+  onCheckVerification?: () => Promise<boolean>;
+  onResendVerification?: () => Promise<void>;
+  /** Backing out of the verify step — drops the pending account. */
+  onCancelRegistration?: () => Promise<void>;
   initialStep?: number;
 }
 
@@ -76,13 +83,13 @@ function StepDots({ step }: { step: number }) {
 export default function SignUpFlow({
   onExit,
   onLoginPress,
-  onResendCode,
-  otpService,
-  onComplete,
+  onBeginRegistration,
+  onCompleteRegistration,
+  onCheckVerification,
+  onResendVerification,
+  onCancelRegistration,
   initialStep = 1,
 }: SignUpFlowProps) {
-  const activeOtpService = otpService ?? defaultOtpService;
-
   const [step, setStep] = useState(initialStep);
   const [firstName, setFirstName] = useState('');
   const [middleInitial, setMiddleInitial] = useState('');
@@ -96,13 +103,15 @@ export default function SignUpFlow({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [codeSent, setCodeSent] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+  const finishingRef = useRef(false);
 
   const background = useThemeColor({}, 'background');
   const primary = useThemeColor({}, 'primary');
@@ -111,10 +120,80 @@ export default function SignUpFlow({
   const surface = useThemeColor({}, 'surface');
   const outline = useThemeColor({}, 'outlineVariant');
 
+  // ── Registration phases ──────────────────────────────────────────
+  const finish = useCallback(
+    async (errorKey: 'email' | 'verify') => {
+      if (finishingRef.current) return;
+      finishingRef.current = true;
+      setFinishing(true);
+      try {
+        setErrors({});
+        await onCompleteRegistration?.();
+      } catch (err) {
+        setErrors({ [errorKey]: describeAuthError(err) });
+      } finally {
+        finishingRef.current = false;
+        setFinishing(false);
+      }
+    },
+    [onCompleteRegistration],
+  );
+
+  // Latest callbacks for the interval created below (effect deps stay [step]).
+  const pollHandlers = useRef({ onCheckVerification, finish });
+  useEffect(() => {
+    pollHandlers.current = { onCheckVerification, finish };
+  }, [onCheckVerification, finish]);
+
+  // Auto-check every few seconds while the verify step is on screen so a
+  // link opened in the mail app advances the flow without a manual tap.
+  useEffect(() => {
+    if (step !== VERIFY_STEP) return;
+    let cancelled = false;
+    const id = setInterval(() => {
+      const { onCheckVerification: check, finish: done } = pollHandlers.current;
+      check
+        ?.()
+        .then((ok) => {
+          if (ok && !cancelled) return done('verify');
+          return undefined;
+        })
+        .catch(() => {
+          // transient network error — the next tick will retry
+        });
+    }, VERIFY_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [step]);
+
+  // Resend cooldown ticker (60s window mirroring the web/desktop flow).
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const id = setTimeout(() => setResendIn((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendIn]);
+
   // ── Handlers ─────────────────────────────────────────────────────
-  const goBack = () => {
-    if (step > 1) { setErrors({}); setStep((p) => p - 1); }
-    else onExit?.();
+  const goBack = async () => {
+    if (step === VERIFY_STEP) {
+      setErrors({});
+      setResendIn(0);
+      try {
+        await onCancelRegistration?.();
+      } catch {
+        // best effort — beginRegistration resumes a leftover account
+      }
+      setStep(TOTAL_FORM_STEPS);
+      return;
+    }
+    if (step > 1) {
+      setErrors({});
+      setStep((p) => p - 1);
+    } else {
+      onExit?.();
+    }
   };
 
   const validateStep = (): boolean => {
@@ -152,46 +231,65 @@ export default function SignUpFlow({
       lastName: lastName.trim(), suffix: cleanSuffix || undefined,
       studentNumber: studentNumber.trim(), email: email.trim(),
       institute, program, position: DEFAULT_POSITION, yearLevel,
-      section: cleanSection, password, otp: otp.trim(),
+      section: cleanSection, password,
     };
   };
 
   const handleNext = async () => {
     if (!validateStep()) return;
-    if (step < TOTAL_FORM_STEPS) { setStep((p) => p + 1); return; }
-    setSending(true);
+    if (step < TOTAL_FORM_STEPS) {
+      setStep((p) => p + 1);
+      return;
+    }
+    setStarting(true);
     try {
-      const ok = onResendCode ? (await onResendCode(email.trim()), true) : await activeOtpService.sendOtp(email.trim());
-      if (!ok) { setErrors({ email: 'Could not send the verification code. Try again.' }); return; }
-      setErrors({}); setCodeSent(true); setStep(6);
-    } catch {
-      setErrors({ email: 'Could not send the verification code. Check your connection and try again.' });
-    } finally { setSending(false); }
+      const result = await onBeginRegistration?.(buildPayload());
+      if (result?.verificationRequired) {
+        setErrors({});
+        setResendIn(RESEND_COOLDOWN_SECONDS);
+        setStep(VERIFY_STEP);
+      } else {
+        // Mock mode / verified resume — no email step needed.
+        await finish('email');
+      }
+    } catch (err) {
+      setErrors({ email: describeAuthError(err) });
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleCheck = async () => {
+    if (checking || finishing) return;
+    setChecking(true);
+    try {
+      const ok = await onCheckVerification?.();
+      if (ok) {
+        await finish('verify');
+      } else {
+        setErrors({
+          verify: 'Not verified yet. Open the link in your email, then try again.',
+        });
+      }
+    } catch (err) {
+      setErrors({ verify: describeAuthError(err) });
+    } finally {
+      setChecking(false);
+    }
   };
 
   const handleResend = async () => {
-    if (sending) return;
-    setSending(true);
+    if (resending || resendIn > 0) return;
+    setResending(true);
     try {
-      const ok = onResendCode ? (await onResendCode(email.trim()), true) : await activeOtpService.resendOtp(email.trim());
-      if (!ok) { setErrors({ otp: 'Could not resend the code. Try again.' }); return; }
-      setErrors({}); setCodeSent(true);
-    } catch {
-      setErrors({ otp: 'Could not resend the code. Check your connection and try again.' });
-    } finally { setSending(false); }
-  };
-
-  const handleVerify = async () => {
-    if (otp.trim().length !== OTP_LENGTH) { setErrors({ otp: `Enter the ${OTP_LENGTH}-digit code sent to your email.` }); return; }
-    if (onResendCode) { setErrors({}); onComplete?.(buildPayload()); return; }
-    setVerifying(true);
-    try {
-      const ok = await activeOtpService.verifyOtp({ email: email.trim(), otp: otp.trim() });
-      if (!ok) { setErrors({ otp: 'Incorrect or expired code. Check it and try again.' }); return; }
-      setErrors({}); onComplete?.(buildPayload());
-    } catch {
-      setErrors({ otp: 'Could not verify the code. Check your connection and try again.' });
-    } finally { setVerifying(false); }
+      await onResendVerification?.();
+      setErrors({});
+      setResendIn(RESEND_COOLDOWN_SECONDS);
+    } catch (err) {
+      setErrors({ verify: describeAuthError(err) });
+    } finally {
+      setResending(false);
+    }
   };
 
   // ── Render ───────────────────────────────────────────────────────
@@ -223,37 +321,29 @@ export default function SignUpFlow({
                 </View>
               </View>
 
-            /* ── Step 6: OTP verify ── */
-            ) : step === 6 ? (
+            /* ── Step 6: email verification (Firebase link) ── */
+            ) : step === VERIFY_STEP ? (
               <View style={s.stepBody}>
                 <View style={s.iconBadge}>
                   <MaterialIcons name="mark-email-read" size={32} color={primary} />
                 </View>
-                <Text style={[s.stepHeader, { color: heading }]}>Verify your email</Text>
+                <Text style={[s.stepHeader, { color: heading }]}>Check your email</Text>
                 <Text style={[s.stepHint, { color: body }]}>
-                  We sent a verification code to{'\n'}
+                  We sent a verification link to{'\n'}
                   <Text style={{ fontWeight: '600', color: heading }}>{email.trim()}</Text>
+                  {'\n'}Open it to activate your account.
                 </Text>
-                <FormField label="Verification code" icon="password" error={errors.otp}>
-                  <TextInput
-                    value={otp}
-                    onChangeText={setOtp}
-                    placeholder={`Enter ${OTP_LENGTH}-digit code`}
-                    placeholderTextColor="#9ca3af"
-                    keyboardType="number-pad"
-                    maxLength={OTP_LENGTH}
-                    autoComplete="one-time-code"
-                    style={[s.otpInput, { backgroundColor: surface, borderColor: errors.otp ? '#ba1a1a' : outline, color: heading }]}
-                  />
-                </FormField>
-                {codeSent ? (
-                  <Text style={[s.stepHint, { color: body }]}>
-                    Didn&apos;t get the code?{' '}
-                    {sending
-                      ? <Text style={{ color: primary, fontWeight: '600' }}>Sending…</Text>
-                      : <Text onPress={handleResend} style={{ color: primary, fontWeight: '600' }}>Resend</Text>}
-                  </Text>
-                ) : null}
+                {errors.verify ? <Text style={[s.stepHint, s.verifyError]}>{errors.verify}</Text> : null}
+                <Text style={[s.stepHint, { color: body }]}>
+                  Didn&apos;t get the email?{' '}
+                  {resendIn > 0 ? (
+                    <Text style={{ color: '#9ca3af' }}>Resend in {resendIn}s</Text>
+                  ) : resending ? (
+                    <Text style={{ color: primary, fontWeight: '600' }}>Sending…</Text>
+                  ) : (
+                    <Text onPress={handleResend} style={{ color: primary, fontWeight: '600' }}>Resend</Text>
+                  )}
+                </Text>
               </View>
 
             /* ── Steps 2-5: Form fields ── */
@@ -323,12 +413,20 @@ export default function SignUpFlow({
 
             {/* ── Actions ── */}
             <View style={s.actions}>
-              {step === 6 ? (
-                <PrimaryButton label={verifying ? 'Verifying…' : 'Verify'} onPress={handleVerify} disabled={verifying} loading={verifying} accessibilityLabel="Verify email" />
+              {step === VERIFY_STEP ? (
+                <PrimaryButton
+                  label={checking || finishing ? 'Checking…' : 'I’ve verified — Continue'}
+                  onPress={handleCheck}
+                  disabled={checking || finishing}
+                  loading={checking || finishing}
+                  accessibilityLabel="I have verified my email"
+                />
               ) : (
                 <PrimaryButton
-                  label={step === TOTAL_FORM_STEPS ? (sending ? 'Sending code…' : 'Create Account') : 'Next'}
-                  onPress={handleNext} disabled={sending} loading={sending}
+                  label={step === TOTAL_FORM_STEPS ? (starting ? 'Creating account…' : 'Create Account') : 'Next'}
+                  onPress={handleNext}
+                  disabled={starting || finishing}
+                  loading={starting}
                   accessibilityLabel={step === TOTAL_FORM_STEPS ? 'Create Account' : 'Next'}
                 />
               )}
@@ -367,12 +465,12 @@ const s = StyleSheet.create({
   stepHeader: { fontSize: FontSize.xxl, textAlign: 'center' },
   stepOf: { fontSize: FontSize.sm, textAlign: 'center' },
   stepHint: { fontSize: FontSize.sm, lineHeight: 20, textAlign: 'center' },
+  verifyError: { color: '#ba1a1a', fontWeight: '500' },
   // Dots
   dotsRow: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: Spacing.sm },
   dot: { width: 32, height: 4, borderRadius: 2 },
-  // OTP
+  // Verify step
   iconBadge: { alignSelf: 'center', width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: '#dcfce7' },
-  otpInput: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.lg, fontSize: FontSize.xl, letterSpacing: 6, textAlign: 'center' },
   // Password row
   inputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.lg, justifyContent: 'space-between' },
   inputFlex: { flex: 1, fontSize: FontSize.md, paddingRight: Spacing.sm },
