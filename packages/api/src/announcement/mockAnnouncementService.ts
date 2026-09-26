@@ -102,8 +102,7 @@ export const mockAnnouncementService: AnnouncementService = {
       institute: "All",
       priority: dto.priority,
       attachmentUrls: dto.attachmentUrls,
-      createdAt: dto.createdAt ?? now,
-      lastModified: dto.lastModified ?? now,
+      createdAt: now,
       author: {
         id: "admin-1",
         fullName: "Juan Dela Cruz",
