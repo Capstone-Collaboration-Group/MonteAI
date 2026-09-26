@@ -12,7 +12,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { firebaseAuth } from '@/lib/firebase';
 import {
-  registerStudentAccount,
+  EMAIL_NOT_VERIFIED_CODE,
+  authError,
+  checkEmailVerified,
+  completeProfileRegistration,
+  createStudentAccount,
+  deleteUnverifiedAccount,
+  sendVerificationEmail,
+  signInWithPassword,
   signInWithStudentNumber as authServiceSignIn,
   signOut as authServiceSignOut,
 } from '@/lib/authService';
@@ -38,16 +45,29 @@ export interface StudentRegistration {
   password: string;
 }
 
+/** What gets persisted while waiting for the verification link. */
+export type PendingRegistration = Omit<StudentRegistration, 'password'>;
+
+export interface BeginRegistrationResult {
+  /** False in mock mode (and verified resumes) — skip the email step. */
+  verificationRequired: boolean;
+}
+
 export interface AuthSessionContextValue {
   session: AuthSession | null;
   restoring: boolean;
   signInWithStudentNumber: (studentNumber: string, password: string) => Promise<void>;
-  registerStudent: (payload: StudentRegistration) => Promise<void>;
+  beginRegistration: (payload: StudentRegistration) => Promise<BeginRegistrationResult>;
+  completeRegistration: () => Promise<void>;
+  checkVerification: () => Promise<boolean>;
+  resendVerification: () => Promise<void>;
+  cancelRegistration: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const MOCK_SESSION_KEY = 'monteai.auth.session';
 const STUDENT_NUMBER_KEY = 'monteai.auth.studentNumber';
+const PENDING_REGISTRATION_KEY = 'monteai.pendingRegistration';
 
 const useMock =
   (process.env.EXPO_PUBLIC_USE_MOCK ?? (__DEV__ ? 'true' : 'false')) === 'true';
@@ -62,15 +82,59 @@ export function useAuthSession(): AuthSessionContextValue {
   return context;
 }
 
+async function safeGet(key: string): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+async function safeSet(key: string, value: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(key, value);
+  } catch {
+    // storage failures shouldn't break the flow
+  }
+}
+
+async function safeRemove(key: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(key);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function buildPending(payload: StudentRegistration): PendingRegistration {
+  return {
+    studentNumber: payload.studentNumber.trim(),
+    firstName: payload.firstName.trim(),
+    middleInitial: payload.middleInitial?.trim() || undefined,
+    lastName: payload.lastName.trim(),
+    suffix: payload.suffix?.trim() || undefined,
+    email: payload.email.trim(),
+    institute: payload.institute,
+    program: payload.program,
+    yearLevel: payload.yearLevel,
+    section: payload.section,
+    position: payload.position,
+  };
+}
+
 /**
  * Boot-level auth session backed by Firebase (AsyncStorage-persisted —
  * see lib/firebase.ts). onAuthStateChanged is the source of truth; the
  * root layout keeps the native splash up until the restore finishes.
  *
+ * `session` only surfaces VERIFIED Firebase users — unverified accounts
+ * (mid-sign-up or blocked at login) stay outside the tab gate until they
+ * open the verification link.
+ *
  * Login is ALWAYS live: student number → /auth/resolve-login → Firebase
- * email/password sign-in. Registration is live too, except in mock mode
- * (EXPO_PUBLIC_USE_MOCK) where the OTP + data services are mocked and an
- * offline demo session is persisted instead.
+ * email/password sign-in. Registration runs in two phases (create +
+ * verify link → profile POST) and is skipped entirely in mock mode
+ * (EXPO_PUBLIC_USE_MOCK), where an offline demo session is persisted.
  */
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
   // undefined = first onAuthStateChanged callback still pending (restore).
@@ -115,7 +179,9 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const restoring = mockRestoring || firebaseUser === undefined;
 
   const session = useMemo<AuthSession | null>(() => {
-    if (firebaseUser) {
+    // Unverified users are deliberately invisible to the tab gate —
+    // they must open the verification link before entering the app.
+    if (firebaseUser && firebaseUser.emailVerified) {
       return {
         uid: firebaseUser.uid,
         email: firebaseUser.email ?? '',
@@ -127,11 +193,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
 
   const cacheStudentNumber = useCallback(async (studentNumber: string) => {
     setStudentNumberCache(studentNumber);
-    try {
-      await AsyncStorage.setItem(STUDENT_NUMBER_KEY, JSON.stringify(studentNumber));
-    } catch {
-      // storage failures shouldn't break sign-in
-    }
+    await safeSet(STUDENT_NUMBER_KEY, JSON.stringify(studentNumber));
   }, []);
 
   const signInWithStudentNumber = useCallback(
@@ -152,6 +214,11 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         return;
       }
       const user = await authServiceSignIn(studentNumber, password);
+      if (!user.emailVerified) {
+        // Blocked login — resend stays available because the Firebase
+        // session is live; `session` stays null so the tab gate holds.
+        throw authError(EMAIL_NOT_VERIFIED_CODE);
+      }
       // Set immediately so navigation past the auth gate doesn't wait for
       // the (redundant) listener callback.
       setFirebaseUser(user);
@@ -160,61 +227,131 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     [cacheStudentNumber],
   );
 
-  const registerStudent = useCallback(
-    async (payload: StudentRegistration) => {
+  /**
+   * Phase 1: create the Firebase account + send the verification link
+   * (mock mode skips straight through). When the email already exists,
+   * attempts a password resume so an interrupted sign-up can continue
+   * without the "already registered" dead end.
+   */
+  const beginRegistration = useCallback(
+    async (payload: StudentRegistration): Promise<BeginRegistrationResult> => {
+      const pending = buildPending(payload);
       if (useMock) {
-        // Offline demo path — pairs with the mock OTP + data services.
-        const next: AuthSession = {
-          email: payload.email,
-          uid: `mock-${payload.studentNumber}`,
-          studentNumber: payload.studentNumber,
-        };
-        setMockSession(next);
-        try {
-          await AsyncStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(next));
-        } catch {
-          // ignore storage failures
-        }
-        return;
+        await safeSet(PENDING_REGISTRATION_KEY, JSON.stringify(pending));
+        return { verificationRequired: false };
       }
 
-      const middleInitial = payload.middleInitial?.trim();
-      const user = await registerStudentAccount({
-        email: payload.email.trim(),
-        password: payload.password,
-        fullName: `${payload.firstName} ${payload.lastName}`.trim(),
-        // Shape matches the server's RegisterUserDto (binding is
-        // case-insensitive). MiddleInitial is a server-side `char`, so it
-        // is omitted when empty — an empty string would fail to bind.
-        buildProfile: (uid) => ({
-          Id: uid,
-          Email: payload.email.trim(),
-          FirstName: payload.firstName.trim(),
-          ...(middleInitial ? { MiddleInitial: middleInitial } : {}),
-          LastName: payload.lastName.trim(),
-          Suffix: payload.suffix?.trim() || null,
-          Role: 'Student',
-          StudentNumber: payload.studentNumber.trim(),
-          Position: payload.position,
-          Institute: payload.institute,
-          Program: payload.program,
-          YearLevel: payload.yearLevel,
-          Section: payload.section,
-        }),
-      });
+      const fullName = `${payload.firstName} ${payload.lastName}`.trim();
+      let user: User;
+      try {
+        user = await createStudentAccount({
+          email: pending.email,
+          password: payload.password,
+          fullName,
+        });
+      } catch (err) {
+        if ((err as { code?: string } | null | undefined)?.code !== 'auth/email-already-in-use') {
+          throw err;
+        }
+        try {
+          user = await signInWithPassword(pending.email, payload.password);
+        } catch {
+          // Different account/password — surface the original conflict.
+          throw err;
+        }
+      }
       setFirebaseUser(user);
-      await cacheStudentNumber(payload.studentNumber.trim());
+      await safeSet(PENDING_REGISTRATION_KEY, JSON.stringify(pending));
+      return { verificationRequired: !user.emailVerified };
     },
-    [cacheStudentNumber],
+    [],
   );
 
-  const signOut = useCallback(async () => {
-    try {
-      await AsyncStorage.removeItem(MOCK_SESSION_KEY);
-      await AsyncStorage.removeItem(STUDENT_NUMBER_KEY);
-    } catch {
-      // ignore storage failures
+  /**
+   * Phase 2: once the user opened the link, persist the profile
+   * server-side with the verified account's token, then clear the
+   * pending payload and open the session.
+   */
+  const completeRegistration = useCallback(async () => {
+    const raw = await safeGet(PENDING_REGISTRATION_KEY);
+    const pending = raw ? (JSON.parse(raw) as PendingRegistration) : null;
+    if (!pending) throw authError('auth/registration-missing');
+
+    if (useMock) {
+      const next: AuthSession = {
+        email: pending.email,
+        uid: `mock-${pending.studentNumber}`,
+        studentNumber: pending.studentNumber,
+      };
+      setMockSession(next);
+      try {
+        await AsyncStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(next));
+      } catch {
+        // ignore storage failures
+      }
+      await safeRemove(PENDING_REGISTRATION_KEY);
+      return;
     }
+
+    const middleInitial = pending.middleInitial?.trim();
+    const user = await completeProfileRegistration({
+      // Shape matches the server's RegisterUserDto (binding is
+      // case-insensitive). MiddleInitial is a server-side `char`, so it
+      // is omitted when empty — an empty string would fail to bind.
+      buildProfile: (uid) => ({
+        Id: uid,
+        Email: pending.email,
+        FirstName: pending.firstName,
+        ...(middleInitial ? { MiddleInitial: middleInitial } : {}),
+        LastName: pending.lastName,
+        Suffix: pending.suffix?.trim() || null,
+        Role: 'Student',
+        StudentNumber: pending.studentNumber,
+        Position: pending.position,
+        Institute: pending.institute,
+        Program: pending.program,
+        YearLevel: pending.yearLevel,
+        Section: pending.section,
+      }),
+    });
+    await safeRemove(PENDING_REGISTRATION_KEY);
+    setFirebaseUser(user);
+    await cacheStudentNumber(pending.studentNumber);
+  }, [cacheStudentNumber]);
+
+  const checkVerification = useCallback(async () => {
+    if (useMock) return true;
+    return checkEmailVerified();
+  }, []);
+
+  const resendVerification = useCallback(async () => {
+    if (useMock) return;
+    await sendVerificationEmail();
+  }, []);
+
+  /**
+   * Backing out of the verification step: drop the pending payload and
+   * delete the still-unverified account so the same email can be used
+   * again from scratch. Verified accounts are never deleted.
+   */
+  const cancelRegistration = useCallback(async () => {
+    await safeRemove(PENDING_REGISTRATION_KEY);
+    if (useMock) return;
+    try {
+      await deleteUnverifiedAccount();
+    } catch {
+      // requires-recent-login / already-deleted — the resume path in
+      // beginRegistration covers a leftover account anyway.
+    }
+    setFirebaseUser(null);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await Promise.all([
+      safeRemove(MOCK_SESSION_KEY),
+      safeRemove(STUDENT_NUMBER_KEY),
+      safeRemove(PENDING_REGISTRATION_KEY),
+    ]);
     setMockSession(null);
     setStudentNumberCache(null);
     await authServiceSignOut();
@@ -224,8 +361,28 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ session, restoring, signInWithStudentNumber, registerStudent, signOut }),
-    [session, restoring, signInWithStudentNumber, registerStudent, signOut],
+    () => ({
+      session,
+      restoring,
+      signInWithStudentNumber,
+      beginRegistration,
+      completeRegistration,
+      checkVerification,
+      resendVerification,
+      cancelRegistration,
+      signOut,
+    }),
+    [
+      session,
+      restoring,
+      signInWithStudentNumber,
+      beginRegistration,
+      completeRegistration,
+      checkVerification,
+      resendVerification,
+      cancelRegistration,
+      signOut,
+    ],
   );
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;
