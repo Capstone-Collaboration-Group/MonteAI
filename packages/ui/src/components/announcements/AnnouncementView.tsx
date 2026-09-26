@@ -1,4 +1,4 @@
-import { ArrowLeft, Calendar, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, Paperclip, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -17,6 +17,7 @@ export type AnnouncementDetail = {
   date: string;
   priority: Priority;
   body: string;
+  attachmentUrls: string[];
   lastEdited: string;
   priorityClass?: string;
 };
@@ -123,6 +124,31 @@ export function AnnouncementView({
           <div className="whitespace-pre-line text-sm text-on-surface-variant leading-relaxed">
             {announcement.body}
           </div>
+
+          {announcement.attachmentUrls && announcement.attachmentUrls.length > 0 && (
+            <div className="mt-6">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface">
+                <Paperclip className="h-4 w-4" />
+                Attachments
+              </h2>
+              <ul className="mt-3 flex flex-col gap-2">
+                {announcement.attachmentUrls.map((url) => (
+                  <li key={url}>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      title={url}
+                      className="flex items-center gap-2 rounded-xl border border-outline-variant/60 bg-surface-container-low px-4 py-3 text-sm text-primary transition-colors hover:bg-surface-container-high"
+                    >
+                      <Paperclip className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{url}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <p className="mt-8 text-right text-xs font-medium uppercase tracking-wide text-outline">
             Last edited: {announcement.lastEdited}
