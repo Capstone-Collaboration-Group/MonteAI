@@ -78,7 +78,7 @@ export default function ProfileScreen() {
   rightIcons={[
     {
       icon: 'settings',
-      onPress: () => router.push('/settings/index'),
+      onPress: () => router.push('/settings'),
     },
   ]}
 />
@@ -146,7 +146,7 @@ export default function ProfileScreen() {
           <Text style={s.logoutText}>Log Out</Text>
         </Pressable>
 
-        <Text style={[s.version, { color: body }]}>MonteScholar v1.0.0</Text>
+        <Text style={[s.version, { color: body }]}>MonteSkolar v1.0.0</Text>
       </ScrollView>
     </View>
       )}
@@ -160,12 +160,12 @@ const s = StyleSheet.create({
   avatarSection: { alignItems: 'center', gap: Spacing.sm },
   avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: FontSize.xxl, fontWeight: '700' },
-  name: { fontSize: FontSize.xxl, fontWeight: '700' },
+  name: { fontSize: FontSize.xl, fontWeight: '700' },
   role: { fontSize: FontSize.md },
   email: { fontSize: FontSize.sm },
   stats: { flexDirection: 'row', borderWidth: 1, borderRadius: Radius.md, padding: Spacing.lg, width: '100%' },
   stat: { flex: 1, alignItems: 'center', gap: Spacing.xs },
-  statNum: { fontSize: FontSize.xl, fontWeight: '700' },
+  statNum: { fontSize: FontSize.lg, fontWeight: '700' },
   statLabel: { fontSize: FontSize.xs },
   statDivider: { width: StyleSheet.hairlineWidth },
   menu: { borderWidth: 1, borderRadius: Radius.md, width: '100%', overflow: 'hidden' },
