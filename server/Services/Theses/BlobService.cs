@@ -54,7 +54,10 @@ namespace server.Services
                 BlobContainerName = _container.Name,
                 BlobName = blobName,
                 Resource = "b",
-                ExpiresOn = DateTimeOffset.UtcNow.AddMinutes(expiryMinutes)
+                ExpiresOn = DateTimeOffset.UtcNow.AddMinutes(expiryMinutes),
+                // This property will not allow the PDF to be downloaded, so the thesis indexing might now work. 
+                // Check it in the future.
+                ContentDisposition = "inline"
             };
             sasBuilder.SetPermissions(BlobSasPermissions.Read);
 

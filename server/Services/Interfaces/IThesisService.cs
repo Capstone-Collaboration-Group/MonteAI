@@ -5,7 +5,9 @@ namespace server.Services.Interfaces
 {
     public interface IThesisService
     {
-        Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync();
+        /// <param name="program">Optional academic-program filter (ICS / IBE /
+        /// ITE) forwarded to the repository. Null / unknown returns unfiltered.</param>
+        Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync(string? program = null);
 
         Task<ThesisResponseDto?> GetByIdAsync(Guid id);
 

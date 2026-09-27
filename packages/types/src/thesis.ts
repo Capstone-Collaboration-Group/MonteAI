@@ -49,6 +49,36 @@ export type ThesisStatus = "pending" | "approved" | "scheduled" | "rejected" | "
 
 export type ThesisActionType = "approve" | "reject" | "revision" | "schedule";
 
+// ── Academic programs ────────────────────────────────────────────────────────
+// Codes sent to the API as ?program=; labels are the canonical display names
+// (mirrors packages/ui INSTITUTES). Keyword matching mirrors the server's
+// ThesisRepository so mock and live filtering behave identically — stored
+// institute values are full names that vary slightly across sources, so both
+// sides match on keywords rather than equality. Bare "education" is never an
+// ITE keyword: it would collide with "Institute of Business Education".
+export type ThesisProgram = "ICS" | "IBE" | "ITE";
+
+export const THESIS_PROGRAMS: ReadonlyArray<{ code: ThesisProgram; label: string }> = [
+  { code: "ICS", label: "Institute of Computing Studies" },
+  { code: "IBE", label: "Institute of Business and Entrepreneurship" },
+  { code: "ITE", label: "Institute of Teacher Education" },
+];
+
+const PROGRAM_KEYWORDS: Record<ThesisProgram, string[]> = {
+  ICS: ["computing", "computer", "ics"],
+  IBE: ["business", "entrepreneurship", "ibe"],
+  ITE: ["teaching", "teacher", "technology", "ite"],
+};
+
+/** Case-insensitive keyword match of a stored institute against a program. */
+export function instituteMatchesProgram(
+  institute: string | null | undefined,
+  program: ThesisProgram
+): boolean {
+  const value = (institute ?? "").toLowerCase();
+  return PROGRAM_KEYWORDS[program].some((keyword) => value.includes(keyword));
+}
+
 export interface ThesisSummary { 
   id: string;
   groupId: string;

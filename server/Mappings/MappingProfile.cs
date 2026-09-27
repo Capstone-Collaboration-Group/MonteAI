@@ -22,7 +22,11 @@ namespace server.Mappings
         public MappingProfile()
         {
             //Thesis Mappings
-            CreateMap<Thesis, ThesisResponseDto>();
+            CreateMap<Thesis, ThesisResponseDto>()
+                .ForMember(dest => dest.Institute, opt => opt.MapFrom(src =>
+                    src.ResearchGroup != null && src.ResearchGroup.Leader != null
+                        ? src.ResearchGroup.Leader.Institute
+                        : null));
             CreateMap<SubmitThesisDto, Thesis>();
             CreateMap<UpdateThesisDto, Thesis>();
             CreateMap<UpdateThesisStatusDto, Thesis>();

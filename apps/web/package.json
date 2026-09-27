@@ -18,6 +18,7 @@
     "@monteai/utils": "workspace:*",
     "@tailwindcss/vite": "^4.2.4",
     "lucide-react": "^1.24.0",
+    "pdfjs-dist": "4.4.168",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-pdf": "^9.2.1",

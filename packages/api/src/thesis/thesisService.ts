@@ -8,7 +8,8 @@ import type {
     AnnotationResponseDto,
     CreateAnnotationDto,
     ResolveAnnotationDto,
-    ThesisVersion
+    ThesisVersion,
+    ThesisProgram
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils"
 
@@ -30,9 +31,11 @@ export class LiveThesisService implements ThesisService {
         }
     }
     // async getTheses
-    async getTheses(): Promise<ThesisResponseDto[] | []> {
+    async getTheses(program?: ThesisProgram): Promise<ThesisResponseDto[] | []> {
         try {
-            const { data } = await this.client.get<ThesisResponseDto[]>(`/thesis`);
+            const { data } = await this.client.get<ThesisResponseDto[]>(`/thesis`, {
+                params: program ? { program } : undefined,
+            });
             return data;
         } catch (err) {
             return handle404(err, []);

@@ -11,16 +11,50 @@ namespace server.Repositories
     {
         private readonly AppDbContext _db;
 
+        // Academic-program codes → substrings matched (case-insensitively,
+        // via LOWER(...).Contains) against the research group leader's
+        // Institute. Stored institute values are full names and vary slightly
+        // across sources ("Institute of Computing Studies", "Institute of
+        // Teacher Education", …), so matching is keyword-based — the same
+        // strategy the frontends use for institute chip colors. Bare
+        // "education" is intentionally NOT an ITE keyword: it would collide
+        // with "Institute of Business Education".
+        private static readonly IReadOnlyDictionary<string, string[]> ProgramKeywords =
+            new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ICS"] = ["computing", "computer", "ics"],
+                ["IBE"] = ["business", "entrepreneurship", "ibe"],
+                ["ITE"] = ["teaching", "teacher", "technology", "ite"],
+            };
+
         public ThesisRepository(AppDbContext db)
         {
             _db = db;
         }
 
-        public async Task<IEnumerable<Thesis>> GetFirst20ThesisAsync()
+        public async Task<IEnumerable<Thesis>> GetFirst20ThesisAsync(string? program = null)
         {
-            return await _db.Theses
+            var query = _db.Theses
                 .Include(t => t.ResearchGroup)
-                    .ThenInclude(rg => rg.Schedules)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(program) &&
+                ProgramKeywords.TryGetValue(program.Trim(), out var keywords))
+            {
+                // Null guards above are not visible inside the lambda for the
+                // compiler; '!' is erased before the expression tree is built,
+                // so EF translation is unaffected.
+                query = query.Where(t =>
+                    t.ResearchGroup != null &&
+                    t.ResearchGroup.Leader != null &&
+                    t.ResearchGroup.Leader.Institute != null &&
+                    keywords.Any(k => t.ResearchGroup!.Leader!.Institute!.ToLower().Contains(k)));
+            }
+
+            return await query
                 .OrderBy(t => t.SubmittedAt)
                 .Take(20)
                 .ToListAsync();

@@ -1,5 +1,5 @@
 // packages/ui/src/components/Thesis/PDFHighlightViewer.tsx
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Document, Page } from "react-pdf";
 import type {
   AnnotationResponseDto,
@@ -31,6 +31,39 @@ interface PendingSelection {
   popupX: number;
   popupY: number;
 }
+
+interface PageSize {
+  width: number;
+  height: number;
+}
+
+// Structural view of the pdf.js objects we touch, typed locally so
+// @monteai/ui keeps no direct pdfjs-dist dependency (the runtime objects
+// returned by react-pdf's Document satisfy this shape).
+interface PdfDocumentProxy {
+  numPages: number;
+  getPage(pageNumber: number): Promise<{
+    getViewport(opts: { scale: number }): PageSize;
+  }>;
+}
+
+// Border-box allowance for the page card around each PDF page: p-3 padding
+// (12px × 2) + 1px border × 2 (Tailwind sets box-sizing: border-box).
+const PAGE_FRAME_PX = 26;
+
+// pdf.js init options — defined at module scope so the object identity never
+// changes (react-pdf restarts the download when `options` is a new object).
+//
+// `disableStream` + `disableAutoFetch` switch pdf.js into HTTP range-request
+// mode: instead of downloading the whole PDF before anything renders (which
+// took ~20s on 100+ page scanned theses), it fetches only the head/xref and
+// the chunks needed for the visible window — first page shows in ~1–2s and
+// later pages are fetched on demand. If the server doesn't support range
+// requests, pdf.js silently falls back to a normal full download.
+const PDF_OPTIONS = {
+  disableStream: true,
+  disableAutoFetch: true,
+};
 
 interface PDFHighlightViewerProps {
   fileUrl: string;
@@ -175,6 +208,26 @@ function HighlightOverlay({
   );
 }
 
+// ── Loading Indicator ─────────────────────────────────────────────────────────
+
+// Spinner + indeterminate bar. Deliberately shows no percentage: pdf.js byte
+// progress never tracks perceived readiness — in range mode it barely moves
+// while pages already paint, and in full mode it hits 100% before parsing and
+// first render are done.
+function LoadingIndicator() {
+  return (
+    <div className="flex h-64 flex-col items-center justify-center gap-3">
+      <Spinner className="h-8 w-8 text-primary" />
+      <div className="w-64 text-center">
+        <p className="mb-2 text-xs text-on-surface-variant">Loading…</p>
+        <div className="h-1.5 overflow-hidden rounded-full bg-surface-container-low">
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function PDFHighlightViewer({
@@ -190,7 +243,14 @@ export function PDFHighlightViewer({
   const [scale, setScale] = useState<number>(1.2);
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [visiblePage, setVisiblePage] = useState<number>(1);
+  // Page dimensions at scale 1, indexed by page − 1. Only page 1 is measured
+  // up front (thesis pages are uniform); pages near the viewport are refined
+  // exactly afterwards. `null` = "not measured yet, use page 1's size".
+  const [pageSizes, setPageSizes] = useState<(PageSize | null)[]>([]);
   const viewerScrollRef = useRef<HTMLDivElement | null>(null);
+  // The pdf.js document handle, kept in a ref so the size-refinement effect
+  // can measure pages without re-creating callbacks on every render.
+  const pdfDocRef = useRef<PdfDocumentProxy | null>(null);
 
   const updateVisiblePage = useCallback(() => {
     const container = viewerScrollRef.current;
@@ -224,16 +284,101 @@ export function PDFHighlightViewer({
     }
   }, [currentPage, numPages, onPageChange]);
 
+  // Measure only page 1 up front (parse-only — no rasterization): it seeds
+  // every placeholder so the viewer can paint immediately. Measuring all N
+  // pages here would stall first paint — and in range-request mode it would
+  // fan out one network fetch per page for no visible benefit.
+  const sizeLoadGenRef = useRef(0);
+  const seedPageSize = useCallback(async (pdf: PdfDocumentProxy) => {
+    // Each measurement supersedes any still in flight (rapid version
+    // switches): a stale resolve must never size the newer document.
+    const generation = ++sizeLoadGenRef.current;
+    const first = await pdf
+      .getPage(1)
+      .then((page) => page.getViewport({ scale: 1 }))
+      .catch(() => null);
+    // A newer file superseded this measurement — discard it.
+    if (generation !== sizeLoadGenRef.current) return;
+    const size =
+      first ??
+      // US Letter — matches pdf.js's default when a page cannot be measured.
+      { width: 612, height: 792 };
+    setPageSizes(
+      Array.from({ length: pdf.numPages }, (_, index) =>
+        index === 0 ? size : null
+      )
+    );
+  }, []);
+
   const onDocumentLoadSuccess = useCallback(
-    ({ numPages }: { numPages: number }) => {
-      setNumPages(numPages);
+    (pdf: PdfDocumentProxy) => {
+      pdfDocRef.current = pdf;
+      setNumPages(pdf.numPages);
       setVisiblePage(1);
-      if (numPages > 0) {
+      // Start the new document at the top — react-pdf swaps files while this
+      // callback is the only place we run, and content grows from empty.
+      if (viewerScrollRef.current) viewerScrollRef.current.scrollTop = 0;
+      if (pdf.numPages > 0) {
         onPageChange(1);
       }
+      void seedPageSize(pdf);
     },
-    [onPageChange],
+    [onPageChange, seedPageSize]
   );
+
+  // Only pages near the viewport are mounted as real react-pdf <Page>s;
+  // everything else stays a cheap sized placeholder. This mirrors the mobile
+  // WebView viewer's render window (current −1 … current + 3): mounting all
+  // N pages at once is what made large theses slow to open. Pages leaving the
+  // window unmount, releasing their canvases.
+  const renderWindow = useMemo(() => {
+    const from = Math.max(1, visiblePage - 1);
+    const to = Math.min(numPages, visiblePage + 3);
+    const pages = new Set<number>();
+    for (let page = from; page <= to; page++) pages.add(page);
+    return pages;
+  }, [visiblePage, numPages]);
+
+  // Refine pages near the viewport to their exact size (matters only for
+  // mixed-size documents — landscape pages etc.). Pages keep page 1's
+  // dimensions until they approach the window, so this never blocks paint and
+  // never storms the network up front. Runs whenever the window or the size
+  // table changes and stops as soon as everything in view is measured.
+  useEffect(() => {
+    const pdf = pdfDocRef.current;
+    if (!pdf || pageSizes.length === 0) return;
+    const pendingPages = [...renderWindow].filter(
+      (page) => page >= 1 && page <= pageSizes.length && !pageSizes[page - 1]
+    );
+    if (pendingPages.length === 0) return;
+
+    let stale = false;
+    void Promise.all(
+      pendingPages.map((page) =>
+        pdf
+          .getPage(page)
+          .then((p) => p.getViewport({ scale: 1 }))
+          .catch(() => null)
+      )
+    ).then((measured) => {
+      // Ignore stale resolutions: another document loaded, or this effect
+      // was cleaned up by a newer run.
+      if (stale || pdfDocRef.current !== pdf) return;
+      setPageSizes((prev) => {
+        const next = [...prev];
+        pendingPages.forEach((page, i) => {
+          const size = measured[i];
+          if (size && page - 1 < next.length && !next[page - 1]) {
+            next[page - 1] = size;
+          }
+        });
+        return next;
+      });
+    });
+    return () => {
+      stale = true;
+    };
+  }, [renderWindow, pageSizes]);
 
   useEffect(() => {
     updateVisiblePage();
@@ -318,6 +463,9 @@ export function PDFHighlightViewer({
     setPending(null);
   }, []);
 
+  // Page 1's measured size — seeds every placeholder until refined.
+  const seedSize = pageSizes[0];
+
   return (
     <div className="relative flex h-full w-full flex-col bg-surface-container-low">
       <div className="flex items-center justify-between border-b border-outline-variant bg-white px-4 py-2">
@@ -376,12 +524,9 @@ export function PDFHighlightViewer({
         <div className="mx-auto flex w-full max-w-[900px] flex-col items-center gap-6">
           <Document
             file={fileUrl}
+            options={PDF_OPTIONS}
             onLoadSuccess={onDocumentLoadSuccess}
-            loading={
-              <div className="flex h-64 items-center justify-center">
-                <Spinner className="h-8 w-8 text-primary" />
-              </div>
-            }
+            loading={<LoadingIndicator />}
             error={
               <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
                 <p className="text-sm font-medium text-red-600">
@@ -393,31 +538,56 @@ export function PDFHighlightViewer({
               </div>
             }
           >
-            {Array.from({ length: numPages }, (_, index) => {
-              const pageNumber = index + 1;
-              return (
-                <div
-                  key={pageNumber}
-                  data-page-number={pageNumber}
-                  onMouseUp={handleMouseUp}
-                  className="relative mb-6 last:mb-0 rounded-md border border-slate-200 bg-white p-3 shadow-sm"
-                >
-                  <Page
-                    pageNumber={pageNumber}
-                    scale={scale}
-                    className="shadow-none"
-                    renderAnnotationLayer
-                    renderTextLayer
-                  />
+            {pageSizes.length === numPages &&
+              seedSize &&
+              pageSizes.map((exactSize, index) => {
+                const size = exactSize ?? seedSize;
+                const pageNumber = index + 1;
+                const contentWidth = size.width * scale;
+                const contentHeight = size.height * scale;
+                const inWindow = renderWindow.has(pageNumber);
+                const placeholder = (
+                  <div
+                    style={{ width: contentWidth, height: contentHeight }}
+                    className="flex items-center justify-center rounded bg-surface-container-low text-xs font-medium text-outline"
+                  >
+                    {pageNumber}
+                  </div>
+                );
 
-                  <HighlightOverlay
-                    annotations={annotations}
-                    pageNumber={pageNumber}
-                    scale={scale}
-                  />
-                </div>
-              );
-            })}
+                return (
+                  <div
+                    key={pageNumber}
+                    data-page-number={pageNumber}
+                    onMouseUp={handleMouseUp}
+                    style={{
+                      width: contentWidth + PAGE_FRAME_PX,
+                      height: contentHeight + PAGE_FRAME_PX,
+                    }}
+                    className="relative mb-6 last:mb-0 overflow-hidden rounded-md border border-slate-200 bg-white p-3 shadow-sm"
+                  >
+                    {inWindow ? (
+                      <>
+                        <Page
+                          pageNumber={pageNumber}
+                          scale={scale}
+                          className="shadow-none"
+                          renderAnnotationLayer
+                          renderTextLayer
+                          loading={placeholder}
+                        />
+                        <HighlightOverlay
+                          annotations={annotations}
+                          pageNumber={pageNumber}
+                          scale={scale}
+                        />
+                      </>
+                    ) : (
+                      placeholder
+                    )}
+                  </div>
+                );
+              })}
           </Document>
         </div>
       </div>
