@@ -10,7 +10,9 @@ import type {
     ResolveAnnotationDto,
     ThesisVersion,
     AnnotationResponseDto,
+    ThesisProgram,
 } from "@monteai/types";
+import { instituteMatchesProgram } from "@monteai/types";
 import { MOCK_THESIS_PDF_DATA_URL } from "./mockThesisPdf";
 
 function delay(ms: number) {
@@ -66,9 +68,29 @@ function buildTheses(): ThesisResponseDto[] {
             filePath: REMOTE_TEST_PDF,
             uploadedById: "LiyoID",
             abstract: "Abstract Ngani",
-            institute: "Institute of Computing Studies",
+            institute: "Institute of Business and Entrepreneurship",
             pineconeStatus: "None",
             groupId: '123123',
+            scheduledAt: '',
+            scheduledVenue: '',
+        },
+        {
+            id: "t3",
+            title: "Modular Refrigeration Monitoring System for School Canteens",
+            status: "Pending",
+            authors: ["Mika Reyes", "Paolo Santos"],
+            submittedAt: "2026-06-02T09:00:00.000Z",
+            reviewedAt: "",
+            approvedAt: "",
+            indexedAt: "",
+            rejectedAt: "",
+            updatedAt: "2026-06-02T09:00:00.000Z",
+            filePath: TEST_PDF,
+            uploadedById: "MikaID",
+            abstract: "Abstract Pa rin",
+            institute: "Institute of Teacher Education",
+            pineconeStatus: "None",
+            groupId: '',
             scheduledAt: '',
             scheduledVenue: '',
         },
@@ -164,9 +186,13 @@ export const mockThesisService: ThesisService = {
         return thesesMap.get(thesisId) ?? null;
     },
 
-    async getTheses() {
+    async getTheses(program?: ThesisProgram) {
         await delay(300);
-        return Array.from(thesesMap.values());
+        const all = Array.from(thesesMap.values());
+        // Mirrors the server's ?program= filter so mock and live behave alike.
+        return program
+            ? all.filter((t) => instituteMatchesProgram(t.institute, program))
+            : all;
     },
 
     async submitThesis(dto: SubmitThesisDto, file: File) {
