@@ -72,9 +72,9 @@ namespace server.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetFirst20Thesis()
+        public async Task<IActionResult> GetFirst20Thesis([FromQuery] string? program)
         {
-            var result = await _service.GetFirst20ThesisAsync();
+            var result = await _service.GetFirst20ThesisAsync(program);
 
             return Ok(result);
         }

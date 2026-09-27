@@ -64,9 +64,9 @@ namespace server.Services.Theses
             _pineconeConfig = pineconeConfig.Value;
         }
 
-        public async Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync()
+        public async Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync(string? program = null)
         {
-            var result = await _thesisRepo.GetFirst20ThesisAsync();
+            var result = await _thesisRepo.GetFirst20ThesisAsync(program);
 
             var dtos = result.Select(thesis =>
             {

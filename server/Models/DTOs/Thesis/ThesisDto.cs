@@ -55,6 +55,12 @@ namespace server.Models.DTOs.Thesis
         public DateTime? ScheduledAt { get; set; }
         public string? ScheduledVenue { get; set; }
 
+        // Institute of the research group's leader — populated from the
+        // ResearchGroup.Leader navigation so clients can group/filter by
+        // academic program (ICS / IBE / ITE). Null for legacy uploads
+        // submitted without a research group.
+        public string? Institute { get; set; }
+
     }
     public class ThesisChunkDto
     {

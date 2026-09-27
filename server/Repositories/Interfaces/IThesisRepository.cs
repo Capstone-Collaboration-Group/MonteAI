@@ -9,7 +9,10 @@ namespace server.Repositories.Interfaces
 {
     public interface IThesisRepository
     {
-        Task<IEnumerable<Thesis>> GetFirst20ThesisAsync();
+        /// <param name="program">Optional academic-program filter (ICS / IBE /
+        /// ITE). Matched case-insensitively against the research group leader's
+        /// institute via keyword; null / unknown returns unfiltered.</param>
+        Task<IEnumerable<Thesis>> GetFirst20ThesisAsync(string? program = null);
 
         Task<Thesis?> GetThesisByIdAsync(Guid id);
 
