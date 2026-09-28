@@ -1,4 +1,5 @@
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using server.Data;
 using server.Models.DTOs.ResearchGroup;
@@ -113,7 +114,19 @@ namespace server.Services.User
 
         public async Task<bool> DeleteAsync(Guid groupId)
         {
-            if (Role != "Admin") throw new UnauthorizedAccessException();
+            var group = await repo.GetResearchGroupByIdAsync(groupId)
+                ?? throw new KeyNotFoundException();
+
+            if (Role == "Student")
+            {
+                if (group.LeaderId != UserId) throw new UnauthorizedAccessException();
+                if (group.Students.Any(student => student.Id != group.LeaderId))
+                    throw new InvalidOperationException("Remove all research members before deleting the group.");
+            }
+            else if (Role != "Admin")
+            {
+                throw new UnauthorizedAccessException();
+            }
 
             return await repo.DeleteResearchGroupAsync(groupId);
         }
@@ -131,6 +144,8 @@ namespace server.Services.User
 
             var student = await db.Students.FindAsync(studentId);
             if (student is null) return false;
+            if (await db.ResearchGroups.AnyAsync(candidate => candidate.LeaderId == studentId))
+                throw new InvalidOperationException("A research group leader cannot be added as a member.");
 
             // Students may only invite classmates from the same program as the group's leader.
             if (Role == "Student")
