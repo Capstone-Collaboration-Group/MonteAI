@@ -7,4 +7,7 @@ allowBuilds:
   esbuild: true
   unrs-resolver: true
 
+overrides:
+  pdfjs-dist: 4.4.168
+
 nodeLinker: hoisted
