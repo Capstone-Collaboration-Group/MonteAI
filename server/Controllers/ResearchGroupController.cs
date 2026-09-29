@@ -131,7 +131,7 @@ namespace server.Controllers
         }
 
         [HttpDelete("delete/{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Student,Admin")]
         public async Task<IActionResult> DeleteResearchGroup(Guid id)
         {
             try
@@ -162,6 +162,10 @@ namespace server.Controllers
             catch (KeyNotFoundException)
             {
                 return NotFound(new { Message = "Research Group Not Found" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
             }
         }
 
