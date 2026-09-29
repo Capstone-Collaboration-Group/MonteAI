@@ -1,5 +1,5 @@
 // apps/mobile/app/(tabs)/research-group.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,31 +9,31 @@ import {
   Text,
   TextInput,
   View,
-} from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withTiming,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
-import { useThemeColor } from "@/hooks/use-theme-color";
-import { useDrawerChats } from "@/hooks/useDrawerChats";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { useAuthSession } from "@/contexts/AuthSessionContext";
-import { AppHeader } from "@/components/ui/AppHeader";
-import { DrawerProvider } from "@/components/ui/DrawerProvider";
-import { FontSize, Radius, Spacing } from "@/constants/theme";
-import { studentService } from "@/lib/studentService";
-import { researchGroupService } from "@/lib/researchGroupService";
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useDrawerChats } from '@/hooks/useDrawerChats';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
+import { AppHeader } from '@/components/ui/AppHeader';
+import { DrawerProvider } from '@/components/ui/DrawerProvider';
+import { FontSize, Radius, Spacing } from '@/constants/theme';
+import { studentService } from '@/lib/studentService';
+import { researchGroupService } from '@/lib/researchGroupService';
 import type {
   ResearchGroupMemberDto,
   ResearchGroupResponseDto,
   StudentResponseDto,
-} from "@monteai/types";
+} from '@monteai/types';
 
 const MAX_MEMBERS = 4;
 
@@ -53,10 +53,7 @@ function FadeIn({
   useEffect(() => {
     const easing = Easing.out(Easing.cubic);
     opacity.value = withDelay(delay, withTiming(1, { duration: 320, easing }));
-    translateY.value = withDelay(
-      delay,
-      withTiming(0, { duration: 320, easing }),
-    );
+    translateY.value = withDelay(delay, withTiming(0, { duration: 320, easing }));
   }, [delay, opacity, translateY]);
 
   const animated = useAnimatedStyle(() => ({
@@ -68,9 +65,7 @@ function FadeIn({
 }
 
 function initials(first?: string, last?: string): string {
-  return (
-    `${(first ?? "")[0] ?? ""}${(last ?? "")[0] ?? ""}`.toUpperCase() || "??"
-  );
+  return `${(first ?? '')[0] ?? ''}${(last ?? '')[0] ?? ''}`.toUpperCase() || '??';
 }
 
 /**
@@ -80,14 +75,13 @@ function initials(first?: string, last?: string): string {
  * sidebar drawer.
  */
 export default function ResearchGroupScreen() {
-  const background = useThemeColor({}, "background");
-  const heading = useThemeColor({}, "onSurface");
-  const body = useThemeColor({}, "onSurfaceVariant");
-  const surface = useThemeColor({}, "surfaceContainerLow");
-  const outline = useThemeColor({}, "outlineVariant");
-  const primary = useThemeColor({}, "primary");
-  const onPrimary = useThemeColor({}, "onPrimary");
-  const error = useThemeColor({}, "error");
+  const background = useThemeColor({}, 'background');
+  const heading = useThemeColor({}, 'onSurface');
+  const body = useThemeColor({}, 'onSurfaceVariant');
+  const surface = useThemeColor({}, 'surfaceContainerLow');
+  const outline = useThemeColor({}, 'outlineVariant');
+  const primary = useThemeColor({}, 'primary');
+  const onPrimary = useThemeColor({}, 'onPrimary');
 
   const { session } = useAuthSession();
   const { recentChats, loading: chatsLoading } = useDrawerChats();
@@ -100,16 +94,16 @@ export default function ResearchGroupScreen() {
   const [reloadKey, setReloadKey] = useState(0);
 
   // Create-group form
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newGroupTitle, setNewGroupTitle] = useState("");
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupTitle, setNewGroupTitle] = useState('');
 
   // Rename-group form
   const [renaming, setRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
+  const [renameValue, setRenameValue] = useState('');
 
   // Invite-member section
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteQuery, setInviteQuery] = useState("");
+  const [inviteQuery, setInviteQuery] = useState('');
 
   const loadGroups = useCallback(async () => {
     try {
@@ -154,38 +148,30 @@ export default function ResearchGroupScreen() {
     const fromMembership = groups.find((g) =>
       g.members.some((m) => m.id === currentStudent.id),
     );
-    return fromMembership ?? null;
+    return fromMembership ?? currentStudent.researchGroup ?? null;
   }, [groups, currentStudent]);
 
-  const isLeader =
-    !!myGroup && !!currentStudent && myGroup.leaderId === currentStudent.id;
+  const isLeader = !!myGroup && !!currentStudent && myGroup.leaderId === currentStudent.id;
   const isFull = (myGroup?.members.length ?? 0) >= MAX_MEMBERS;
-  const hasResearchMembers = !!myGroup?.members.some(
-    (member) => member.id !== myGroup.leaderId,
-  );
 
   const invitable = useMemo(() => {
     if (!myGroup) return [];
     const memberIds = new Set(myGroup.members.map((m) => m.id));
-    const leaderIds = new Set(groups.map((group) => group.leaderId));
     const query = inviteQuery.trim().toLowerCase();
     const program = currentStudent?.program?.trim().toLowerCase();
 
     return students.filter((s) => {
       if (memberIds.has(s.id)) return false;
       // A student who already belongs to a group cannot be invited.
-      if (s.researchGroup || leaderIds.has(s.id)) return false;
+      if (s.researchGroup) return false;
       // Leaders may only invite classmates from their own program.
       if (program && s.program?.trim().toLowerCase() !== program) return false;
       if (!query) return true;
-      const fullName =
-        `${s.firstName} ${s.middleInitial ?? ""} ${s.lastName} ${s.suffix ?? ""}`.toLowerCase();
-      return (
-        fullName.includes(query) ||
-        s.studentNumber.toLowerCase().includes(query)
-      );
+      const fullName = `${s.firstName} ${s.middleInitial ?? ''} ${s.lastName} ${s.suffix ?? ''}`
+        .toLowerCase();
+      return fullName.includes(query) || s.studentNumber.toLowerCase().includes(query);
     });
-  }, [students, groups, myGroup, currentStudent, inviteQuery]);
+  }, [students, myGroup, currentStudent, inviteQuery]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, successMessage: string) => {
@@ -196,7 +182,7 @@ export default function ResearchGroupScreen() {
         setFeedback(successMessage);
         reload();
       } catch {
-        setFeedback("Something went wrong. Please try again.");
+        setFeedback('Something went wrong. Please try again.');
       } finally {
         setBusy(false);
       }
@@ -205,8 +191,7 @@ export default function ResearchGroupScreen() {
   );
 
   const createGroup = () => {
-    if (!newGroupName.trim() || !newGroupTitle.trim() || !currentStudent)
-      return;
+    if (!newGroupName.trim() || !newGroupTitle.trim() || !currentStudent) return;
     void runAction(
       () =>
         researchGroupService.createResearchGroup({
@@ -214,7 +199,7 @@ export default function ResearchGroupScreen() {
           researchTitle: newGroupTitle.trim(),
           leaderId: currentStudent.id,
         }),
-      "Research group created.",
+      'Research group created.',
     );
   };
 
@@ -225,7 +210,7 @@ export default function ResearchGroupScreen() {
         researchGroupService.updateResearchGroup(myGroup.id, {
           groupName: renameValue.trim(),
         }),
-      "Group name updated.",
+      'Group name updated.',
     );
     setRenaming(false);
   };
@@ -233,16 +218,16 @@ export default function ResearchGroupScreen() {
   const inviteMember = (student: StudentResponseDto) => {
     if (!myGroup) return;
     Alert.alert(
-      "Invite student?",
+      'Invite student?',
       `Add ${student.firstName} ${student.lastName} (${student.studentNumber}) to ${myGroup.groupName}?`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Confirm Invite",
+          text: 'Confirm Invite',
           onPress: () =>
             void runAction(
               () => researchGroupService.addMember(myGroup.id, student.id),
-              "Member invited to the group.",
+              'Member invited to the group.',
             ),
         },
       ],
@@ -252,37 +237,17 @@ export default function ResearchGroupScreen() {
   const removeMember = (member: ResearchGroupMemberDto) => {
     if (!myGroup) return;
     Alert.alert(
-      "Remove member?",
+      'Remove member?',
       `Remove ${member.name || member.studentNumber || member.id} from ${myGroup.groupName}?`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Confirm Remove",
-          style: "destructive",
+          text: 'Confirm Remove',
+          style: 'destructive',
           onPress: () =>
             void runAction(
               () => researchGroupService.removeMember(myGroup.id, member.id),
-              "Member removed from the group.",
-            ),
-        },
-      ],
-    );
-  };
-
-  const deleteGroup = () => {
-    if (!myGroup || !isLeader || hasResearchMembers) return;
-    Alert.alert(
-      "Delete research group?",
-      `Permanently delete ${myGroup.groupName}? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete group",
-          style: "destructive",
-          onPress: () =>
-            void runAction(
-              () => researchGroupService.deleteResearchGroup(myGroup.id),
-              "Research group deleted.",
+              'Member removed from the group.',
             ),
         },
       ],
@@ -293,53 +258,37 @@ export default function ResearchGroupScreen() {
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
         <View style={[s.root, { backgroundColor: background }]}>
-          <SafeAreaView style={{ flex: 0 }} edges={["top"]}>
+          <SafeAreaView style={{ flex: 0 }} edges={['top']}>
             <AppHeader
               title="Research Group"
               onLeftPress={openDrawer}
-              rightIcons={[{ icon: "refresh", onPress: reload }]}
+              rightIcons={[{ icon: 'refresh', onPress: reload }]}
             />
           </SafeAreaView>
 
-          <ScrollView
-            contentContainerStyle={s.content}
-            showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
-          >
+          <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
             {loading ? (
               <View style={s.loaderWrap}>
                 <ActivityIndicator size="large" color={primary} />
               </View>
             ) : !myGroup ? (
               <FadeIn>
-                <View
-                  style={[
-                    s.card,
-                    { backgroundColor: surface, borderColor: outline },
-                  ]}
-                >
+                <View style={[s.card, { backgroundColor: surface, borderColor: outline }]}>
                   <View style={s.cardHeader}>
                     <View style={[s.iconBadge, { backgroundColor: primary }]}>
-                      <MaterialIcons
-                        name="group-add"
-                        size={22}
-                        color={onPrimary}
-                      />
+                      <MaterialIcons name="group-add" size={22} color={onPrimary} />
                     </View>
                     <View style={s.cardHeaderText}>
                       <Text style={[s.cardTitle, { color: heading }]}>
                         Create your research group
                       </Text>
                       <Text style={[s.cardSubtitle, { color: body }]}>
-                        You will lead a team of up to {MAX_MEMBERS} students
-                        working on one thesis.
+                        You will lead a team of up to {MAX_MEMBERS} students working on one thesis.
                       </Text>
                     </View>
                   </View>
 
-                  <Text style={[s.fieldLabel, { color: body }]}>
-                    GROUP NAME
-                  </Text>
+                  <Text style={[s.fieldLabel, { color: body }]}>GROUP NAME</Text>
                   <TextInput
                     style={[s.input, { borderColor: outline, color: heading }]}
                     placeholder="e.g. Group Alpha"
@@ -348,9 +297,7 @@ export default function ResearchGroupScreen() {
                     onChangeText={setNewGroupName}
                     maxLength={100}
                   />
-                  <Text style={[s.fieldLabel, { color: body }]}>
-                    RESEARCH TITLE
-                  </Text>
+                  <Text style={[s.fieldLabel, { color: body }]}>RESEARCH TITLE</Text>
                   <TextInput
                     style={[s.input, { borderColor: outline, color: heading }]}
                     placeholder="e.g. AI-Driven Student Performance Prediction"
@@ -362,24 +309,18 @@ export default function ResearchGroupScreen() {
 
                   <Pressable
                     accessibilityRole="button"
-                    disabled={
-                      busy || !newGroupName.trim() || !newGroupTitle.trim()
-                    }
+                    disabled={busy || !newGroupName.trim() || !newGroupTitle.trim()}
                     style={({ pressed }) => [
                       s.primaryBtn,
                       { backgroundColor: primary },
                       pressed && { opacity: 0.85 },
-                      (busy || !newGroupName.trim() || !newGroupTitle.trim()) &&
-                        s.btnDisabled,
+                      (busy || !newGroupName.trim() || !newGroupTitle.trim()) && s.btnDisabled,
                     ]}
-                    onPress={createGroup}
-                  >
+                    onPress={createGroup}>
                     {busy ? (
                       <ActivityIndicator size="small" color={onPrimary} />
                     ) : (
-                      <Text style={[s.primaryBtnText, { color: onPrimary }]}>
-                        Create group
-                      </Text>
+                      <Text style={[s.primaryBtnText, { color: onPrimary }]}>Create group</Text>
                     )}
                   </Pressable>
                 </View>
@@ -387,28 +328,16 @@ export default function ResearchGroupScreen() {
             ) : (
               <>
                 <FadeIn>
-                  <View
-                    style={[
-                      s.card,
-                      { backgroundColor: surface, borderColor: outline },
-                    ]}
-                  >
+                  <View style={[s.card, { backgroundColor: surface, borderColor: outline }]}>
                     <View style={s.cardHeader}>
                       <View style={[s.iconBadge, { backgroundColor: primary }]}>
-                        <MaterialIcons
-                          name="group"
-                          size={22}
-                          color={onPrimary}
-                        />
+                        <MaterialIcons name="group" size={22} color={onPrimary} />
                       </View>
                       <View style={s.cardHeaderText}>
                         {renaming ? (
                           <View style={s.renameRow}>
                             <TextInput
-                              style={[
-                                s.renameInput,
-                                { borderColor: primary, color: heading },
-                              ]}
+                              style={[s.renameInput, { borderColor: primary, color: heading }]}
                               value={renameValue}
                               onChangeText={setRenameValue}
                               maxLength={100}
@@ -419,33 +348,20 @@ export default function ResearchGroupScreen() {
                               accessibilityLabel="Save group name"
                               hitSlop={8}
                               onPress={renameGroup}
-                              disabled={busy}
-                            >
-                              <MaterialIcons
-                                name="check"
-                                size={20}
-                                color={primary}
-                              />
+                              disabled={busy}>
+                              <MaterialIcons name="check" size={20} color={primary} />
                             </Pressable>
                             <Pressable
                               accessibilityRole="button"
                               accessibilityLabel="Cancel renaming"
                               hitSlop={8}
-                              onPress={() => setRenaming(false)}
-                            >
-                              <MaterialIcons
-                                name="close"
-                                size={20}
-                                color={body}
-                              />
+                              onPress={() => setRenaming(false)}>
+                              <MaterialIcons name="close" size={20} color={body} />
                             </Pressable>
                           </View>
                         ) : (
                           <View style={s.renameRow}>
-                            <Text
-                              style={[s.cardTitle, { color: heading }]}
-                              numberOfLines={1}
-                            >
+                            <Text style={[s.cardTitle, { color: heading }]} numberOfLines={1}>
                               {myGroup.groupName}
                             </Text>
                             {isLeader && (
@@ -456,22 +372,14 @@ export default function ResearchGroupScreen() {
                                 onPress={() => {
                                   setRenameValue(myGroup.groupName);
                                   setRenaming(true);
-                                }}
-                              >
-                                <MaterialIcons
-                                  name="edit"
-                                  size={18}
-                                  color={body}
-                                />
+                                }}>
+                                <MaterialIcons name="edit" size={18} color={body} />
                               </Pressable>
                             )}
                           </View>
                         )}
-                        <Text
-                          style={[s.cardSubtitle, { color: body }]}
-                          numberOfLines={1}
-                        >
-                          {myGroup.institute || "Institute not specified"}
+                        <Text style={[s.cardSubtitle, { color: body }]} numberOfLines={1}>
+                          {myGroup.institute || 'Institute not specified'}
                         </Text>
                       </View>
                       <Text style={[s.memberCount, { color: primary }]}>
@@ -480,9 +388,7 @@ export default function ResearchGroupScreen() {
                     </View>
 
                     <View style={[s.titleBox, { borderColor: outline }]}>
-                      <Text style={[s.fieldLabel, { color: body }]}>
-                        RESEARCH TITLE
-                      </Text>
+                      <Text style={[s.fieldLabel, { color: body }]}>RESEARCH TITLE</Text>
                       <Text style={[s.researchTitle, { color: heading }]}>
                         {myGroup.researchTitle}
                       </Text>
@@ -491,48 +397,23 @@ export default function ResearchGroupScreen() {
                 </FadeIn>
 
                 <FadeIn delay={90}>
-                  <Text style={[s.sectionHeading, { color: heading }]}>
-                    Members
-                  </Text>
-                  <View
-                    style={[
-                      s.memberList,
-                      { borderColor: outline, backgroundColor: surface },
-                    ]}
-                  >
+                  <Text style={[s.sectionHeading, { color: heading }]}>Members</Text>
+                  <View style={[s.memberList, { borderColor: outline, backgroundColor: surface }]}>
                     {myGroup.members.map((member, i) => (
                       <FadeIn key={member.id} delay={140 + i * 70}>
-                        <View
-                          style={[
-                            s.memberRow,
-                            i > 0 && {
-                              borderTopWidth: StyleSheet.hairlineWidth,
-                              borderTopColor: outline,
-                            },
-                          ]}
-                        >
-                          <View
-                            style={[
-                              s.memberAvatar,
-                              { backgroundColor: primary },
-                            ]}
-                          >
+                        <View style={[s.memberRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: outline }]}>
+                          <View style={[s.memberAvatar, { backgroundColor: primary }]}>
                             <Text style={s.memberAvatarText}>
                               {initials(member.name)}
                             </Text>
                           </View>
                           <View style={s.memberInfo}>
-                            <Text
-                              style={[s.memberName, { color: heading }]}
-                              numberOfLines={1}
-                            >
+                            <Text style={[s.memberName, { color: heading }]} numberOfLines={1}>
                               {member.name || member.studentNumber || member.id}
                             </Text>
                             <Text style={[s.memberMeta, { color: body }]}>
-                              {member.id === myGroup.leaderId
-                                ? "Leader"
-                                : member.position}
-                              {member.program ? ` — ${member.program}` : ""}
+                              {member.id === myGroup.leaderId ? 'Leader' : member.position}
+                              {member.program ? ` — ${member.program}` : ''}
                             </Text>
                           </View>
                           {isLeader && member.id !== myGroup.leaderId && (
@@ -541,13 +422,8 @@ export default function ResearchGroupScreen() {
                               accessibilityLabel={`Remove ${member.name || member.id}`}
                               hitSlop={8}
                               disabled={busy}
-                              onPress={() => removeMember(member)}
-                            >
-                              <MaterialIcons
-                                name="person-remove"
-                                size={20}
-                                color={error}
-                              />
+                              onPress={() => removeMember(member)}>
+                              <MaterialIcons name="person-remove" size={20} color="#ba1a1a" />
                             </Pressable>
                           )}
                         </View>
@@ -564,16 +440,15 @@ export default function ResearchGroupScreen() {
                       onPress={() => {
                         const next = !inviteOpen;
                         setInviteOpen(next);
-                        if (next) setInviteQuery("");
-                      }}
-                    >
+                        if (next) setInviteQuery('');
+                      }}>
                       <MaterialIcons
-                        name={inviteOpen ? "expand-less" : "expand-more"}
+                        name={inviteOpen ? 'expand-less' : 'expand-more'}
                         size={22}
                         color={primary}
                       />
                       <Text style={[s.addMemberText, { color: primary }]}>
-                        {inviteOpen ? "Hide classmates" : "Invite a classmate"}
+                        {inviteOpen ? 'Hide classmates' : 'Invite a classmate'}
                       </Text>
                     </Pressable>
 
@@ -582,14 +457,9 @@ export default function ResearchGroupScreen() {
                         <Text style={[s.inviteHint, { color: body }]}>
                           {currentStudent?.program
                             ? `Search among ${currentStudent.program} classmates by name or student number.`
-                            : "Search by full name or student number."}
+                            : 'Search by full name or student number.'}
                         </Text>
-                        <View
-                          style={[
-                            s.searchBox,
-                            { borderColor: outline, backgroundColor: surface },
-                          ]}
-                        >
+                        <View style={[s.searchBox, { borderColor: outline, backgroundColor: surface }]}>
                           <MaterialIcons name="search" size={20} color={body} />
                           <TextInput
                             style={[s.searchInput, { color: heading }]}
@@ -604,66 +474,34 @@ export default function ResearchGroupScreen() {
                               accessibilityRole="button"
                               accessibilityLabel="Clear search"
                               hitSlop={8}
-                              onPress={() => setInviteQuery("")}
-                            >
-                              <MaterialIcons
-                                name="close"
-                                size={18}
-                                color={body}
-                              />
+                              onPress={() => setInviteQuery('')}>
+                              <MaterialIcons name="close" size={18} color={body} />
                             </Pressable>
                           )}
                         </View>
 
-                        <View
-                          style={[
-                            s.memberList,
-                            { borderColor: outline, backgroundColor: surface },
-                          ]}
-                        >
+                        <View style={[s.memberList, { borderColor: outline, backgroundColor: surface }]}>
                           {invitable.length === 0 ? (
                             <Text style={[s.emptyText, { color: body }]}>
                               {inviteQuery.trim()
-                                ? "No matching students found."
-                                : "No other students are available to invite."}
+                                ? 'No matching students found.'
+                                : 'No other students are available to invite.'}
                             </Text>
                           ) : (
                             invitable.map((student, i) => (
                               <FadeIn key={student.id} delay={i * 50}>
-                                <View
-                                  style={[
-                                    s.memberRow,
-                                    i > 0 && {
-                                      borderTopWidth: StyleSheet.hairlineWidth,
-                                      borderTopColor: outline,
-                                    },
-                                  ]}
-                                >
-                                  <View
-                                    style={[
-                                      s.memberAvatar,
-                                      { backgroundColor: primary },
-                                    ]}
-                                  >
+                                <View style={[s.memberRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: outline }]}>
+                                  <View style={[s.memberAvatar, { backgroundColor: primary }]}>
                                     <Text style={s.memberAvatarText}>
-                                      {initials(
-                                        student.firstName,
-                                        student.lastName,
-                                      )}
+                                      {initials(student.firstName, student.lastName)}
                                     </Text>
                                   </View>
                                   <View style={s.memberInfo}>
-                                    <Text
-                                      style={[s.memberName, { color: heading }]}
-                                      numberOfLines={1}
-                                    >
+                                    <Text style={[s.memberName, { color: heading }]} numberOfLines={1}>
                                       {student.firstName} {student.lastName}
                                     </Text>
-                                    <Text
-                                      style={[s.memberMeta, { color: body }]}
-                                    >
-                                      {student.studentNumber} —{" "}
-                                      {student.program}
+                                    <Text style={[s.memberMeta, { color: body }]}>
+                                      {student.studentNumber} — {student.program}
                                     </Text>
                                   </View>
                                   <Pressable
@@ -671,13 +509,8 @@ export default function ResearchGroupScreen() {
                                     accessibilityLabel={`Invite ${student.firstName} ${student.lastName}`}
                                     hitSlop={8}
                                     disabled={busy}
-                                    onPress={() => inviteMember(student)}
-                                  >
-                                    <MaterialIcons
-                                      name="person-add"
-                                      size={22}
-                                      color={primary}
-                                    />
+                                    onPress={() => inviteMember(student)}>
+                                    <MaterialIcons name="person-add" size={22} color={primary} />
                                   </Pressable>
                                 </View>
                               </FadeIn>
@@ -696,37 +529,6 @@ export default function ResearchGroupScreen() {
                     </Text>
                   </FadeIn>
                 )}
-
-                {isLeader && (
-                  <FadeIn delay={240}>
-                    {hasResearchMembers && (
-                      <Text style={[s.fullNote, { color: body }]}>
-                        Remove all research members before deleting this group.
-                      </Text>
-                    )}
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Delete research group"
-                      disabled={busy || hasResearchMembers}
-                      style={({ pressed }) => [
-                        s.deleteGroupBtn,
-                        { borderColor: error },
-                        pressed && { opacity: 0.8 },
-                        (busy || hasResearchMembers) && s.btnDisabled,
-                      ]}
-                      onPress={deleteGroup}
-                    >
-                      <MaterialIcons
-                        name="delete-outline"
-                        size={20}
-                        color={error}
-                      />
-                      <Text style={[s.addMemberText, { color: error }]}>
-                        Delete research group
-                      </Text>
-                    </Pressable>
-                  </FadeIn>
-                )}
               </>
             )}
 
@@ -743,30 +545,26 @@ export default function ResearchGroupScreen() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   content: { padding: Spacing.xl, paddingBottom: 100, gap: Spacing.md },
-  loaderWrap: { paddingVertical: Spacing.xxxl, alignItems: "center" },
+  loaderWrap: { paddingVertical: Spacing.xxxl, alignItems: 'center' },
   card: {
     borderWidth: 1,
     borderRadius: Radius.md,
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.md,
-  },
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
   iconBadge: {
     width: 44,
     height: 44,
     borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardHeaderText: { flex: 1, gap: Spacing.xxs },
-  cardTitle: { fontSize: FontSize.lg, fontWeight: "700" },
+  cardTitle: { fontSize: FontSize.lg, fontWeight: '700' },
   cardSubtitle: { fontSize: FontSize.sm },
-  memberCount: { fontSize: FontSize.lg, fontWeight: "700" },
-  fieldLabel: { fontSize: FontSize.xs, fontWeight: "600", letterSpacing: 0.5 },
+  memberCount: { fontSize: FontSize.lg, fontWeight: '700' },
+  fieldLabel: { fontSize: FontSize.xs, fontWeight: '600', letterSpacing: 0.5 },
   input: {
     borderWidth: 1,
     borderRadius: Radius.md,
@@ -777,12 +575,12 @@ const s = StyleSheet.create({
   primaryBtn: {
     borderRadius: Radius.md,
     paddingVertical: Spacing.md,
-    alignItems: "center",
+    alignItems: 'center',
     marginTop: Spacing.xs,
   },
-  primaryBtnText: { fontSize: FontSize.md, fontWeight: "700" },
+  primaryBtnText: { fontSize: FontSize.md, fontWeight: '700' },
   btnDisabled: { opacity: 0.5 },
-  renameRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  renameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   renameInput: {
     flex: 1,
     borderWidth: 1,
@@ -790,7 +588,7 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     fontSize: FontSize.md,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   titleBox: {
     borderWidth: 1,
@@ -798,16 +596,12 @@ const s = StyleSheet.create({
     padding: Spacing.md,
     gap: Spacing.xs,
   },
-  researchTitle: { fontSize: FontSize.md, fontWeight: "600" },
-  sectionHeading: {
-    fontSize: FontSize.lg,
-    fontWeight: "700",
-    marginTop: Spacing.sm,
-  },
-  memberList: { borderWidth: 1, borderRadius: Radius.md, overflow: "hidden" },
+  researchTitle: { fontSize: FontSize.md, fontWeight: '600' },
+  sectionHeading: { fontSize: FontSize.lg, fontWeight: '700', marginTop: Spacing.sm },
+  memberList: { borderWidth: 1, borderRadius: Radius.md, overflow: 'hidden' },
   memberRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
@@ -816,56 +610,35 @@ const s = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  memberAvatarText: { color: "#fff", fontSize: FontSize.sm, fontWeight: "700" },
+  memberAvatarText: { color: '#fff', fontSize: FontSize.sm, fontWeight: '700' },
   memberInfo: { flex: 1, gap: 2 },
-  memberName: { fontSize: FontSize.md, fontWeight: "600" },
+  memberName: { fontSize: FontSize.md, fontWeight: '600' },
   memberMeta: { fontSize: FontSize.xs },
   addMemberBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
-    borderStyle: "dashed",
+    borderStyle: 'dashed',
     borderRadius: Radius.md,
     paddingVertical: Spacing.md,
   },
-  deleteGroupBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.md,
-  },
-  addMemberText: { fontSize: FontSize.md, fontWeight: "600" },
+  addMemberText: { fontSize: FontSize.md, fontWeight: '600' },
   inviteHint: { fontSize: FontSize.xs, paddingHorizontal: Spacing.xs },
   searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
   },
   searchInput: { flex: 1, fontSize: FontSize.sm, paddingVertical: Spacing.sm },
-  emptyText: {
-    padding: Spacing.lg,
-    fontSize: FontSize.sm,
-    textAlign: "center",
-  },
-  fullNote: {
-    fontSize: FontSize.sm,
-    textAlign: "center",
-    paddingVertical: Spacing.sm,
-  },
-  feedback: {
-    fontSize: FontSize.sm,
-    textAlign: "center",
-    marginTop: Spacing.sm,
-  },
+  emptyText: { padding: Spacing.lg, fontSize: FontSize.sm, textAlign: 'center' },
+  fullNote: { fontSize: FontSize.sm, textAlign: 'center', paddingVertical: Spacing.sm },
+  feedback: { fontSize: FontSize.sm, textAlign: 'center', marginTop: Spacing.sm },
 });

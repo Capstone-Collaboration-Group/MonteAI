@@ -14,6 +14,7 @@ export default function ResearchGroups() {
       studentService={studentService}
       facultyService={facultyService}
       role={profile?.role}
+      studentId={profile?.role === "Student" ? profile.id : undefined}
     />
   );
 }
