@@ -33,12 +33,22 @@ namespace server.Repositories
             return true;
         }
 
-        // UpdateAdminAsync
-        public async Task<bool> UpdateAdminAsync(Admin admin)
+        // UpdateAdminAsync — partial update: only non-null fields are written
+        public async Task<bool> UpdateAdminAsync(Admin admin, string id)
         {
-            var result = await _db.Admins.FindAsync(admin.Id);
+            var result = await _db.Admins.FindAsync(id);
             if (result == null) return false;
-            _db.Admins.Update(admin);
+            // Eww ampangit, needs refactor
+            if (admin.Email != null) result.Email = admin.Email;
+            if (admin.FirstName != null) result.FirstName = admin.FirstName;
+            if (admin.MiddleInitial != null) result.MiddleInitial = admin.MiddleInitial;
+            if (admin.LastName != null) result.LastName = admin.LastName;
+            if (admin.Suffix != null) result.Suffix = admin.Suffix;
+            if (admin.Role != null) result.Role = admin.Role;
+            if (admin.Position != null) result.Position = admin.Position;
+            if (admin.IsActive != null) result.IsActive = admin.IsActive;
+            result.UpdatedAt = admin.UpdatedAt;
+
             await _db.SaveChangesAsync();
             return true;
         }
