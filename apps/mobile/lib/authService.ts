@@ -14,9 +14,12 @@
 import axios from 'axios';
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   sendEmailVerification,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  updatePassword,
   updateProfile,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -209,6 +212,24 @@ export async function signInWithPassword(
 /** Clears the Firebase session; AuthSessionContext reacts via listener. */
 export async function signOut(): Promise<void> {
   await firebaseSignOut(firebaseAuth);
+}
+
+/**
+ * Verifies the current password (reauth) and sets a new one. Throws
+ * auth/wrong-password (or auth/invalid-credential) when the current
+ * password is incorrect, auth/requires-recent-login when Firebase wants
+ * a fresh sign-in instead.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = firebaseAuth.currentUser;
+  if (!user || !user.email) throw authError('auth/no-current-user');
+
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPassword);
 }
 
 /** Maps Firebase / network / API errors to user-friendly messages. */

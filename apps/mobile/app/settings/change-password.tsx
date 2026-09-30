@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
+import { changePassword, describeAuthError } from '@/lib/authService';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
@@ -26,10 +29,45 @@ export default function ChangePasswordScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleUpdate = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert('Missing fields', 'Fill in all three password fields.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Password too short', 'New password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Passwords do not match', 'New password and confirmation must match.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      Alert.alert('Password updated', 'Your password has been changed successfully.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code ?? '';
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        Alert.alert('Incorrect password', 'Your current password is incorrect.');
+      } else if (code === 'auth/requires-recent-login') {
+        Alert.alert('Session expired', 'Please sign out and sign in again, then retry.');
+      } else {
+        Alert.alert('Update failed', describeAuthError(err));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -241,21 +279,26 @@ export default function ChangePasswordScreen() {
         <Pressable
           style={[
             styles.updateButton,
-            { backgroundColor: primary },
+            { backgroundColor: primary, opacity: submitting ? 0.7 : 1 },
           ]}
-          onPress={() => {
-            // Connect password update service here later.
-          }}
+          onPress={handleUpdate}
+          disabled={submitting}
         >
-          <MaterialIcons
-            name="lock-reset"
-            size={21}
-            color="#FFFFFF"
-          />
+          {submitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <MaterialIcons
+                name="lock-reset"
+                size={21}
+                color="#FFFFFF"
+              />
 
-          <Text style={styles.updateButtonText}>
-            Update Password
-          </Text>
+              <Text style={styles.updateButtonText}>
+                Update Password
+              </Text>
+            </>
+          )}
         </Pressable>
       </ScrollView>
     </SafeAreaView>
