@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -9,11 +9,14 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
 
 const fontSizes = ['Small', 'Medium', 'Large'];
+
+export const FONT_SIZE_STORAGE_KEY = 'monteai.settings.fontSize';
 
 export default function AppearanceScreen() {
   const router = useRouter();
@@ -23,8 +26,24 @@ export default function AppearanceScreen() {
   const body = useThemeColor({}, 'icon');
   const primary = useThemeColor({}, 'primary');
 
-  const [theme, setTheme] = useState<'Light' | 'Dark'>('Light');
   const [fontSize, setFontSize] = useState('Medium');
+
+  useEffect(() => {
+    AsyncStorage.getItem(FONT_SIZE_STORAGE_KEY)
+      .then((stored) => {
+        if (stored && fontSizes.includes(stored)) setFontSize(stored);
+      })
+      .catch(() => {
+        // keep default
+      });
+  }, []);
+
+  const selectFontSize = (option: string) => {
+    setFontSize(option);
+    AsyncStorage.setItem(FONT_SIZE_STORAGE_KEY, option).catch(() => {
+      // preference is best-effort — next launch retries
+    });
+  };
 
   return (
     <SafeAreaView
@@ -49,71 +68,13 @@ export default function AppearanceScreen() {
         </View>
 
         <Text style={[styles.sectionTitle, { color: heading }]}>
-          Theme
-        </Text>
-
-        <View style={styles.themeRow}>
-          <Pressable
-            onPress={() => setTheme('Light')}
-            style={[
-              styles.themeCard,
-              {
-                borderColor:
-                  theme === 'Light' ? primary : '#ccc',
-                backgroundColor: '#fff',
-              },
-            ]}
-          >
-            <MaterialIcons
-              name="light-mode"
-              size={28}
-              color={theme === 'Light' ? primary : '#555'}
-            />
-
-            <Text
-              style={[
-                styles.themeText,
-                {
-                  color:
-                    theme === 'Light' ? primary : '#111',
-                },
-              ]}
-            >
-              Light
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setTheme('Dark')}
-            style={[
-              styles.themeCard,
-              {
-                borderColor:
-                  theme === 'Dark' ? primary : '#ccc',
-                backgroundColor: '#111',
-              },
-            ]}
-          >
-            <MaterialIcons
-              name="dark-mode"
-              size={28}
-              color="#fff"
-            />
-
-            <Text style={[styles.themeText, { color: '#fff' }]}>
-              Dark
-            </Text>
-          </Pressable>
-        </View>
-
-        <Text style={[styles.sectionTitle, { color: heading }]}>
           Font Size
         </Text>
 
         {fontSizes.map((option) => (
           <Pressable
             key={option}
-            onPress={() => setFontSize(option)}
+            onPress={() => selectFontSize(option)}
             style={styles.radioRow}
           >
             <MaterialIcons
@@ -131,13 +92,6 @@ export default function AppearanceScreen() {
             </Text>
           </Pressable>
         ))}
-
-        <Pressable
-          onPress={() => router.back()}
-          style={[styles.saveButton, { backgroundColor: primary }]}
-        >
-          <Text style={styles.saveText}>Save Changes</Text>
-        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -181,25 +135,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
 
-  themeRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-
-  themeCard: {
-    flex: 1,
-    height: 120,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-  },
-
-  themeText: {
-    fontSize: FontSize.md,
-    fontWeight: '600',
-  },
-
   radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,19 +144,5 @@ const styles = StyleSheet.create({
 
   optionText: {
     fontSize: FontSize.sm,
-  },
-
-  saveButton: {
-    alignSelf: 'flex-end',
-    marginTop: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: 6,
-  },
-
-  saveText: {
-    color: '#fff',
-    fontSize: FontSize.sm,
-    fontWeight: '700',
   },
 });

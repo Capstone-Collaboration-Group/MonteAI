@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -13,9 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
+import { userService } from '@/lib/userService';
 
 export default function SecuritySettingsScreen() {
   const router = useRouter();
+  const { signOut } = useAuthSession();
 
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'text');
@@ -23,10 +27,12 @@ export default function SecuritySettingsScreen() {
   const primary = useThemeColor({}, 'primary');
   const border = useThemeColor({}, 'outline');
 
+  const [revoking, setRevoking] = useState(false);
+
   const handleSignOutAllDevices = () => {
     Alert.alert(
       'Sign Out All Devices',
-      'Are you sure you want to sign out of all other devices?',
+      'This signs you out on every device, including this one. You will need to sign in again.',
       [
         {
           text: 'Cancel',
@@ -35,12 +41,28 @@ export default function SecuritySettingsScreen() {
         {
           text: 'Sign Out',
           style: 'destructive',
-          onPress: () => {
-            // Connect to authentication service here later.
-          },
+          onPress: confirmSignOutAllDevices,
         },
       ],
     );
+  };
+
+  const confirmSignOutAllDevices = async () => {
+    if (revoking) return;
+    setRevoking(true);
+    try {
+      // Server revokes every Firebase refresh token for this account.
+      await userService.revokeSessions();
+      await signOut();
+      router.replace('/auth-entry');
+    } catch {
+      Alert.alert(
+        'Sign out failed',
+        'Could not sign out other devices. Please check your connection and try again.',
+      );
+    } finally {
+      setRevoking(false);
+    }
   };
 
   return (
@@ -321,9 +343,10 @@ export default function SecuritySettingsScreen() {
 
         <Pressable
           onPress={handleSignOutAllDevices}
+          disabled={revoking}
           style={[
             styles.signOutRow,
-            { borderColor: border },
+            { borderColor: border, opacity: revoking ? 0.6 : 1 },
           ]}
         >
           <View style={styles.signOutIcon}>
@@ -349,11 +372,15 @@ export default function SecuritySettingsScreen() {
             </Text>
           </View>
 
-          <MaterialIcons
-            name="chevron-right"
-            size={24}
-            color={body}
-          />
+          {revoking ? (
+            <ActivityIndicator size="small" color="#C62828" />
+          ) : (
+            <MaterialIcons
+              name="chevron-right"
+              size={24}
+              color={body}
+            />
+          )}
         </Pressable>
       </ScrollView>
     </SafeAreaView>

@@ -1,15 +1,31 @@
 import { useState } from "react";
+
 import { Card } from "../Card";
-import { Button } from "../Button";
+
+const COMPACT_MODE_STORAGE_KEY = "monteai.settings.compactMode";
+
+function readCompactMode(): boolean {
+  try {
+    return localStorage.getItem(COMPACT_MODE_STORAGE_KEY) === "true";
+  } catch {
+    // storage unavailable (private mode) — keep default
+    return false;
+  }
+}
 
 export function AppearanceSettings() {
-  const [appearance, setAppearance] = useState({
-    theme: "System",
-    compactMode: false,
-  });
+  const [compactMode, setCompactMode] = useState(readCompactMode);
 
-  const handleSave = () => {
-    console.log("Saving appearance:", appearance);
+  const toggleCompactMode = () => {
+    setCompactMode((current) => {
+      const next = !current;
+      try {
+        localStorage.setItem(COMPACT_MODE_STORAGE_KEY, String(next));
+      } catch {
+        // preference is best-effort
+      }
+      return next;
+    });
   };
 
   return (
@@ -23,33 +39,9 @@ export function AppearanceSettings() {
       </div>
 
       <div className="space-y-5 p-6">
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-on-surface">Theme</span>
-
-          <select
-            value={appearance.theme}
-            onChange={(event) =>
-              setAppearance((current) => ({
-                ...current,
-                theme: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-outline/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface"
-          >
-            <option>System</option>
-            <option>Light</option>
-            <option>Dark</option>
-          </select>
-        </label>
-
         <button
           type="button"
-          onClick={() =>
-            setAppearance((current) => ({
-              ...current,
-              compactMode: !current.compactMode,
-            }))
-          }
+          onClick={toggleCompactMode}
           className="flex w-full items-center justify-between rounded-xl border border-outline/10 bg-surface-container-low p-4 text-left"
         >
           <div>
@@ -64,22 +56,16 @@ export function AppearanceSettings() {
 
           <span
             className={`relative h-6 w-11 rounded-full ${
-              appearance.compactMode ? "bg-primary-container" : "bg-outline/40"
+              compactMode ? "bg-primary-container" : "bg-outline/40"
             }`}
           >
             <span
               className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${
-                appearance.compactMode ? "translate-x-5" : ""
+                compactMode ? "translate-x-5" : ""
               }`}
             />
           </span>
         </button>
-      </div>
-
-      <div className="flex justify-end border-t border-outline/10 px-6 py-4">
-        <Button type="button" onClick={handleSave}>
-          Save Changes
-        </Button>
       </div>
     </Card>
   );

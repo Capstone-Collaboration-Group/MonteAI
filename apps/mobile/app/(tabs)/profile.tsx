@@ -10,19 +10,19 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
-import { studentService } from '@/lib/studentService';
-import type { StudentResponseDto } from '@monteai/types';
+import { userService } from '@/lib/userService';
+import type { UserProfileDto } from '@monteai/types';
 
 const MENU = [
-  { icon: 'person-outline', label: 'Edit Profile' },
-  { icon: 'lock-outline', label: 'Change Password' },
-  { icon: 'notifications-none', label: 'Notifications' },
-  { icon: 'help-outline', label: 'Help & Support' },
-  { icon: 'info-outline', label: 'About' },
+  { icon: 'person-outline', label: 'Edit Profile', route: '/settings/profile' as const },
+  { icon: 'lock-outline', label: 'Change Password', route: '/settings/security' as const },
+  { icon: 'notifications-none', label: 'Notifications', route: '/settings/notifications' as const },
+  { icon: 'help-outline', label: 'Help & Support', route: '/settings/help' as const },
+  { icon: 'info-outline', label: 'About', route: '/settings/about' as const },
 ];
 
-function initials(first?: string, last?: string): string {
-  return `${(first?.[0] ?? '').toUpperCase()}${(last?.[0] ?? '').toUpperCase()}` || '??';
+function initials(name?: string): string {
+  return name?.trim().charAt(0).toUpperCase() || '??';
 }
 
 export default function ProfileScreen() {
@@ -35,16 +35,14 @@ export default function ProfileScreen() {
   const outline = useThemeColor({}, 'outlineVariant');
   const primary = useThemeColor({}, 'primary');
 
-  const [student, setStudent] = useState<StudentResponseDto | null>(null);
+  const [profile, setProfile] = useState<UserProfileDto | null>(null);
   const [loading, setLoading] = useState(true);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
 
-  const loadStudent = useCallback(async () => {
+  const loadProfile = useCallback(async () => {
     try {
-      const students = await studentService.getStudents();
-      if (students.length > 0) {
-        setStudent(students[0]); // first student as current user
-      }
+      const me = await userService.getMe();
+      setProfile(me);
     } catch {
       // stays null
     }
@@ -52,20 +50,20 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     let active = true;
-    loadStudent().finally(() => {
+    loadProfile().finally(() => {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [loadStudent]);
+  }, [loadProfile]);
 
-  const { refreshControl } = usePullToRefresh(loadStudent);
+  const { refreshControl } = usePullToRefresh(loadProfile);
 
-  const fullName = student
-    ? `${student.firstName} ${student.middleInitial ? student.middleInitial + '. ' : ''}${student.lastName}${student.suffix ? ' ' + student.suffix : ''}`
+  const fullName = profile
+    ? `${profile.firstName} ${profile.middleInitial ? profile.middleInitial + '. ' : ''}${profile.lastName}${profile.suffix ? ' ' + profile.suffix : ''}`
     : session?.email.split('@')[0] ?? 'Jane Doe';
-  const email = student?.email ?? session?.email ?? 'jane.doe@student.pnm.edu.ph';
-  const role = student?.program ?? 'Academic Researcher';
-  const ini = student ? initials(student.firstName, student.lastName) : 'JD';
+  const email = profile?.email ?? session?.email ?? 'jane.doe@student.pnm.edu.ph';
+  const role = profile?.program ?? profile?.position ?? profile?.role ?? 'Academic Researcher';
+  const ini = initials(profile?.firstName ?? session?.email);
 
   return (
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
@@ -103,17 +101,17 @@ export default function ProfileScreen() {
         {/* Stats */}
         <View style={[s.stats, { backgroundColor: surface, borderColor: outline }]}>
           <View style={s.stat}>
-            <Text style={[s.statNum, { color: primary }]}>{student?.researchGroup ? 1 : 0}</Text>
+            <Text style={[s.statNum, { color: primary }]}>{profile?.researchGroup ? 1 : 0}</Text>
             <Text style={[s.statLabel, { color: body }]}>Groups</Text>
           </View>
           <View style={[s.statDivider, { backgroundColor: outline }]} />
           <View style={s.stat}>
-            <Text style={[s.statNum, { color: primary }]}>{student?.yearLevel ?? '-'}</Text>
+            <Text style={[s.statNum, { color: primary }]}>{profile?.yearLevel ?? '-'}</Text>
             <Text style={[s.statLabel, { color: body }]}>Year Level</Text>
           </View>
           <View style={[s.statDivider, { backgroundColor: outline }]} />
           <View style={s.stat}>
-            <Text style={[s.statNum, { color: primary }]}>{student?.position ?? '-'}</Text>
+            <Text style={[s.statNum, { color: primary }]}>{profile?.position ?? '-'}</Text>
             <Text style={[s.statLabel, { color: body }]}>Position</Text>
           </View>
         </View>
@@ -123,7 +121,10 @@ export default function ProfileScreen() {
           {MENU.map((m, i) => (
             <React.Fragment key={m.label}>
               {i > 0 ? <View style={[s.divider, { backgroundColor: outline }]} /> : null}
-              <Pressable style={s.menuRow} accessibilityRole="button">
+              <Pressable
+                style={s.menuRow}
+                accessibilityRole="button"
+                onPress={() => router.push(m.route)}>
                 <MaterialIcons name={m.icon as any} size={22} color={body} />
                 <Text style={[s.menuLabel, { color: heading }]}>{m.label}</Text>
                 <MaterialIcons name="chevron-right" size={20} color={body} />

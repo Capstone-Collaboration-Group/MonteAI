@@ -18,7 +18,7 @@ import  AppSidebar  from "@/renderer/components/AppSidebar";
 import ThesisViewer from "./renderer/pages/ThesisViewer";
 import Register from "./renderer/pages/Register";
 import Login from "./renderer/pages/Login";
-import { profileService } from "./renderer/lib/authServices";
+import { profileService, userService } from "./renderer/lib/authServices";
 import { auth } from "./renderer/lib/firebaseServices";
 
 function NotFoundPage() {
@@ -51,7 +51,7 @@ const App = () => (
             <Route path="/research-groups" element={<ResearchGroups />} />
             <Route path="/panelist" element={<Panelist />} />
             <Route path="/schedule" element={<Schedule />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings" element={<SettingsPage userService={userService} />} />
             <Route path="/backup" element={<BackupPage />} />
             <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
           </Route>
