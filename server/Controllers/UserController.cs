@@ -77,6 +77,11 @@ namespace server.Controllers
             {
                 case "Student":
                 {
+                    // Students cannot change their own status or academic identity.
+                    dto.IsActive = null;
+                    dto.StudentNumber = null;
+                    dto.Program = null;
+
                     updated = await _studentService.UpdateAsync(uid, dto) is not null;
                     break;
                 }
