@@ -1,4 +1,6 @@
 using System;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using server.Models.DTOs.ProgramHead;
@@ -35,6 +37,7 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPost("create")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateProgramHead([FromBody] RegisterUserDto dto)
         {
             var result = await _service.CreateAsync(dto);
@@ -49,8 +52,13 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request... Please try again later...", result });
         }
         [HttpPost("update/{id}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> UpdateProgramHead([FromBody] UpdateProgramHeadDto dto, string id)
         {
+            // Self or Admin only.
+            if (!User.IsInRole("Admin") && User.FindFirstValue(ClaimTypes.NameIdentifier) != id)
+                return Forbid();
+
             var result = await _service.UpdateAsync(dto, id);
             if(result)
             {
@@ -60,6 +68,7 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request... Please try again later... ", result });
         }
         [HttpPost("delete/{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteProgramHead(string id)
         {
             var result = await _service.DeleteAsync(id);

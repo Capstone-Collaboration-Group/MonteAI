@@ -1,4 +1,5 @@
 ﻿using System;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using server.Models.DTOs.PanelistSchedule;
 using server.Models.DTOs.User;
@@ -33,6 +34,7 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPost("create")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> CreatePanelistSchedule([FromBody] CreatePanelistScheduleDto dto)
         {
             var result = await _service.CreateAsync(dto);
@@ -44,6 +46,7 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request... Please try again later..." });
         }
         [HttpPatch("update/{scheduleId}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> UpdatePanelistSchedule([FromBody] UpdatePanelistScheduleDto dto, Guid scheduleId, string panelistId)
         {
             var result = await _service.UpdateAsync(dto, scheduleId, panelistId);
@@ -55,6 +58,7 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request... Please Try again later" });
         }
         [HttpDelete("delete/{scheduleId}&{panelistId}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> DeletePanelistSchedule(Guid scheduleId, string panelistId)
         {
             var result = await _service.DeleteAsync(scheduleId, panelistId);

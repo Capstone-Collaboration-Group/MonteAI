@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using server.Models.DTOs.Schedule;
@@ -33,6 +34,7 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPost("create")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> CreateSchedule([FromBody] CreateScheduleDto dto)
         {
             var result = await _service.CreateAsync(dto);
@@ -44,6 +46,7 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request or There is a Schedule for that timeslot... Try again later... ", result });
         }
         [HttpPatch("update/{id}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> UpdateSchedule([FromBody] UpdateScheduleDto dto, Guid id)
         {
             var result = await _service.UpdateAsync(dto, id);
@@ -55,6 +58,7 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot" });
         }
         [HttpPatch("update-times/{id}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> UpdateScheduleTimes([FromBody] UpdateScheduleTimesDto dto, Guid id)
         {
             var result = await _service.UpdateTimesAsync(id, dto);
@@ -66,6 +70,7 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot" });
         }
         [HttpDelete("delete/{id}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> DeleteSchedule(Guid id)
         {
             var result = await _service.DeleteAsync( id);
