@@ -51,7 +51,14 @@ export class LiveThesisService implements ThesisService {
         formData.append("FilePath", dto.filePath ?? "");
         formData.append("UploadedById", dto.uploadedById);
 
-        const { data } = await this.client.post<ThesisResponseDto>(`/thesis/submit`, formData);
+        const { data } = await this.client.post<ThesisResponseDto>(`/thesis/submit`, formData, {
+            // The client defaults to application/json, which would make axios
+            // serialize the FormData as JSON instead of multipart. null removes
+            // the header so the browser/RN layer sets the boundary itself.
+            headers: { "Content-Type": null },
+            // A ≤25 MB upload can easily exceed the client's default timeout.
+            timeout: 120000,
+        });
         return data;
     }
     // async ingestThesis(No Embedding currently implemented)

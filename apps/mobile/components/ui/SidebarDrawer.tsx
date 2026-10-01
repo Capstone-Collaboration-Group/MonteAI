@@ -20,7 +20,8 @@ const OVERLAY_OPACITY = 0.4;
 type DrawerRoute =
   | '/(tabs)/schedules'
   | '/(tabs)/announcements'
-  | '/(tabs)/research-group';
+  | '/(tabs)/research-group'
+  | '/submit-thesis';
 
 interface NavItem {
   icon: React.ComponentProps<typeof MaterialIcons>['name'];
@@ -45,7 +46,7 @@ interface SidebarDrawerProps {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { icon: 'upload-file', label: 'Submit Thesis Document' },
+  { icon: 'upload-file', label: 'Submit Thesis Document', route: '/submit-thesis' },
   { icon: 'group', label: 'Research Group', route: '/(tabs)/research-group' },
   { icon: 'calendar-month', label: 'Schedules', route: '/(tabs)/schedules' },
   { icon: 'campaign', label: 'Announcements', route: '/(tabs)/announcements' },

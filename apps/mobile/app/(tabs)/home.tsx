@@ -13,7 +13,11 @@ import { scheduleService } from '@/lib/scheduleService';
 import { thesisService } from '@/lib/thesisService';
 import type { ScheduleResponseDto, ThesisResponseDto } from '@monteai/types';
 
-type QuickActionRoute = '/(tabs)/library' | '/(tabs)/announcements' | '/(tabs)/schedules';
+type QuickActionRoute =
+  | '/(tabs)/library'
+  | '/(tabs)/announcements'
+  | '/(tabs)/schedules'
+  | '/submit-thesis';
 
 const QUICK_ACTIONS: {
   icon: React.ComponentProps<typeof MaterialIcons>['name'];
@@ -21,7 +25,7 @@ const QUICK_ACTIONS: {
   color: string;
   route?: QuickActionRoute;
 }[] = [
-  { icon: 'upload-file', label: 'Submit\nThesis', color: '#005d41' },
+  { icon: 'upload-file', label: 'Submit\nThesis', color: '#005d41', route: '/submit-thesis' },
   { icon: 'menu-book', label: 'Library', color: '#005d41', route: '/(tabs)/library' },
   { icon: 'campaign', label: 'Announce\nments', color: '#005d41', route: '/(tabs)/announcements' },
   { icon: 'calendar-month', label: 'Schedules', color: '#005d41', route: '/(tabs)/schedules' },
