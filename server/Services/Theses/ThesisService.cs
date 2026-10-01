@@ -259,11 +259,16 @@ namespace server.Services.Theses
             return _blobService.GenerateSasUrl(thesis.FilePath, 15);
         }
 
-        public async Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateDto)
+        public async Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateDto, string callerId, bool isAdmin)
         {
-            var dto =  _mapper.Map<ThesisEntity>(updateDto);
-            var result = await _thesisRepo.UpdateDetailsAsync(id, dto);
+            var thesis = await _thesisRepo.GetThesisByIdAsync(id)
+                ?? throw new KeyNotFoundException("Thesis not found.");
 
+            // Students may only edit their own group's thesis (Admins bypass).
+            if (!isAdmin) await EnsureGroupLeaderAsync(thesis, callerId);
+
+            var dto = _mapper.Map<ThesisEntity>(updateDto);
+            var result = await _thesisRepo.UpdateDetailsAsync(id, dto);
 
             return result;
         }
@@ -373,10 +378,29 @@ namespace server.Services.Theses
             return await _thesisVersionRepo.CreateThesisVersion(dto);
         }
 
-        public async Task<bool> DeleteThesisVersion(Guid thesisId)
+        public async Task<bool> DeleteThesisVersion(Guid thesisId, string callerId, bool isAdmin)
         {
+            var thesis = await _thesisRepo.GetThesisByIdAsync(thesisId)
+                ?? throw new KeyNotFoundException("Thesis not found.");
+
+            // Students may only prune their own group's thesis versions (Admins bypass).
+            if (!isAdmin) await EnsureGroupLeaderAsync(thesis, callerId);
+
             var result = await _thesisVersionRepo.DeleteAllExceptLatestAsync(thesisId);
             return result;
+        }
+
+        private async Task EnsureGroupLeaderAsync(ThesisEntity thesis, string callerId)
+        {
+            var student = await _studentRepo.GetByIdAsync(callerId)
+                ?? throw new UnauthorizedAccessException("Student profile could not be found.");
+
+            // GroupId is null for admin-archived theses, so a student never matches those.
+            if (student.ResearchGroup is null || thesis.GroupId != student.ResearchGroup.Id)
+                throw new UnauthorizedAccessException("You are not authorized to modify this thesis.");
+
+            if (!string.Equals(student.Position, "Leader", StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("Only the research group leader can modify this thesis.");
         }
 
     }
