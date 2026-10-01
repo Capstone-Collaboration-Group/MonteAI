@@ -15,7 +15,7 @@ namespace server.Services.Interfaces
 
         Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto);
         Task<string?> GetDownloadUrlAsync(Guid thesisId);
-        Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateThesisdto);
+        Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateThesisdto, string callerId, bool isAdmin);
 
         Task<bool> UpdateStatusAsync(Guid id, UpdateThesisStatusDto updateStatusDto);
 
@@ -33,7 +33,7 @@ namespace server.Services.Interfaces
 
         Task<bool> CreateThesisVersion(CreateThesisVersionDto thesisVersionDto, string uploadedById);
 
-        Task<bool> DeleteThesisVersion(Guid thesisId);
+        Task<bool> DeleteThesisVersion(Guid thesisId, string callerId, bool isAdmin);
 
 
     }
