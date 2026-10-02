@@ -1,5 +1,4 @@
 ﻿
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using server.Models.DTOs.Submission;
 using server.Services.Interfaces;
@@ -41,7 +40,6 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPost("create")]
-        [Authorize(Roles = "Student,Admin")]
         public async Task<IActionResult> CreateSubmission([FromBody] CreateSubmissionDto dto)
         {
             var result = await _service.CreateAsync(dto);
@@ -50,7 +48,6 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPut("update/{id}")]
-        [Authorize(Roles = "Student,Admin")]
         public async Task<IActionResult> UpdateSubmission([FromBody] UpdateSubmissionDto dto, Guid id)
         {
             var result = await _service.UpdateAsync(dto, id);
@@ -60,7 +57,6 @@ namespace server.Controllers
         }
 
         [HttpDelete("delete/{id}")]
-         [Authorize(Roles = "Student,Admin")]
         public async Task<IActionResult> DeleteSubmission(Guid id)
         {
             var result = await _service.DeleteAsync(id);

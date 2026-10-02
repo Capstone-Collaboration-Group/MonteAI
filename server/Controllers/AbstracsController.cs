@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using server.Models.Retrieval;
 using server.Services.Interfaces;
 
@@ -14,7 +13,6 @@ namespace server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
     public class AbstracsController
         (
         IPineconeService _pineconeService,

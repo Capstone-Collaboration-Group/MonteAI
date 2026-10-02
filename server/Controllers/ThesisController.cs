@@ -120,29 +120,28 @@ namespace server.Controllers
 
             dto.FilePath = blobUrl;
 
-            try
+           try
             {
                 var result = await _service.SubmitAsync(dto, uploaderId, isAdmin);
 
                 _logger.LogInformation("Thesis submitted successfully: {ThesisId}", result.Id);
 
-                return Ok(result);
+                 return Ok(result);
             }
-            catch (InvalidOperationException ex)
+           catch (InvalidOperationException ex)
             {
-                _logger.LogWarning(ex, "Thesis submission rejected for an existing research group.");
+           _logger.LogWarning(ex, "Thesis submission rejected for an existing research group.");
 
-                return Conflict(new
+            return Conflict(new
                 {
                     Message = ex.Message
                 });
             }
-        }
+                    }
 
         // Desktop-driven ingestion: the Electron pipeline extracts + chunks the
         // abstract, then this endpoint embeds and upserts it (see ThesisService).
         [HttpPost("ingest")]
-        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> IngestThesis([FromBody] IngestThesisDto dto)
         {
             var result = await _service.IngestAsync(dto);
@@ -150,25 +149,16 @@ namespace server.Controllers
             return Ok(new { result, Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
         }
         [HttpPut("update/details/{id}")]
-        [Authorize(Roles = "Student,Admin")]
         public async Task<IActionResult> UpdateThesisDetails([FromBody] UpdateThesisDto dto, Guid id)
         {
-            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(uid)) return Unauthorized();
+            var result = await _service.UpdateDetailsAsync(id, dto);
 
-            try
-            {
-                var result = await _service.UpdateDetailsAsync(id, dto, uid, User.IsInRole("Admin"));
-                if (result is false) return StatusCode(500, "An error occurred while updating.");
+            if (result is false) return StatusCode(500, "An error occurred while updating.");
 
-                _logger.LogInformation("Thesis Details with Id: {id} updated successfully", id);
-                return Ok(new { Message = "Thesis Details Updated Successfully" });
-            }
-            catch (UnauthorizedAccessException) { return Forbid(); }
-            catch (KeyNotFoundException) { return NotFound(new { Message = "Thesis not found." }); }
+            _logger.LogInformation("Thesis Details with Id: {id} updated successfully", id);
+            return Ok(new { Message = "Thesis Details Updated Successfully" });
         }
         [HttpPatch("update/status/{id}")]
-        [Authorize(Policy = "Reviewer")]
         public async Task<IActionResult> UpdateThesisStatus([FromBody] UpdateThesisStatusDto dto, Guid id)
         {
             var result = await _service.UpdateStatusAsync(id, dto);
@@ -180,7 +170,6 @@ namespace server.Controllers
         }
 
         [HttpDelete("delete/{id}")]
-        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteThesis(Guid id)
         {
             var result = await _service.DeleteAsync(id);
@@ -237,7 +226,7 @@ namespace server.Controllers
         }
 
         [HttpGet("versions/{versionId}/download-url")]
-        public async Task<IActionResult> GetVersionDownloadUrl(Guid versionId)
+        public async Task<IActionResult> GetVersionDownloadUrl(Guid versionId) 
         {
             var version = await _service.GetByVersionIdAsync(versionId);
             if (version == null) return NotFound();
@@ -258,7 +247,6 @@ namespace server.Controllers
         }
 
         [HttpPost("{thesisId}/versions")]
-        [Authorize(Roles = "Student")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> CreateThesisVersion(Guid thesisId, [FromForm] CreateThesisVersionDto dto)
         {
@@ -272,32 +260,31 @@ namespace server.Controllers
             var uploadedById = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(uploadedById))
                 return Unauthorized();
+            
+            try{
+            await using var stream = dto.File.OpenReadStream();
 
-            try
-            {
-                await using var stream = dto.File.OpenReadStream();
+            var thesisTitle = (await _service.GetByIdAsync(thesisId))?.Title;
+            var blobUrl = await _blobService.UploadAsync(
+                stream,
+                dto.File.FileName,
+                dto.File.ContentType,
+                thesisTitle // keep revision blobs named after the thesis title
+            );
 
-                var thesisTitle = (await _service.GetByIdAsync(thesisId))?.Title;
-                var blobUrl = await _blobService.UploadAsync(
-                    stream,
-                    dto.File.FileName,
-                    dto.File.ContentType,
-                    thesisTitle // keep revision blobs named after the thesis title
-                );
+            dto.ThesisId = thesisId;
+            dto.FilePath = blobUrl; 
 
-                dto.ThesisId = thesisId;
-                dto.FilePath = blobUrl;
+            var result = await _service.CreateThesisVersion(dto, uploadedById);
+            if (!result) return StatusCode(500, "Failed to create thesis version.");
 
-                var result = await _service.CreateThesisVersion(dto, uploadedById);
-                if (!result) return StatusCode(500, "Failed to create thesis version.");
-
-                _logger.LogInformation("Thesis version created for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
-                return Ok(new { Message = "Thesis version created successfully." });
-            }
+            _logger.LogInformation("Thesis version created for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
+            return Ok(new { Message = "Thesis version created successfully." });
+        }
 
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized thesis revision attempt for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
+                 _logger.LogWarning(ex,"Unauthorized thesis revision attempt for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
                 return Forbid();
             }
             catch (InvalidOperationException ex)
@@ -310,27 +297,19 @@ namespace server.Controllers
 
                 return BadRequest(new
                 {
-                    Message = ex.Message
+                Message = ex.Message
                 });
             }
         }
 
-        [HttpDelete("versions/{thesisId}")]
-        public async Task<IActionResult> DeleteThesisVersion(Guid thesisId)
+        [HttpDelete("versions/{versionId}")]
+        public async Task<IActionResult> DeleteThesisVersion(Guid versionId)
         {
-            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(uid)) return Unauthorized();
+            var result = await _service.DeleteThesisVersion(versionId);
+            if (!result) return StatusCode(500, "Failed to delete thesis version.");
 
-            try
-            {
-                var result = await _service.DeleteThesisVersion(thesisId, uid, User.IsInRole("Admin"));
-                if (!result) return StatusCode(500, "Failed to delete thesis versions.");
-
-                _logger.LogInformation("Older versions of thesis {ThesisId} deleted by {Uid}", thesisId, uid);
-                return Ok(new { Message = "Older versions deleted successfully." });
-            }
-            catch (UnauthorizedAccessException) { return Forbid(); }
-            catch (KeyNotFoundException) { return NotFound(new { Message = "Thesis not found." }); }
+            _logger.LogInformation("Thesis version {VersionId} deleted successfully", versionId);
+            return Ok(new { Message = $"Thesis version {versionId} deleted successfully." });
         }
 
     }

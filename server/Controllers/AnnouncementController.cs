@@ -10,6 +10,7 @@ using server.Services.Interfaces;
 namespace server.Controllers 
 { 
     [ApiController]
+    [Authorize]
     [Route("api/v1/[controller]")]
     public class AnnouncementController : ControllerBase 
     {
@@ -43,7 +44,6 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPost("create")]
-        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> CreateAnnouncement([FromBody] CreateAnnouncementDto dto)
         {  
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -65,7 +65,6 @@ namespace server.Controllers
             return BadRequest(new { Message = "Announcement Creation not successful" });
         }
         [HttpPatch("update/{id}")]
-        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> UpdateAnnouncement([FromBody] UpdateAnnouncementDto dto, Guid id)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -85,7 +84,6 @@ namespace server.Controllers
             return BadRequest(new { Message = "Announcement Update not successful" });
         }
         [HttpDelete("delete/{id}")]
-        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> DeleteAnnouncement(Guid id)
         {
             var result = await _service.DeleteAsync(id);

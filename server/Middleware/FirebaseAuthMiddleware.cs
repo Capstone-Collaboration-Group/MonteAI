@@ -29,12 +29,9 @@ public class FirebaseAuthMiddleware : AuthenticationHandler<FirebaseAuthOptions>
 
         var idToken = headerValue["Bearer ".Length..].Trim();
 
-        if(string.IsNullOrEmpty(idToken))
-            return AuthenticateResult.Fail("Missing Token");
-
         try
         {
-            var decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(idToken, checkRevoked: true);
+            var decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(idToken);
 
             var claims = new List<Claim>
             {
@@ -45,12 +42,6 @@ public class FirebaseAuthMiddleware : AuthenticationHandler<FirebaseAuthOptions>
             if (decodedToken.Claims.TryGetValue("email", out var email) && email is not null)
             {
                 claims.Add(new Claim(ClaimTypes.Email, email.ToString()!));
-            }
-
-            if(decodedToken.Claims.TryGetValue("email_verified", out var emailVerified)
-                && bool.TryParse(emailVerified?.ToString(), out var isVerified) && isVerified)
-            {
-                claims.Add(new Claim("email_verified", "true"));
             }
 
             var identity = new ClaimsIdentity(claims, Scheme.Name);

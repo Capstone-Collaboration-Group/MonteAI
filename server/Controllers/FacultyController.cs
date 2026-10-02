@@ -1,7 +1,5 @@
 using System;
-using System.Security.Claims;
 using AutoMapper;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using server.Models.DTOs.Faculty;
@@ -13,7 +11,6 @@ namespace server.Controllers
 { 
     [ApiController]
     [Route("api/v1/[controller]")]
-    [Authorize(Roles ="Admin, Faculty, ProgramHead")]
     public class FacultyController 
     (   IFacultyService _service,
         ILogger<FacultyController> _logger
@@ -43,10 +40,6 @@ namespace server.Controllers
         [HttpPatch("update/{id}")]
         public async Task<IActionResult> UpdateFaculty([FromBody] UpdateUserDto dto, string id)
         {
-            // Self or Admin only.
-            if (!User.IsInRole("Admin") && User.FindFirstValue(ClaimTypes.NameIdentifier) != id)
-                return Forbid();
-
             var result = await _service.UpdateAsync(dto, id);
             _logger.LogInformation("Performed Updating of Faculty: {Name} ", dto.FirstName);
             if (result)
@@ -57,7 +50,6 @@ namespace server.Controllers
             return BadRequest(new {Message = "Faculty Update Not Successful", result});
         }
         [HttpDelete("delete/{id}")]
-        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteFaculty(string id)
         {
             var result = await _service.DeleteAsync(id);

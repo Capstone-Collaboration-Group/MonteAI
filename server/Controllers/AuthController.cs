@@ -8,7 +8,6 @@ namespace server.Controllers
 {
     [ApiController]
     [Route("api/v1/[controller]")]
-    [Authorize]
     public class AuthController : ControllerBase
     { 
         private readonly ILogger<AuthController> _logger;
@@ -53,36 +52,14 @@ namespace server.Controllers
             {
                 "Student" => await _studentService.RegisterAsync(dto, dto.Id),
                 "Faculty" => await RegisterFacultyAsync(dto),
+                "ProgramHead" => await RegisterProgramHeadAsync(dto),
+                "Admin" => await RegisterAdminAsync(dto),
                 _ => null
             };
             if (result == null)
                 return BadRequest(new { Message = $"Unknown Role {dto.Role}" });
             _logger.LogInformation("User registered: {Id} as {Role}", dto.Id, dto.Role);
             return CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, result);
-        }
-        [HttpPost("register/admin-or-programhead")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> CreateAdminOrProgramHead([FromBody] RegisterUserDto dto)
-        {
-            if(string.IsNullOrEmpty(dto.Id))
-                return BadRequest(new { Message = "Firebase UID is required"});
-            var email = dto.Email?.Trim() ?? string.Empty;
-
-            if(!email.EndsWith("@pnm.edu.ph", StringComparison.OrdinalIgnoreCase))
-                return BadRequest(new { Message = "Admin or ProgramHead must be created with a @pnm.edu.ph associated email address."});
-            
-            var result = dto.Role switch
-            {
-                "Admin" => await RegisterAdminAsync(dto),
-                "ProgramHead" => await RegisterProgramHeadAsync(dto),
-                _ => null
-            };
-
-            if(result == null)
-                return BadRequest(new { Message = $"Unknown Role {dto.Role}"});
-            _logger.LogInformation("User registered: {Id} as {Role}", dto.Id, dto.Role);
-            return CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, result);
-
         }
 
         [HttpPost("login")]

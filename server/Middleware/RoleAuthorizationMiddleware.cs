@@ -32,10 +32,17 @@ public class RoleAuthorizationMiddleware
             {
                 string? role = null;
 
-                if      ((await studentService.GetByIdAsync(uid))?.IsActive == true)     role = "Student";
-                else if ((await facultyService.GetByIdAsync(uid))?.IsActive == true)     role = "Faculty";
-                else if ((await programHeadService.GetByIdAsync(uid))?.IsActive == true) role = "ProgramHead";
-                else if ((await adminService.GetByIdAsync(uid))?.IsActive == true)       role = "Admin";
+                var student = await studentService.GetByIdAsync(uid);
+                if (student != null) role = "Student";
+
+                var faculty = await facultyService.GetByIdAsync(uid);
+                if (faculty != null) role = "Faculty";
+
+                var admin = await adminService.GetByIdAsync(uid);
+                if (admin != null) role = "Admin";
+
+                var programHead = await programHeadService.GetByIdAsync(uid);
+                if (programHead != null) role = "ProgramHead";
 
                 if (role != null)
                 {

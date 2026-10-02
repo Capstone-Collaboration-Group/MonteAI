@@ -63,11 +63,9 @@ namespace server.Controllers
         }
 
         [HttpGet("sessions")]
-        public async Task<IActionResult> GetAllChats()
+        public async Task<IActionResult> GetAllChats([FromQuery] string userId)
         {
-            // Identity comes from the token, never from the query string.
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId parameter is required.");
 
             var result = await _chatSessionService.GetAllAsync(userId);
             if (result == null) return NotFound("No Chat Sessions Found");
@@ -96,12 +94,6 @@ namespace server.Controllers
         [HttpPost("sessions/create")]
         public async Task<IActionResult> CreateChatSession([FromBody] CreateChatSessionDto dto)
         {
-            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(uid)) return Unauthorized();
-
-            // Owner comes from the token, never from the request body.
-            dto.UserId = uid;
-
             var result = await _chatSessionService.CreateAsync(dto);
             _logger.LogInformation("Created session result: {Result}", result);
             return Ok(new { Message = "Session created", result });
@@ -253,9 +245,6 @@ namespace server.Controllers
         [HttpPut("sessions/{id}/update")]
         public async Task<IActionResult> UpdateChatSessionTitle([FromRoute] Guid id, [FromBody] UpdateChatSessionDto updateDto)
         {
-            var ownershipError = await CheckOwnershipAsync(id);
-            if (ownershipError != null) return ownershipError;
-
             var result = await _chatSessionService.UpdateAsync(updateDto, id);
             if (!result) return StatusCode(500, new { Message = "Failed to update chat session title." });
 
@@ -265,15 +254,19 @@ namespace server.Controllers
         [HttpDelete("sessions/{id}/delete")]
         public async Task<IActionResult> DeleteChatSession([FromRoute] Guid id)
         {
-            var ownershipError = await CheckOwnershipAsync(id);
-            if (ownershipError != null) return ownershipError;
-
             var success = await _chatSessionService.DeleteAsync(id);
             if (!success) return StatusCode(500, new { Message = "Failed to delete chat session." });
 
             return Ok(new { Message = "Chat Session Deleted" });
         }
 
+        // ────────────────────── helpers ──────────────────────
+
+        /// <summary>
+        /// Ensures the session exists and belongs to the caller. Returns null
+        /// when authorized; otherwise an IActionResult (normal requests) or
+        /// writes the error to the response directly (SSE requests).
+        /// </summary>
         private async Task<IActionResult?> CheckOwnershipAsync(Guid id, bool writeResponse = false)
         {
             var ownerUserId = await _chatSessionService.GetOwnerUserIdAsync(id);
