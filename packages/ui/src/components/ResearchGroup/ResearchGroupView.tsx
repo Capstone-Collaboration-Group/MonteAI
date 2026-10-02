@@ -20,6 +20,7 @@ export interface ResearchGroupViewProps {
   canEdit?: boolean;
   canDelete?: boolean;
   canManageMembers?: boolean;
+  studentId?: string;
   onCreate?: () => void;
   onEdit?: (group: ResearchGroupResponseDto) => void;
   onDelete?: (group: ResearchGroupResponseDto) => void;
@@ -34,6 +35,7 @@ export function ResearchGroupView({
   canEdit = false,
   canDelete = false,
   canManageMembers = false,
+  studentId,
   onCreate,
   onEdit,
   onDelete,
@@ -50,7 +52,9 @@ export function ResearchGroupView({
         group.researchTitle.toLowerCase().includes(query) ||
         group.institute.toLowerCase().includes(query) ||
         group.members.some((member) =>
-          `${member.name} ${member.studentNumber}`.toLowerCase().includes(query),
+          `${member.name} ${member.studentNumber}`
+            .toLowerCase()
+            .includes(query),
         ),
     );
   }, [groups, search]);
@@ -157,94 +161,116 @@ export function ResearchGroupView({
               />
             ) : (
               <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {filtered.map((group) => (
-                  <Card key={group.id} className="flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="rounded-xl bg-primary-container p-3 text-on-primary-container">
-                          <Users className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-on-surface">
-                            {group.groupName}
-                          </h3>
-                          <p className="text-xs text-on-surface-variant">
-                            {group.institute || "Institute not specified"}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge
-                        variant={group.members.length >= 4 ? "defense" : "surface"}
-                        dot
-                        size="sm"
-                      >
-                        {group.members.length}/4 members
-                      </Badge>
-                    </div>
+                {filtered.map((group) => {
+                  const isOwnGroup = studentId === group.leaderId;
+                  const hasResearchMembers = group.members.some(
+                    (member) => member.id !== group.leaderId,
+                  );
 
-                    <p className="line-clamp-2 text-sm text-on-surface-variant">
-                      {group.researchTitle}
-                    </p>
-
-                    <div className="flex-1 space-y-2 border-t border-outline-variant pt-3">
-                      {group.members.length === 0 ? (
-                        <p className="text-xs text-on-surface-variant">
-                          No members assigned yet.
-                        </p>
-                      ) : (
-                        group.members.map((member) => (
-                          <div
-                            key={member.id}
-                            className="flex items-center justify-between gap-2 text-sm"
-                          >
-                            <span className="truncate text-on-surface">
-                              {member.name || member.studentNumber || member.id}
-                            </span>
-                            <span className="shrink-0 text-xs text-on-surface-variant">
-                              {member.position}
-                            </span>
+                  return (
+                    <Card key={group.id} className="flex flex-col gap-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-xl bg-primary-container p-3 text-on-primary-container">
+                            <Users className="h-5 w-5" />
                           </div>
-                        ))
-                      )}
-                    </div>
+                          <div>
+                            <h3 className="font-semibold text-on-surface">
+                              {group.groupName}
+                            </h3>
+                            <p className="text-xs text-on-surface-variant">
+                              {group.institute || "Institute not specified"}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge
+                          variant={
+                            group.members.length >= 4 ? "defense" : "surface"
+                          }
+                          dot
+                          size="sm"
+                        >
+                          {group.members.length}/4 members
+                        </Badge>
+                      </div>
 
-                    <div className="flex flex-wrap gap-2 border-t border-outline-variant pt-3">
-                      {canEdit && (
-                        <Button
-                          variant="ghost"
-                          className="px-3 py-1.5 text-xs"
-                          onClick={() => onEdit?.(group)}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <Pencil className="h-3.5 w-3.5" /> Edit
-                          </span>
-                        </Button>
-                      )}
-                      {canManageMembers && (
-                        <Button
-                          variant="ghost"
-                          className="px-3 py-1.5 text-xs"
-                          onClick={() => onManageMembers?.(group)}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <UserCog className="h-3.5 w-3.5" /> Members
-                          </span>
-                        </Button>
-                      )}
-                      {canDelete && (
-                        <Button
-                          variant="ghost"
-                          className="px-3 py-1.5 text-xs text-error hover:text-error"
-                          onClick={() => onDelete?.(group)}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <Trash2 className="h-3.5 w-3.5" /> Delete
-                          </span>
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                ))}
+                      <p className="line-clamp-2 text-sm text-on-surface-variant">
+                        {group.researchTitle}
+                      </p>
+
+                      <div className="flex-1 space-y-2 border-t border-outline-variant pt-3">
+                        {group.members.length === 0 ? (
+                          <p className="text-xs text-on-surface-variant">
+                            No members assigned yet.
+                          </p>
+                        ) : (
+                          group.members.map((member) => (
+                            <div
+                              key={member.id}
+                              className="flex items-center justify-between gap-2 text-sm"
+                            >
+                              <span className="truncate text-on-surface">
+                                {member.name ||
+                                  member.studentNumber ||
+                                  member.id}
+                              </span>
+                              <span className="shrink-0 text-xs text-on-surface-variant">
+                                {member.position}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 border-t border-outline-variant pt-3">
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            className="px-3 py-1.5 text-xs"
+                            onClick={() => onEdit?.(group)}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <Pencil className="h-3.5 w-3.5" /> Edit
+                            </span>
+                          </Button>
+                        )}
+                        {canManageMembers && (
+                          <Button
+                            variant="ghost"
+                            className="px-3 py-1.5 text-xs"
+                            onClick={() => onManageMembers?.(group)}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <UserCog className="h-3.5 w-3.5" /> Members
+                            </span>
+                          </Button>
+                        )}
+                        {(canDelete || isOwnGroup) && (
+                          <Button
+                            variant="ghost"
+                            className="px-3 py-1.5 text-xs text-error hover:text-error"
+                            disabled={!canDelete && hasResearchMembers}
+                            title={
+                              hasResearchMembers
+                                ? "Remove all other members before deleting your group."
+                                : undefined
+                            }
+                            onClick={() => onDelete?.(group)}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </span>
+                          </Button>
+                        )}
+                        {isOwnGroup && hasResearchMembers && (
+                          <p className="w-full text-xs text-on-surface-variant">
+                            Remove all other members before deleting your group.
+                          </p>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
               </section>
             )}
           </>

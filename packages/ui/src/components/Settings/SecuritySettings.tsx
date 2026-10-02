@@ -1,22 +1,100 @@
 import { useState } from "react";
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+} from "firebase/auth";
+import { useAuth } from "@monteai/hooks";
+
 import { Card } from "../Card";
 import { Input } from "../Input";
 import { Button } from "../Button";
+import { showToast } from "../common";
 
 export function SecuritySettings() {
+  const { user } = useAuth();
   const [passwords, setPasswords] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
+
+    if (!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword) {
+      showToast({
+        title: "Missing fields",
+        description: "Fill in all three password fields.",
+        type: "error",
+      });
+      return;
+    }
+    if (passwords.newPassword.length < 6) {
+      showToast({
+        title: "Password too short",
+        description: "New password must be at least 6 characters.",
+        type: "error",
+      });
+      return;
+    }
     if (passwords.newPassword !== passwords.confirmPassword) {
-      console.error("Passwords do not match.");
+      showToast({
+        title: "Passwords do not match",
+        description: "New password and confirmation must match.",
+        type: "error",
+      });
+      return;
+    }
+    if (!user?.email) {
+      showToast({
+        title: "Session expired",
+        description: "Please sign in again to change your password.",
+        type: "error",
+      });
       return;
     }
 
-    console.log("Password update requested.");
+    setSaving(true);
+    try {
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        passwords.currentPassword
+      );
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, passwords.newPassword);
+
+      setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      showToast({
+        title: "Password updated",
+        description: "Your password has been changed successfully.",
+        type: "success",
+      });
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code ?? "";
+      if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        showToast({
+          title: "Incorrect password",
+          description: "Your current password is incorrect.",
+          type: "error",
+        });
+      } else if (code === "auth/requires-recent-login") {
+        showToast({
+          title: "Session expired",
+          description: "Please sign out and sign in again, then retry.",
+          type: "error",
+        });
+      } else {
+        showToast({
+          title: "Update failed",
+          description: "Your password could not be changed. Please try again.",
+          type: "error",
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -47,6 +125,7 @@ export function SecuritySettings() {
               }))
             }
             placeholder="Enter current password"
+            disabled={saving}
           />
         </label>
 
@@ -65,6 +144,7 @@ export function SecuritySettings() {
               }))
             }
             placeholder="Enter new password"
+            disabled={saving}
           />
         </label>
 
@@ -83,6 +163,7 @@ export function SecuritySettings() {
               }))
             }
             placeholder="Confirm new password"
+            disabled={saving}
           />
         </label>
 
@@ -98,8 +179,8 @@ export function SecuritySettings() {
       </div>
 
       <div className="flex justify-end border-t border-outline/10 px-6 py-4">
-        <Button type="button" onClick={handleSave}>
-          Update Password
+        <Button type="button" onClick={handleSave} disabled={saving}>
+          {saving ? "Updating…" : "Update Password"}
         </Button>
       </div>
     </Card>

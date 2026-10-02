@@ -110,23 +110,9 @@ export default function SettingsScreen() {
           />
 
           <SettingRow
-            icon="menu-book"
-            title="Research Settings"
-            subtitle="Manage your research preferences"
-            onPress={() => router.push('/settings/research-settings')}
-          />
-
-          <SettingRow
-            icon="auto-awesome"
-            title="AI Preferences"
-            subtitle="Customize your AI response preferences"
-            onPress={() => router.push('/settings/ai-preferences')}
-          />
-
-          <SettingRow
             icon="palette"
             title="Appearance"
-            subtitle="Choose your theme and font size"
+            subtitle="Choose your font size"
             onPress={() => router.push('/settings/appearance')}
           />
 

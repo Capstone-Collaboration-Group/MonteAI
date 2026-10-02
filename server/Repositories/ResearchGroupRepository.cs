@@ -57,13 +57,6 @@ namespace server.Repositories
             var existing = await _db.ResearchGroups.FindAsync(id);
             if (existing == null) return false;
 
-            var members = await _db.Students.Where(student => student.GroupId == id).ToListAsync();
-            foreach (var student in members)
-            {
-                student.GroupId = null;
-                student.Position = "Member";
-            }
-
             _db.ResearchGroups.Remove(existing);
             await _db.SaveChangesAsync();
             return true;

@@ -37,9 +37,9 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPatch("update/{id}")]
-        public async Task<IActionResult> UpdateAdmin(UpdateUserDto dto)
+        public async Task<IActionResult> UpdateAdmin(UpdateUserDto dto, string id)
         {
-            var result = await _service.UpdateAsync(dto);
+            var result = await _service.UpdateAsync(dto, id);
             _logger.LogInformation("Performed Update on Admin {FirstName}", dto.FirstName);
             if (result) return Ok(new {Message = "Admin Updated Successfully...", result});
 
