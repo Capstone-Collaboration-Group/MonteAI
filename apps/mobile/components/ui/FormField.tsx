@@ -14,6 +14,7 @@ export interface FormFieldProps {
 
 export function FormField({ label, icon, error, hint, children }: FormFieldProps) {
   const heading = useThemeColor({}, 'onSurface');
+  const body = useThemeColor({}, 'onSurfaceVariant');
   const danger = useThemeColor({}, 'error');
   return (
     <View style={s.field}>
@@ -23,7 +24,11 @@ export function FormField({ label, icon, error, hint, children }: FormFieldProps
       </View>
       {children}
       {error ? <Text style={[s.error, { color: danger }]}>{error}</Text> : null}
-      {hint && !error ? hint : null}
+      {hint && !error
+        ? typeof hint === 'string'
+          ? <Text style={[s.hint, { color: body }]}>{hint}</Text>
+          : hint
+        : null}
     </View>
   );
 }
@@ -33,4 +38,5 @@ const s = StyleSheet.create({
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   label: { fontSize: FontSize.md, fontWeight: '600' },
   error: { fontSize: FontSize.xs },
+  hint: { fontSize: FontSize.sm },
 });
