@@ -1,5 +1,5 @@
 // packages/ui/src/components/Thesis/ThesisPDFViewerLayout.tsx
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ArrowLeft, Calendar, FileDown } from "lucide-react";
 import type {
   ThesisVersion,
@@ -13,7 +13,7 @@ import type {
 import { Spinner } from "../common/Spinner";
 import { AnnotationSidebar } from "./AnnotationSidebar";
 import { VersionSelector } from "./VersionSelector";
-import { PDFHighlightViewer } from "./PDFHighlightViewer";
+import { PDFHighlightViewer, type PDFHighlightViewerHandle, type PdfOutlineItem } from "./PDFHighlightViewer";
 import { Button } from "../Button";
 import { PageLayout } from "../common";
 import { ThesisPDFViewerSkeleton } from "./skeletons";
@@ -73,8 +73,16 @@ export function ThesisPDFViewerLayout({
   onConfirmSchedule
 }: ThesisPDFViewerLayoutProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [sections, setSections] = useState<PdfOutlineItem[]>([]);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+
+  const pdfViewerRef = useRef<PDFHighlightViewerHandle>(null);
+
+  const handleJumpToPage = useCallback((page: number) => {
+  setCurrentPage(page);
+  pdfViewerRef.current?.scrollToPage(page);
+}, []);
 
   return (
     <PageLayout>
@@ -167,15 +175,20 @@ export function ThesisPDFViewerLayout({
               onToggle={() => setTimelineCollapsed((p) => !p)}
             />
           )}
-          <main className="flex-1 overflow-hidden">
+
+          <main className="min-w-0 flex-1 overflow-hidden">
             <PDFHighlightViewer
+              ref={pdfViewerRef}
               fileUrl={fileUrl}
               annotations={annotations}
               isCreating={isCreating}
               canAnnotate={canAnnotate}
               currentPage={currentPage}
               onPageChange={setCurrentPage}
+              onOutlineChange={setSections}
               onAddAnnotation={onAddAnnotation}
+              sections={sections}
+              onSectionSelect={(item) => handleJumpToPage(item.page)}
             />
           </main>
 
@@ -187,7 +200,7 @@ export function ThesisPDFViewerLayout({
               isResolving={isResolving}
               onResolve={onResolve}
               onDelete={onDelete}
-              onJumpToPage={setCurrentPage}
+              onJumpToPage={handleJumpToPage}
             />
           </aside>
         </div>
