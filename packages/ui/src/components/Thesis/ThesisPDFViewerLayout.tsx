@@ -83,7 +83,6 @@ export function ThesisPDFViewerLayout({
   setCurrentPage(page);
   pdfViewerRef.current?.scrollToPage(page);
 }, []);
-
   return (
     <PageLayout>
       {/* ── Top Bar ── */}

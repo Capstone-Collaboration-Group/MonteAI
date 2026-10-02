@@ -158,6 +158,7 @@ export function ScheduleDefenseModal({
 
   return (
     <>
+    
     <Modal isOpen={isOpen} onClose={onClose} size="xl" className="!max-w-5xl">
 
       {/* ── Header ── */}
