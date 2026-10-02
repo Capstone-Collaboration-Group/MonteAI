@@ -5,18 +5,18 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using server.Models.DTOs.User;
 using server.Services.Interfaces;
-    
-namespace server.Controllers 
-{ 
+
+namespace server.Controllers
+{
     [ApiController]
     [Route("api/v1/[controller]")]
     [EnableRateLimiting("HealthCheckLimit")]
-    [Authorize(Roles ="Admin")]
+    [Authorize(Roles = "Admin")]
     public class AdminController
     (
         IAdminService _service,
         ILogger<AdminController> _logger
-    ): ControllerBase 
+    ) : ControllerBase
     {
         [HttpGet]
         public async Task<IActionResult> GetAllAdmins()
@@ -41,11 +41,11 @@ namespace server.Controllers
         {
             var result = await _service.UpdateAsync(dto, id);
             _logger.LogInformation("Performed Update on Admin {FirstName}", dto.FirstName);
-            if (result) return Ok(new {Message = "Admin Updated Successfully...", result});
+            if (result) return Ok(new { Message = "Admin Updated Successfully...", result });
 
             return BadRequest(new { Message = "Update Not Sucessfull... Try again Later", result });
 
-            
+
         }
         [HttpDelete("delete/{id}")]
         public async Task<IActionResult> DeleteAdmin(string id)

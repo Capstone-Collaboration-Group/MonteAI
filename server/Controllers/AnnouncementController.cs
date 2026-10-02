@@ -6,21 +6,22 @@ using Microsoft.Extensions.Logging;
 using server.Models.DTOs.Announcement;
 using server.Models.DTOs.User;
 using server.Services.Interfaces;
-    
-namespace server.Controllers 
-{ 
+
+namespace server.Controllers
+{
     [ApiController]
     [Route("api/v1/[controller]")]
-    public class AnnouncementController : ControllerBase 
+    public class AnnouncementController : ControllerBase
     {
 
         //<-- Inherited from Microsoft.AspNetCore.Mvc
         private readonly ILogger<AnnouncementController> _logger;
         private readonly IAnnouncementService _service;
 
-         
+
         // Constructor
-        public AnnouncementController(ILogger<AnnouncementController> logger, IAnnouncementService service) { 
+        public AnnouncementController(ILogger<AnnouncementController> logger, IAnnouncementService service)
+        {
             _logger = logger;
             _service = service;
         }
@@ -45,7 +46,7 @@ namespace server.Controllers
         [HttpPost("create")]
         [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> CreateAnnouncement([FromBody] CreateAnnouncementDto dto)
-        {  
+        {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var role = User.FindFirstValue(ClaimTypes.Role);
             Console.WriteLine("Currently Logged in Account: " + userId + " " + role);
@@ -57,7 +58,7 @@ namespace server.Controllers
             //}
 
             var result = await _service.CreateAsync(dto, userId, role);
-            if(result)
+            if (result)
             {
                 _logger.LogInformation("Created An Announncement Successfully!");
                 return Ok(new { Message = "Announcement Created Successfully" });

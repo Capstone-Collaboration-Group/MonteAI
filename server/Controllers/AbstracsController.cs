@@ -19,7 +19,7 @@ namespace server.Controllers
         (
         IPineconeService _pineconeService,
         ILogger<AbstracsController> _logger
-        ): ControllerBase
+        ) : ControllerBase
     {
         [HttpPost("upsert/{thesisId:guid}")]
         public async Task<IActionResult> UpsertAbstract(Guid thesisId, [FromBody] List<Chunk> chunks)
