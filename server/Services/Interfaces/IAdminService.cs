@@ -11,7 +11,7 @@ namespace server.Services.Interfaces
 
         Task<bool> CreateAsync(RegisterUserDto admin);
 
-        Task<bool> UpdateAsync(UpdateUserDto admin);
+        Task<bool> UpdateAsync(UpdateUserDto admin, string id);
 
         Task<bool> DeleteAsync(string id);
 

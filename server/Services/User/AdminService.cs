@@ -43,10 +43,11 @@ namespace server.Services.User
             return result;
         }
 
-        public async Task<bool> UpdateAsync(UpdateUserDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateUserDto updateDto, string id)
         {
             var admin = _mapper.Map<Admin>(updateDto);
-            var result = await _repo.UpdateAdminAsync(admin);
+            admin.UpdatedAt = DateTime.UtcNow;
+            var result = await _repo.UpdateAdminAsync(admin, id);
             return result;
         }
 

@@ -39,6 +39,7 @@ namespace server.Services.User
         public async Task<bool> UpdateAsync(UpdateProgramHeadDto updateDto, string id)
         {
             var programHead = _mapper.Map<ProgramHead>(updateDto);
+            programHead.UpdatedAt = DateTime.UtcNow;
 
             var result = await _repo.UpdateProgramHeadAsync(programHead, id);
 

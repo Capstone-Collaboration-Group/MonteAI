@@ -32,11 +32,16 @@ export interface ResearchGroupPageProps {
   facultyService?: FacultyService;
   /** Current user's role — drives which actions are offered. */
   role?: string;
+  /** Student ID enables deletion of the student's own group. */
+  studentId?: string;
 }
 
 function extractMessage(err: unknown, fallback: string): string {
-  const response = (err as { response?: { data?: { Message?: string } } })?.response;
-  return response?.data?.Message ?? (err instanceof Error ? err.message : fallback);
+  const response = (err as { response?: { data?: { Message?: string } } })
+    ?.response;
+  return (
+    response?.data?.Message ?? (err instanceof Error ? err.message : fallback)
+  );
 }
 
 export function ResearchGroupPage({
@@ -44,8 +49,13 @@ export function ResearchGroupPage({
   studentService,
   facultyService,
   role,
+  studentId,
 }: ResearchGroupPageProps) {
-  const { data: groups = [], isLoading, isError } = useResearchGroups(researchGroupService);
+  const {
+    data: groups = [],
+    isLoading,
+    isError,
+  } = useResearchGroups(researchGroupService);
   const create = useCreateResearchGroup(researchGroupService);
   const update = useUpdateResearchGroup(researchGroupService);
   const remove = useDeleteResearchGroup(researchGroupService);
@@ -58,18 +68,25 @@ export function ResearchGroupPage({
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editing, setEditing] = useState<ResearchGroupResponseDto | null>(null);
-  const [membersGroup, setMembersGroup] = useState<ResearchGroupResponseDto | null>(null);
-  const [deleting, setDeleting] = useState<ResearchGroupResponseDto | null>(null);
+  const [membersGroup, setMembersGroup] =
+    useState<ResearchGroupResponseDto | null>(null);
+  const [deleting, setDeleting] = useState<ResearchGroupResponseDto | null>(
+    null,
+  );
 
   const canCreate = role === "Admin" || role === "Student";
-  const canEdit = role === "Admin" || role === "ProgramHead" || role === "Student";
+  const canEdit =
+    role === "Admin" || role === "ProgramHead" || role === "Student";
   const canDelete = role === "Admin";
   const canManageMembers =
     role === "Admin" || role === "ProgramHead" || role === "Student";
 
   const mutationBusy =
-    create.isPending || update.isPending || remove.isPending ||
-    addMember.isPending || removeMember.isPending;
+    create.isPending ||
+    update.isPending ||
+    remove.isPending ||
+    addMember.isPending ||
+    removeMember.isPending;
 
   const openCreate = () => {
     setFormMode("create");
@@ -104,13 +121,18 @@ export function ResearchGroupPage({
         const dto =
           role === "Admin"
             ? values
-            : { groupName: values.groupName, researchTitle: values.researchTitle };
+            : {
+                groupName: values.groupName,
+                researchTitle: values.researchTitle,
+              };
         await create.mutateAsync(dto);
         toast.success("Research group created");
       }
       setFormOpen(false);
     } catch (err) {
-      toast.error(extractMessage(err, "Something went wrong. Please try again."));
+      toast.error(
+        extractMessage(err, "Something went wrong. Please try again."),
+      );
     }
   };
 
@@ -120,8 +142,10 @@ export function ResearchGroupPage({
       const ok = await remove.mutateAsync(deleting.id);
       if (ok) toast.success("Research group deleted");
       else toast.error("Couldn't delete the research group");
-    } catch {
-      toast.error("Something went wrong while deleting the group.");
+    } catch (err) {
+      toast.error(
+        extractMessage(err, "Something went wrong while deleting the group."),
+      );
     } finally {
       setDeleting(null);
     }
@@ -137,7 +161,9 @@ export function ResearchGroupPage({
       if (ok) toast.success("Member added to the group");
       else toast.error("The student is already in a research group.");
     } catch (err) {
-      toast.error(extractMessage(err, "Couldn't add the member. The group may be full."));
+      toast.error(
+        extractMessage(err, "Couldn't add the member. The group may be full."),
+      );
     }
   };
 
@@ -165,6 +191,7 @@ export function ResearchGroupPage({
         canEdit={canEdit}
         canDelete={canDelete}
         canManageMembers={canManageMembers}
+        studentId={role === "Student" ? studentId : undefined}
         onCreate={openCreate}
         onEdit={openEdit}
         onDelete={setDeleting}
@@ -179,7 +206,9 @@ export function ResearchGroupPage({
           role={role}
           group={editing}
           students={role === "Admin" ? students : []}
-          faculties={role === "Admin" || role === "ProgramHead" ? faculties : []}
+          faculties={
+            role === "Admin" || role === "ProgramHead" ? faculties : []
+          }
           submitting={mutationBusy}
           onSubmit={handleSubmit}
           onClose={() => setFormOpen(false)}
@@ -208,9 +237,14 @@ export function ResearchGroupPage({
       <ConfirmDialog
         open={deleting !== null}
         title="Delete research group?"
-        description={`This will permanently remove "${deleting?.groupName ?? ""}" and detach its members and schedules. This action cannot be undone.`}
+        description={
+          role === "Student"
+            ? `This will permanently delete your research group, "${deleting?.groupName ?? ""}". This action cannot be undone.`
+            : `This will permanently remove "${deleting?.groupName ?? ""}" and detach its members and schedules. This action cannot be undone.`
+        }
         confirmLabel="Delete group"
         variant="danger"
+        loading={remove.isPending}
         onConfirm={confirmDelete}
         onCancel={() => setDeleting(null)}
       />

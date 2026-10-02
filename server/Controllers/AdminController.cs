@@ -1,4 +1,5 @@
 ﻿using System;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
@@ -10,11 +11,12 @@ namespace server.Controllers
     [ApiController]
     [Route("api/v1/[controller]")]
     [EnableRateLimiting("HealthCheckLimit")]
+    [Authorize(Roles ="Admin")]
     public class AdminController
     (
         IAdminService _service,
         ILogger<AdminController> _logger
-    )　: ControllerBase 
+    ): ControllerBase 
     {
         [HttpGet]
         public async Task<IActionResult> GetAllAdmins()
@@ -35,9 +37,9 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPatch("update/{id}")]
-        public async Task<IActionResult> UpdateAdmin(UpdateUserDto dto)
+        public async Task<IActionResult> UpdateAdmin(UpdateUserDto dto, string id)
         {
-            var result = await _service.UpdateAsync(dto);
+            var result = await _service.UpdateAsync(dto, id);
             _logger.LogInformation("Performed Update on Admin {FirstName}", dto.FirstName);
             if (result) return Ok(new {Message = "Admin Updated Successfully...", result});
 
