@@ -6,7 +6,6 @@ using server.Services.Interfaces;
 namespace server.Controllers
 {
     [ApiController]
-    [Authorize]
     [Route("api/v1/[controller]")]
     public class StudentController
     (
@@ -52,6 +51,21 @@ namespace server.Controllers
 
             if (result is null)
                 return NotFound(new { Message = "Student Not Found" });
+
+            // Students may only view classmates in their own program (same rule as GetStudents).
+            // Faculty / ProgramHead / Admin can view any student.
+            if (User.FindFirstValue(ClaimTypes.Role) == "Student")
+            {
+                var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(uid)) return Unauthorized();
+
+                var me = await _service.GetProfileByIdAsync(uid);
+                if (me is null) return Forbid();
+
+                // Same response as "not found" so other programs' students cannot be enumerated.
+                if (me.Program != result.Program)
+                    return NotFound(new { Message = "Student Not Found" });
+            }
 
             return Ok(result);
         }

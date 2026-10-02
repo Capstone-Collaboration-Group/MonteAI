@@ -1,4 +1,5 @@
 ﻿using System;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
@@ -10,11 +11,12 @@ namespace server.Controllers
     [ApiController]
     [Route("api/v1/[controller]")]
     [EnableRateLimiting("HealthCheckLimit")]
+    [Authorize(Roles ="Admin")]
     public class AdminController
     (
         IAdminService _service,
         ILogger<AdminController> _logger
-    )　: ControllerBase 
+    ): ControllerBase 
     {
         [HttpGet]
         public async Task<IActionResult> GetAllAdmins()

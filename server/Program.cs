@@ -112,10 +112,13 @@ try
 
     builder.Services.AddAuthorization(options =>
     {
-        options.DefaultPolicy = new AuthorizationPolicyBuilder()
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .RequireClaim(ClaimTypes.Role)
             .Build();
+
+        options.AddPolicy("Reviewer", policy => 
+            policy.RequireRole("Faculty", "Admin", "ProgramHead"));
 
         options.AddPolicy("FirebaseAuthenticated", policy =>
             policy.RequireAuthenticatedUser());
@@ -256,7 +259,7 @@ try
         app.MapGet("/", context => {
             context.Response.Redirect("/swagger");
             return Task.CompletedTask;
-        });
+        }).AllowAnonymous();
     }
 
     app.UseRouting();
@@ -293,7 +296,7 @@ try
         if (header != secret) return Results.Unauthorized();
 
         return Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow });
-    }).RequireRateLimiting("HealthCheckLimit");
+    }).AllowAnonymous().RequireRateLimiting("HealthCheckLimit");
 
 
     app.Run();

@@ -1,4 +1,5 @@
 ﻿using System;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using server.Models.DTOs.Review;
 using server.Services.Interfaces;
@@ -33,6 +34,7 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPost("create")]
+        [Authorize(Policy = "Reviewer")]
         public async Task<IActionResult> CreateReview([FromBody] CreateReviewDto dto)
         {
             var result = await _service.CreateAsync(dto);
@@ -44,6 +46,7 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request... Please Try again later..." });
         }
         [HttpPatch("update/{id}")]
+        [Authorize(Policy = "Reviewer")]
         public async Task<IActionResult> UpdateReview([FromBody] UpdateReviewDto dto, Guid id)
         {
             var result = await _service.UpdateAsync(dto, id);
@@ -55,6 +58,7 @@ namespace server.Controllers
             return BadRequest(new { Message = "Bad Request... Please Try again later..." });
         }
         [HttpDelete("delete/{id}")]
+        [Authorize(Policy = "Reviewer")]
         public async Task<IActionResult> DeleteReview(Guid id)
         {
             var result = await _service.DeleteAsync(id);
