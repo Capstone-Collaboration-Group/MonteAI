@@ -28,6 +28,10 @@ namespace server.Models.DTOs.PanelistSchedule
         public string PanelistId { get; set; } = string.Empty;
 
         public PanelistType PanelistType { get; set; }
+
+        // Display name resolved from the Faculty/ProgramHead/Admin tables by the
+        // service layer — PanelistId alone is unreadable in the schedule UI.
+        public string PanelistName { get; set; } = string.Empty;
     }
 
     // Enriched read model used by the panelist management UI: one entry per panelist
