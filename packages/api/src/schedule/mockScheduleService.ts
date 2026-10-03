@@ -117,7 +117,7 @@ function buildSeed(): ScheduleResponseDto[] {
    const panelists: PanelistScheduleResponseDto[] =
   i % 3 === 0
     ? [
-        { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Adviser" as PanelistType, createdAt: new Date().toISOString() },
+        { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Faculty" as PanelistType, createdAt: new Date().toISOString() },
         { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Faculty" as PanelistType, createdAt: new Date().toISOString() },
       ]
     : [];
