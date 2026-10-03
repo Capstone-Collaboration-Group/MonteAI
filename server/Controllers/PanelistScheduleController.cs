@@ -43,7 +43,7 @@ namespace server.Controllers
                 _logger.LogInformation("Created Panelist Schedule");
                 return Ok(new { Message = "Created Panelist Schedule ", result });
             }
-            return BadRequest(new { Message = "Bad Request... Please try again later..." });
+            return BadRequest(new { Message = "Bad Request... the timeslot is taken or that panelist is already booked that day..." });
         }
         [HttpPatch("update/{scheduleId}")]
         [Authorize(Roles = "Admin,ProgramHead")]

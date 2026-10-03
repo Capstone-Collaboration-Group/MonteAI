@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { Modal, ModalHeader } from "../common/Modal";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../common/ConfirmDialog";
+import { showToast } from "../common";
+import { getApiErrorMessage } from "@monteai/utils";
 import type { CreateScheduleDto, PanelistCandidate, PanelistType } from "@monteai/types";
 import { getPanelistDisplayName, getPanelistInitials } from "@monteai/types";
 
@@ -18,7 +20,8 @@ interface ScheduleDefenseModalProps {
   };
   scheduledBy: string;
   panelistPool?: PanelistCandidate[]
-  onConfirm: (data: CreateScheduleDto) => void;
+  /** May return a promise — the modal stays open (with a toast) when it rejects. */
+  onConfirm: (data: CreateScheduleDto) => void | Promise<unknown>;
 }
 
 const VENUES = [
@@ -109,6 +112,7 @@ export function ScheduleDefenseModal({
   const [venue, setVenue]                     = useState("");
   const [confirmOpen, setConfirmOpen]         = useState(false);
   const [pendingPayload, setPendingPayload]   = useState<CreateScheduleDto | null>(null);
+  const [isSubmitting, setIsSubmitting]       = useState(false);
 
   const duration   = useMemo(() => calcDuration(startTime, endTime), [startTime, endTime]);
   const canConfirm = defenseDate && startTime && endTime && selectedPanelists.length >= 3 && venue;
@@ -130,6 +134,11 @@ export function ScheduleDefenseModal({
   }
 
   function handleConfirm() {
+    // Pool candidates carry lowercase types ("faculty"/"program-head"/"admin");
+    // send the server's PascalCase enum names like the edit modal does.
+    const toServerPanelistType = (t: string): PanelistType =>
+      t === "admin" ? "Admin" : t === "program-head" ? "ProgramHead" : "Faculty";
+
     const payload: CreateScheduleDto = {
       scheduledBy,
       groupId: thesis.groupId,
@@ -139,25 +148,58 @@ export function ScheduleDefenseModal({
       roomVenue: venue,
       panelists: selectedPanelists.map((p) => ({
         panelistId: p.id,
-        panelistType: p.panelistType as PanelistType,
+        panelistType: toServerPanelistType(p.panelistType),
       })),
     };
     setPendingPayload(payload);
     setConfirmOpen(true);
   }
 
-  function handleFinalConfirm() {
-    if (!pendingPayload) return;
-    console.log(`id is ${thesis.id}`);
-    console.log(`groupId is ${thesis.groupId}`);
-    onConfirm(pendingPayload);
+  async function handleFinalConfirm() {
+    if (!pendingPayload || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onConfirm(pendingPayload);
+      setConfirmOpen(false);
+      setPendingPayload(null);
+      onClose();
+      // Mirror the error toast: confirm the save with what was scheduled.
+      const dateLabel = new Date(`${defenseDate}T00:00:00`).toLocaleDateString(
+        "en-US",
+        { weekday: "long", month: "long", day: "numeric", year: "numeric" },
+      );
+      showToast({
+        title: "Schedule created successfully",
+        description: `${dateLabel} • ${startTime} – ${endTime} • ${venue}`,
+        type: "success",
+      });
+    } catch (err) {
+      // Conflict/validation rejection: close only the confirm step and keep the
+      // form open so the date, time, venue, or panelists can be adjusted.
+      setConfirmOpen(false);
+      setPendingPayload(null);
+      showToast({
+        title: "Could not create the schedule",
+        description: getApiErrorMessage(
+          err,
+          "The timeslot or a panelist booking conflicts with an existing schedule.",
+        ),
+        type: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleCancelConfirm() {
+    if (isSubmitting) return;
     setConfirmOpen(false);
     setPendingPayload(null);
-    onClose();
   }
 
   return (
     <>
+    
     <Modal isOpen={isOpen} onClose={onClose} size="xl" className="!max-w-5xl">
 
       {/* ── Header ── */}
@@ -401,11 +443,9 @@ export function ScheduleDefenseModal({
         description={`You are about to schedule a defense for "${thesis.title}" by ${thesis.author}. Please review the details before confirming.`}
         confirmLabel="Create Schedule"
         cancelLabel="Go Back"
+        loading={isSubmitting}
         onConfirm={handleFinalConfirm}
-        onCancel={() => {
-          setConfirmOpen(false);
-          setPendingPayload(null);
-        }}
+        onCancel={handleCancelConfirm}
       >
         {pendingPayload && (
           <div className="space-y-2 rounded-lg border border-outline/10 bg-surface-container-low p-3 text-sm">

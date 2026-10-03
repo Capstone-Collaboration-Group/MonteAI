@@ -13,7 +13,7 @@ interface PanelistDetailPanelProps {
 export function PanelistDetailPanel({ panelist, onClose, schedulesById }: PanelistDetailPanelProps) {
   return (
     <aside
-      className={`w-80 bg-white border-l border-outline-variant flex flex-col h-full transform transition-transform duration-300 ${
+      className={`w-lg bg-white border-l border-outline-variant flex flex-col h-full transform transition-transform duration-300 ${
         panelist ? "translate-x-0" : "translate-x-full"
       } fixed top-0 right-0 z-50 shadow-2xl`}
     >

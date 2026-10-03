@@ -87,7 +87,7 @@ export default function LibraryScreen() {
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
-        <AppHeader title="MonteScholar" onLeftPress={openDrawer} rightIcons={[{ icon: 'notifications-none' }]} />
+        <AppHeader title="MonteSkolar" onLeftPress={openDrawer} rightIcons={[{ icon: 'notifications-none' }]} />
       </SafeAreaView>
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         {/* Header */}

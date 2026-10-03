@@ -89,9 +89,11 @@ namespace server.Mappings
                 .ForMember(dest => dest.SourcesJson, opt => opt.Ignore());
 
             //  PanelistSchedule  
-            CreateMap<PanelistSchedule, PanelistScheduleResponseDto>();
+            CreateMap<PanelistSchedule, PanelistScheduleResponseDto>()
+                .ForMember(dest => dest.PanelistName, opt => opt.Ignore()); // filled by the service layer
             CreateMap<CreatePanelistScheduleDto, PanelistSchedule>(); // Will be deprecated soon
-            CreateMap<CreatePanelistEntryDto, PanelistSchedule>();
+            CreateMap<CreatePanelistEntryDto, PanelistSchedule>()
+                .ForMember(dest => dest.PanelistType, opt => opt.MapFrom(src => ParsePanelistType(src.PanelistType)));
             CreateMap<UpdatePanelistScheduleDto, PanelistSchedule>()
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
 
@@ -99,6 +101,8 @@ namespace server.Mappings
             CreateMap<ResearchGroup, ResearchGroupResponseDto>()
                 .ForMember(dest => dest.Institute, opt => opt.MapFrom(src =>
                     src.Leader != null ? (src.Leader.Institute ?? string.Empty) : string.Empty))
+                .ForMember(dest => dest.LeaderName, opt => opt.MapFrom(src =>
+                    src.Leader != null ? FormatPersonName(src.Leader) : string.Empty))
                 .ForMember(dest => dest.Members, opt => opt.MapFrom(src => src.Students));
             CreateMap<Student, ResearchGroupMemberDto>()
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src =>
@@ -151,8 +155,29 @@ namespace server.Mappings
             CreateMap<CreateAnnouncementDto, Announcement>();
             CreateMap<UpdateAnnouncementDto, Announcement>();
            
-
         }
+
+        // Accepts the wire formats the frontends send ("Faculty"/"ProgramHead"/"Admin"
+        // and the lowercase pool values "faculty"/"program-head"/"admin"). Anything
+        // unrecognized falls back to Faculty, mirroring the UI's own fallback.
+        private static PanelistType ParsePanelistType(string? value)
+            => value?.Trim().ToLowerInvariant() switch
+            {
+                "programhead" or "program-head" => PanelistType.ProgramHead,
+                "admin" => PanelistType.Admin,
+                _ => PanelistType.Faculty,
+            };
+
+        // "Juan D. Cruz Jr." — skips missing middle initial/suffix.
+        private static string FormatPersonName(User user)
+            => string.Join(" ", new[]
+            {
+                user.FirstName,
+                user.MiddleInitial is null ? null : $"{user.MiddleInitial}.",
+                user.LastName,
+                user.Suffix
+            }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
         /// <summary>Deserializes the SourcesJson Firestore field into citation DTOs (null when absent/invalid).</summary>
         private static List<ChatSourceDto>? DeserializeSources(string? sourcesJson)
         {

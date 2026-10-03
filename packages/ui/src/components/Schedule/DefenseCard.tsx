@@ -199,7 +199,11 @@ export function DefenseCard({
                 key={panelist.panelistId}
                 className="ring-2 ring-white/40 rounded-full"
               >
-                <Avatar name={panelist.panelistId} size="sm" shape="circle" />
+                <Avatar
+                  name={panelist.panelistName || panelist.panelistId}
+                  size="sm"
+                  shape="circle"
+                />
               </div>
             ))}
           </div>

@@ -121,7 +121,7 @@ export function DefenseCard({
                   i > 0 && { marginLeft: -8 },
                 ]}>
                 <Text style={[s.panelistInitial, { color: theme.text }]}>
-                  {panelist.panelistId.charAt(0).toUpperCase()}
+                  {(panelist.panelistName || panelist.panelistId).charAt(0).toUpperCase()}
                 </Text>
               </View>
             ))}

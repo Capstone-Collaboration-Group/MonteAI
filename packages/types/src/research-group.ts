@@ -18,6 +18,8 @@ export interface ResearchGroupResponseDto {
   researchTitle: string;
   adviserId: string;
   leaderId: string;
+  /** Display name of the leader resolved server-side; fall back to leaderId when absent. */
+  leaderName?: string;
   createdAt: string;
   updatedAt: string;
   institute: string;
