@@ -35,6 +35,7 @@ interface PickedFile {
   uri: string;
   name: string;
   size: number | null;
+  type: string;
 }
 
 interface SubmitThesisFlowProps {
@@ -53,9 +54,13 @@ function getSubmitErrorMessage(err: unknown): string {
   if (response?.status === 403) return 'You are not allowed to perform this action.';
   const data = response?.data;
   if (typeof data === 'string' && data.trim()) return data;
-  if (data && typeof data === 'object' && 'Message' in data) {
-    const message = (data as { Message?: unknown }).Message;
-    if (typeof message === 'string' && message) return message;
+  if (data && typeof data === 'object') {
+    // ASP.NET serializes anonymous objects camelCase; ProblemDetails uses
+    // title/detail. Check the shapes the server actually sends.
+    for (const key of ['Message', 'message', 'detail', 'title']) {
+      const value = (data as Record<string, unknown>)[key];
+      if (typeof value === 'string' && value) return value;
+    }
   }
   if (err instanceof Error && err.message) return err.message;
   return 'Something went wrong while submitting. Please try again.';
@@ -264,7 +269,9 @@ export function SubmitThesisFlow({ onExit }: SubmitThesisFlowProps) {
         return;
       }
 
-      setFile({ uri: asset.uri, name: asset.name, size: asset.size ?? null });
+      // Multipart parts need a MIME type on Android (RN FormData), and the
+      // shared client types the file as a web File, so carry it on the object.
+      setFile({ uri: asset.uri, name: asset.name, size: asset.size ?? null, type: 'application/pdf' });
       setErrors({});
     } catch {
       setErrors({ file: 'Could not open the file picker. Please try again.' });
@@ -288,6 +295,7 @@ export function SubmitThesisFlow({ onExit }: SubmitThesisFlowProps) {
       );
       setSubmitted(true);
     } catch (err) {
+      console.error('[submit] failed', err);
       setErrors({ submit: getSubmitErrorMessage(err) });
     } finally {
       setSubmitting(false);
