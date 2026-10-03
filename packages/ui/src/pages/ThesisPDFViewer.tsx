@@ -145,7 +145,7 @@ export function ThesisPDFViewerPage({
     programHeadService,
     adminService
   );
-  const { mutate: createSchedule } = useCreateSchedule(scheduleService);
+  const { mutateAsync: createSchedule } = useCreateSchedule(scheduleService);
   const { user } = useAuth();
   const scheduledBy = user?.displayName ?? user?.email ?? "";
 
@@ -173,9 +173,7 @@ export function ThesisPDFViewerPage({
       onSubmitRevision={onSubmitRevision}
       panelistPool={panelistPool ?? []}
       scheduledBy={scheduledBy}
-      onConfirmSchedule={(payload) => {
-        createSchedule(payload);
-      }}
+      onConfirmSchedule={(payload) => createSchedule(payload)}
     />
   );
 }

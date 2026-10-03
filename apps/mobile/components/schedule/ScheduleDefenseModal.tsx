@@ -16,6 +16,15 @@ interface ScheduleDefenseModalProps {
 const BACKDROP_OPACITY = 0.4;
 const SHEET_HIDDEN_OFFSET = 800;
 
+/** "Juan D. Cruz Jr." → "JC" (falls back cleanly for raw ids). */
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = parts[0][0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '';
+  return `${first}${last}`.toUpperCase() || '?';
+}
+
 interface FactRowProps {
   icon: React.ComponentProps<typeof MaterialIcons>['name'];
   label: string;
@@ -139,7 +148,7 @@ export function ScheduleDefenseModal({ schedule, onClose }: ScheduleDefenseModal
                   </Text>
                   <Text style={[s.label, { color: body }]}>Group Leader</Text>
                   <Text style={[s.groupValue, { color: heading }]}>
-                    {display.researchGroup.leaderId}
+                    {display.researchGroup.leaderName || display.researchGroup.leaderId}
                   </Text>
                 </View>
               </View>
@@ -182,21 +191,24 @@ export function ScheduleDefenseModal({ schedule, onClose }: ScheduleDefenseModal
 
               {panelists.length > 0 ? (
                 <View style={s.panelistList}>
-                  {panelists.map((panelist) => (
-                    <View key={`${panelist.panelistId}-${panelist.panelistType}`} style={s.panelistRow}>
-                      <View style={[s.panelistAvatar, { backgroundColor: secondaryContainer }]}>
-                        <Text style={[s.panelistInitial, { color: heading }]}>
-                          {panelist.panelistId.charAt(0).toUpperCase()}
+                  {panelists.map((panelist) => {
+                    const displayName = panelist.panelistName || panelist.panelistId;
+                    return (
+                      <View key={`${panelist.panelistId}-${panelist.panelistType}`} style={s.panelistRow}>
+                        <View style={[s.panelistAvatar, { backgroundColor: secondaryContainer }]}>
+                          <Text style={[s.panelistInitial, { color: heading }]}>
+                            {getInitials(displayName)}
+                          </Text>
+                        </View>
+                        <Text style={[s.panelistName, { color: heading }]} numberOfLines={1}>
+                          {displayName}
                         </Text>
+                        <View style={[s.typeChip, { backgroundColor: surfaceHigh }]}>
+                          <Text style={[s.typeText, { color: body }]}>{panelist.panelistType}</Text>
+                        </View>
                       </View>
-                      <Text style={[s.panelistName, { color: heading }]} numberOfLines={1}>
-                        {panelist.panelistId}
-                      </Text>
-                      <View style={[s.typeChip, { backgroundColor: surfaceHigh }]}>
-                        <Text style={[s.typeText, { color: body }]}>{panelist.panelistType}</Text>
-                      </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               ) : (
                 <Text style={[s.noPanelists, { color: body }]}>No panelists assigned</Text>

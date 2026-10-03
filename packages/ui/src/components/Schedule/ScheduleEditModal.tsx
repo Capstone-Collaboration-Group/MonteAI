@@ -32,7 +32,6 @@ function typeColor(type: string): string {
   const t = type.toLowerCase();
   if (t.includes("admin")) return "#dc2626";
   if (t.includes("program")) return "#9333ea";
-  if (t.includes("adviser")) return "#0d9488";
   return "#2563eb";
 }
 
@@ -105,7 +104,7 @@ export function ScheduleEditModal({
         id: p.panelistId,
         label: candidate
           ? getPanelistDisplayName(candidate)
-          : p.panelistId,
+          : (p.panelistName || p.panelistId),
         type: candidate ? candidate.panelistType : p.panelistType,
       };
     });

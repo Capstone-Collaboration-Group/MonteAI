@@ -1,6 +1,6 @@
 // packages/types/src/panelist-schedule.ts
 
-export type PanelistType = "Faculty" | "ProgramHead" | "Admin" | "Adviser";
+export type PanelistType = "Faculty" | "ProgramHead" | "Admin";
 
 export interface CreatePanelistScheduleDto {
   scheduleId: string;
@@ -18,6 +18,8 @@ export interface PanelistScheduleResponseDto {
   scheduleId: string;
   panelistId: string;
   panelistType: PanelistType;
+  /** Display name resolved server-side; fall back to panelistId when absent (mocks/older payloads). */
+  panelistName?: string;
   role?: string;
   createdAt?: string;
 }

@@ -43,7 +43,7 @@ interface ThesisPDFViewerLayoutProps {
   onBack?: () => void;
   panelistPool?: PanelistCandidate[];
   scheduledBy?: string;
-  onConfirmSchedule?: (data: CreateScheduleDto) => void;
+  onConfirmSchedule?: (data: CreateScheduleDto) => void | Promise<unknown>;
   onSubmitRevision?: () => void;
 }
 
@@ -221,9 +221,7 @@ export function ThesisPDFViewerLayout({
     section: thesis.uploadedById,   // closest available field — swap if you have a better one
   }}
   panelistPool={panelistPool ?? []}
-  onConfirm={(payload) => {
-    onConfirmSchedule?.(payload)
-  }}
+  onConfirm={(payload) => onConfirmSchedule?.(payload)}
 />
       )}
     </PageLayout>
