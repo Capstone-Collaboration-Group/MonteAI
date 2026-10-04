@@ -24,7 +24,10 @@ import {
   usePanelistPool,
   useCreateSchedule,
   useAuth,
+  useDeleteThesisVersion,
 } from "@monteai/hooks";
+import { getApiErrorMessage } from "@monteai/utils";
+import { toast } from "../components/Toaster";
 import { ThesisPDFViewerLayout } from "../components/Thesis";
 
 export type { ViewerRole } from "@monteai/types";
@@ -39,6 +42,10 @@ interface ThesisPDFViewerProps {
   adminService: AdminService;
   scheduleService: ScheduleService;
   role?: ViewerRole;
+  /** Signed-in student holds the "Leader" position in their own group. */
+  isGroupLeader?: boolean;
+  /** The user's research-group id — must match thesis.groupId for ownership. */
+  currentGroupId?: string | null;
   onBack?: () => void;
   onSubmitRevision?: () => void;
 }
@@ -59,10 +66,13 @@ export function ThesisPDFViewerPage({
   adminService,
   scheduleService,
   role = "student",
+  isGroupLeader = false,
+  currentGroupId = null,
   onBack,
   onSubmitRevision,
 }: ThesisPDFViewerProps) {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const canAnnotate = ANNOTATOR_ROLES.includes(role);
 
@@ -136,6 +146,48 @@ export function ThesisPDFViewerPage({
     [thesisId, activeVersionId, deleteAnnotation]
   );
 
+  const { mutate: deleteVersion, isPending: isDeletingVersion } =
+    useDeleteThesisVersion(thesisService);
+
+  // Owner-only delete: the signed-in student must be the leader of THIS
+  // thesis's research group (thesis.groupId === the user's group) — leaders of
+  // other groups and reviewers never see the button. Also latest-only; the
+  // server re-checks both (403 / 400).
+  const canDeleteVersion =
+    role === "student" &&
+    isGroupLeader &&
+    !!thesis?.groupId &&
+    currentGroupId != null &&
+    thesis.groupId === currentGroupId &&
+    !!activeVersion &&
+    !!latestVersion &&
+    activeVersion.id === latestVersion.id;
+
+  const handleRequestDelete = useCallback(() => setDeleteDialogOpen(true), []);
+
+  const handleDeleteVersion = useCallback(() => {
+    if (!activeVersionId) return;
+    const wasLastVersion = versions.length <= 1;
+    setDeleteDialogOpen(false);
+
+    deleteVersion(
+      { thesisId, versionId: activeVersionId },
+      {
+        onSuccess: () => {
+          // Reset so the selector falls back to whatever version is now latest
+          // (null after the last-version cascade).
+          setSelectedVersionId(null);
+          toast.success(
+            wasLastVersion ? "Thesis deleted." : "Version deleted."
+          );
+          if (wasLastVersion) onBack?.();
+        },
+        onError: (err) =>
+          toast.error(getApiErrorMessage(err, "Couldn't delete the version.")),
+      }
+    );
+  }, [activeVersionId, versions.length, deleteVersion, thesisId, onBack]);
+
   const handleGenerateProceedings = useCallback(() => {
     generateProceedings(thesisId);
   }, [thesisId, generateProceedings]);
@@ -164,6 +216,12 @@ export function ThesisPDFViewerPage({
       isCreating={isCreating}
       isResolving={isResolving}
       canAnnotate={canAnnotate}
+      canDeleteVersion={canDeleteVersion}
+      deleteDialogOpen={deleteDialogOpen}
+      isDeletingVersion={isDeletingVersion}
+      onRequestDelete={handleRequestDelete}
+      onDeleteVersion={handleDeleteVersion}
+      onCancelDelete={() => setDeleteDialogOpen(false)}
       onVersionChange={setSelectedVersionId}
       onAddAnnotation={handleAddAnnotation}
       onResolve={handleResolve}
