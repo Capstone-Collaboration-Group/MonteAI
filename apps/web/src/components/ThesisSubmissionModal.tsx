@@ -5,36 +5,13 @@ import { MetadataForm, type ThesisMetadata } from "./MetadataForm";
 import { UploadThesisDocument } from "./UploadThesisDocument";
 import { ConfirmGroupInformation } from "./ConfirmGroupInformation";
 import { useUserProfile } from "@monteai/hooks";
-import { Alert, Button } from "@monteai/ui";
+import { Textarea, toast } from "@monteai/ui";
+import { getApiErrorMessage } from "@monteai/utils";
 import { profileService } from "../lib/authService";
 import { thesisService } from "../lib/thesisService";
 import type { SubmitThesisDto } from "@monteai/types";
 
 type Step = "metadata" | "upload" | "confirm";
-
-function getSubmitErrorMessage(err: unknown): string {
-  if (err && typeof err === "object" && "response" in err) {
-    const response = (err as { response?: { status?: number; data?: unknown } })
-      .response;
-    if (response?.status === 403) {
-      return "You are not allowed to perform this action.";
-    }
-    const data = response?.data;
-    if (typeof data === "string" && data.trim()) {
-      return data;
-    }
-    if (data && typeof data === "object") {
-      const message = (data as Record<string, unknown>).Message;
-      if (typeof message === "string" && message.trim()) {
-        return message;
-      }
-    }
-  }
-  if (err instanceof Error && err.message) {
-    return err.message;
-  }
-  return "Submission failed. Please try again.";
-}
 
 interface ThesisSubmissionModalProps {
   open: boolean;
@@ -57,8 +34,7 @@ export function ThesisSubmissionModal({
   const [step, setStep] = useState<Step>(mode === "revision" ? "upload" : "metadata");
   const [metadata, setMetadata] = useState<ThesisMetadata | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [revisionAbstract, setRevisionAbstract] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!open) {
@@ -92,6 +68,18 @@ if (profile.role !== "Student") {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="rounded-xl bg-surface-container-low p-8 shadow-xl">
         Only students can submit a thesis.
+      </div>
+    </div>
+  );
+}
+
+// Only 3rd/4th year students may submit (initial + revision) — the server
+// rejects the request too; this just fails fast in the UI.
+if (profile.yearLevel !== 3 && profile.yearLevel !== 4) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="rounded-xl bg-surface-container-low p-8 shadow-xl">
+        Only 3rd and 4th year students may submit a manuscript.
       </div>
     </div>
   );
@@ -131,12 +119,20 @@ if (profile.role !== "Student") {
     setStep("upload");
   };
 
+  // The modal stays mounted while closed — clear the wizard so the next
+  // open starts fresh (metadata → upload → confirm, or upload for revision).
+  const resetForm = () => {
+    setStep(mode === "revision" ? "upload" : "metadata");
+    setMetadata(null);
+    setFile(null);
+    setRevisionAbstract("");
+  };
+
   const handleSubmit = async () => {
     if (!file || isSubmitting) {
       return;
     }
 
-    setSubmitError(null);
     setIsSubmitting(true);
     try {
       if (mode === "revision") {
@@ -147,19 +143,22 @@ if (profile.role !== "Student") {
         const success = await thesisService.createThesisVersion(
           thesisId,
           file,
-          "Revised Submission"
+          "Revised Submission",
+          revisionAbstract.trim() || undefined
         );
 
         if (!success) {
           throw new Error("Failed to submit revised thesis.");
         }
 
-        await queryClient.invalidateQueries({
-          queryKey: ["theses", thesisId, "versions"],
-        });
+        // Prefix invalidation covers list, detail, versions, and the /submit
+        // page's ["theses","my"] summary (the revision may carry a new abstract).
+        await queryClient.invalidateQueries({ queryKey: ["theses"] });
 
+        toast.success("Your revised version was submitted successfully.");
         onSubmitted?.();
-        setSubmitSuccess("Your revised version was submitted successfully.");
+        resetForm();
+        onClose();
         return;
       }
 
@@ -176,12 +175,26 @@ if (profile.role !== "Student") {
 
       await thesisService.submitThesis(dto, file);
 
-      setSubmitSuccess(
+      // Refresh the list + the /submit page's ["theses","my"] summary so the
+      // new submission appears the moment the modal closes.
+      await queryClient.invalidateQueries({ queryKey: ["theses"] });
+
+      toast.success(
         "Your thesis was submitted successfully and is now pending review."
       );
+      onSubmitted?.();
+      resetForm();
+      onClose();
     } catch (err) {
       console.error("Submission error:", err);
-      setSubmitError(getSubmitErrorMessage(err));
+      toast.error(
+        getApiErrorMessage(
+          err,
+          mode === "revision"
+            ? "Failed to submit revised thesis."
+            : "Submission failed. Please try again."
+        )
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -198,64 +211,52 @@ if (profile.role !== "Student") {
             >
             <X className="h-5 w-5" />
         </button>
-        {submitSuccess ? (
-          <div className="flex flex-col items-center gap-5 p-8 text-center sm:p-10">
-            <div className="w-full max-w-xl text-left">
-              <Alert
-                variant="success"
-                title="Submission successful"
-                message={submitSuccess}
-              />
-            </div>
-            <Button variant="primary" className="rounded-full" onClick={onClose}>
-              Done
-            </Button>
-          </div>
-        ) : (
+        {step === "metadata" && (
+          <MetadataForm
+            onNext={handleMetadataNext}
+            initialData={metadata || undefined}
+            program={profile.researchGroup?.members
+            .map((member) => member.program)
+            .filter(Boolean)
+            .join(", ") || profile.program}
+            institute={profile.researchGroup?.institute || profile.institute}
+            members={profile.researchGroup?.members
+            .map((member) => member.name)
+            .join(", ") || `${profile.firstName} ${profile.lastName}`}
+            />
+        )}
+
+        {step === "upload" && (
+          <UploadThesisDocument
+            initialFile={file}
+            onCancel={handleCancelFromUpload}
+            onNext={handleUploadNext}
+          />
+        )}
+
+        {step === "confirm" && file && (
           <>
-            {submitError && (
+            {mode === "revision" && (
               <div className="px-6 pt-6 sm:px-8 sm:pt-8">
-                <Alert
-                  variant="error"
-                  title="Submission failed"
-                  message={submitError}
+                <Textarea
+                  label="Revised Abstract (optional)"
+                  helperText="Leave blank to keep the current abstract for this thesis."
+                  rows={5}
+                  value={revisionAbstract}
+                  onChange={(e) => setRevisionAbstract(e.target.value)}
+                  placeholder="Paste the updated abstract for this version…"
                 />
               </div>
             )}
-            {step === "metadata" && (
-              <MetadataForm
-                onNext={handleMetadataNext}
-                initialData={metadata || undefined}
-                program={profile.researchGroup?.members
-                .map((member) => member.program)
-                .filter(Boolean)
-                .join(", ") || profile.program}
-                institute={profile.researchGroup?.institute || profile.institute}
-                members={profile.researchGroup?.members
-                .map((member) => member.name)
-                .join(", ") || `${profile.firstName} ${profile.lastName}`}
-                />
-            )}
-
-            {step === "upload" && (
-              <UploadThesisDocument
-                initialFile={file}
-                onCancel={handleCancelFromUpload}
-                onNext={handleUploadNext}
-              />
-            )}
-
-            {step === "confirm" && file && (
-              <ConfirmGroupInformation
-                metadata={metadata ?? undefined}
-                file={file}
-                mode={mode}
-                onCancel={handleCancelFromConfirm}
-                onReplaceFile={handleReplaceFile}
-                onRemoveFile={handleRemoveFile}
-                onSubmit={handleSubmit}
-              />
-            )}
+            <ConfirmGroupInformation
+              metadata={metadata ?? undefined}
+              file={file}
+              mode={mode}
+              onCancel={handleCancelFromConfirm}
+              onReplaceFile={handleReplaceFile}
+              onRemoveFile={handleRemoveFile}
+              onSubmit={handleSubmit}
+            />
           </>
         )}
       </div>
