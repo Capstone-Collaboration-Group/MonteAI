@@ -38,6 +38,11 @@ namespace server.Models.DTOs.Thesis
     {
         public Guid Id { get; set; }
         public string? Title { get; set; }
+        /// <summary>
+        /// Abstract TEXT for clients. The SQL column stores the Firestore
+        /// document ID (legacy rows store raw text) — the service resolves
+        /// this field from Firestore before returning (see IThesisAbstractService).
+        /// </summary>
         public string? Abstract { get; set; }
         public string FilePath { get; set; } = string.Empty;
         public string UploadedById { get; set; } = string.Empty;
@@ -60,6 +65,11 @@ namespace server.Models.DTOs.Thesis
         // academic program (ICS / IBE / ITE). Null for legacy uploads
         // submitted without a research group.
         public string? Institute { get; set; }
+
+        // Author names resolved from the research group's members
+        // (ResearchGroup.Students) with the group leader listed first.
+        // Empty for legacy/admin-archived uploads without a group.
+        public List<string> Authors { get; set; } = [];
 
     }
     public class ThesisChunkDto
