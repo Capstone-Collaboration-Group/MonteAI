@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import icon from "../assets/icon.svg";
 import icon2 from "../assets/icon-2.svg";
 import image from "../assets/image.svg";
@@ -7,81 +8,70 @@ const featureCards = [
   {
     title: "AI Research Assistance",
     description:
-      "Get instant, research-grounded answers from CDM's published thesis and capstone studies. Just type your research topic and MonteSkolar will find and summarize the most relevant studies for you.",
+      "Ask questions about CDM research. MonteSkolar searches the repository and can summarize relevant material when matches are available; check the cited studies for details.",
     iconSrc: icon,
     iconAlt: "AI research assistance icon",
-    iconClassName: "w-[50px] h-[50px]",
-    cardClassName: "w-full",
-    descriptionWrapperClassName: "pl-0 pr-0",
-    descriptionClassName: "text-base text-on-surface-variant",
-    titleNode: (
-      <div className="text-2xl font-semibold text-on-surface [font-family:'Inter-SemiBold',Helvetica]">
-        AI Research Assistance
-      </div>
-    ),
   },
   {
     title: "Thesis Repository",
     description:
-      "A centralized digital collection of all published thesis and capstone studies from Colegio de Montalban. Browse, search, and access institutional research that was previously only available as hardbound copies in the library.",
+      "A centralized digital collection of published thesis and capstone manuscripts from Colegio de Montalban. Browse and access institutional research previously restricted to hardbound library shelves.",
     iconSrc: image,
     iconAlt: "Thesis repository icon",
-    iconClassName: "w-[50px] h-[50px]",
-    cardClassName: "w-full",
-    descriptionWrapperClassName: "pl-0 pr-0",
-    descriptionClassName: "text-base text-on-surface-variant",
-    titleNode: (
-      <div className="text-2xl font-semibold text-on-surface [font-family:'Inter-SemiBold',Helvetica]">
-        Thesis Repository
-      </div>
-    ),
   },
   {
     title: "Intelligent Search",
     description:
-      "Go beyond simple keyword searching. MonteSkolar understands the meaning behind your research query and retrieves the most relevant CDM thesis studies that match your topic, methodology, or research area.",
+      "Go beyond simple keywords. Semantic search helps find CDM studies related to your methodology and research focus; review the results to decide what is relevant.",
     iconSrc: icon2,
     iconAlt: "Intelligent search icon",
-    iconClassName: "w-[50px] h-[50px]",
-    cardClassName: "w-full",
-    descriptionWrapperClassName: "pl-0 pr-0",
-    descriptionClassName: "text-base text-on-surface-variant",
-    titleNode: (
-      <p className="text-2xl font-semibold text-on-surface [font-family:'Inter-SemiBold',Helvetica]">
-        <span className="font-semibold">Intelligent</span>
-        <span className="[font-family:'Manrope-SemiBold',Helvetica] font-semibold">
-          {" "}
-          Search
-        </span>
-      </p>
-    ),
   },
 ];
 
 export default function Features() {
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => e.isIntersecting && el.classList.add("animate-in"),
+      { threshold: 0.1 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   return (
     <section
+      ref={ref}
+      id="features"
       aria-labelledby="features-heading"
-      className="px-4 py-16 sm:px-6 lg:px-0"
+      className="reveal-section relative w-full px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24"
     >
-      <div className="mx-auto max-w-5xl text-center">
-        <h2
-          id="features-heading"
-          className="[font-family:'Inter-ExtraBold',Helvetica] text-3xl font-extrabold text-on-surface sm:text-4xl"
-        >
-          Built for Thesis Researchers
-        </h2>
-        <p className="mx-auto mt-4 max-w-3xl [font-family:'Inter-Regular',Helvetica] text-base leading-7 text-on-surface-variant">
-          The power of AI meets the depth of CDM&#39;s institutional research.
-          MonteSkolar delivers accurate, source-grounded answers drawn
-          exclusively from Colegio de Montalban&#39;s own published academic
-          studies.
-        </p>
-      </div>
-      <div className="mt-12 grid gap-6 lg:grid-cols-3">
-        {featureCards.map((card) => (
-          <FeatureCard key={card.title} {...card} />
-        ))}
+      <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-primary sm:text-sm">
+            Core Platform Capabilities
+          </p>
+          <h2
+            id="features-heading"
+            className="text-3xl font-extrabold text-on-surface sm:text-4xl lg:text-5xl"
+          >
+            Built for Thesis Researchers
+          </h2>
+          <p className="mx-auto mt-4 text-base leading-relaxed text-on-surface-variant sm:text-lg">
+            Explore Colegio de Montalban&#39;s institutional research with
+            AI-assisted search and summaries. Responses depend on available
+            repository matches and should be checked against cited studies.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-8 md:grid-cols-3">
+          {featureCards.map((card, i) => (
+            <FeatureCard key={card.title} {...card} index={i} />
+          ))}
+        </div>
       </div>
     </section>
   );

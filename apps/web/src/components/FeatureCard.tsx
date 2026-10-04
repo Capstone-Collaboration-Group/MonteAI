@@ -3,34 +3,28 @@ type FeatureCardProps = {
   description: string;
   iconSrc: string;
   iconAlt: string;
-  iconClassName: string;
-  cardClassName: string;
-  descriptionWrapperClassName: string;
-  descriptionClassName: string;
-  titleNode: React.ReactNode;
+  index?: number;
 };
 
 export default function FeatureCard({
+  title,
   description,
   iconSrc,
   iconAlt,
-  iconClassName,
-  cardClassName,
-  descriptionWrapperClassName,
-  descriptionClassName,
-  titleNode,
+  index = 0,
 }: FeatureCardProps) {
   return (
     <article
-      className={`flex flex-col items-start gap-6 rounded-[48px] border border-outline-variant/10 bg-white p-10 shadow-[0px_4px_20px_var(--primary)] transition duration-200 hover:-translate-y-1 hover:border-primary/20 hover:shadow-[0px_12px_40px_var(--primary)] ${cardClassName}`}
+      className="group flex flex-col items-start gap-5 rounded-xl border border-outline-variant/50 bg-surface p-8 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10"
+      style={{ animationDelay: `${index * 120}ms` }}
     >
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-container">
-        <img className={iconClassName} alt={iconAlt} src={iconSrc} />
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-container transition-transform duration-300 group-hover:scale-110">
+        <img className="h-[50px] w-[50px]" alt={iconAlt} src={iconSrc} />
       </div>
-      {titleNode}
-      <div className={descriptionWrapperClassName}>
-        <p className={descriptionClassName}>{description}</p>
-      </div>
+      <h3 className="text-2xl font-semibold text-on-surface">{title}</h3>
+      <p className="text-base leading-relaxed text-on-surface-variant">
+        {description}
+      </p>
     </article>
   );
 }
