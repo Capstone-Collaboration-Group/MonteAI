@@ -41,7 +41,17 @@ namespace server.Services
         {
             var blobName = GetBlobNameFromUrl(blobUrl);
             var blobClient = _container.GetBlobClient(blobName);
-            await blobClient.DeleteIfExistsAsync();
+
+            // DeleteIfExistsAsync never throws for a missing blob, so check first —
+            // otherwise a URL/name mismatch would be logged as a successful delete
+            // while the blob silently stays in the container.
+            if (!(await blobClient.ExistsAsync()).Value)
+            {
+                _logger.LogWarning("Blob not found during delete: {BlobName} (from {BlobUrl})", blobName, blobUrl);
+                return;
+            }
+
+            await blobClient.DeleteAsync();
             _logger.LogInformation("Deleted blob: {BlobName}", blobName);
         }
         public string GenerateSasUrl(string blobUrl, int expiryMinutes)
