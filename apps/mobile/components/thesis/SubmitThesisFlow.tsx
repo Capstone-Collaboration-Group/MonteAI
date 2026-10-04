@@ -232,6 +232,9 @@ export function SubmitThesisFlow({ onExit }: SubmitThesisFlowProps) {
       } else if (!program || !institute) {
         next.group =
           'Program and institute are missing — make sure your research group is set up.';
+      } else if (profile.yearLevel !== 3 && profile.yearLevel !== 4) {
+        // Same gate the server enforces — fails fast before the upload step.
+        next.group = 'Only 3rd and 4th year students may submit a manuscript.';
       }
     } else if (step === 2) {
       if (!file) next.file = 'Select your thesis PDF file.';
