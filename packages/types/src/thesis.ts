@@ -96,7 +96,7 @@ export function toThesisSummary(dto: ThesisResponseDto): ThesisSummary {
     id: dto.id,
     groupId: dto.groupId,
     title: dto.title ?? "Untitled",
-    authors: dto.authors,
+    authors: dto.authors ?? [],
     institute: dto.institute ?? "-",
     status: (dto.status?.toLowerCase() ?? "pending") as ThesisStatus,
     submittedDate: dto.submittedAt ?? dto.updatedAt,
@@ -166,4 +166,24 @@ export interface ResolveAnnotationDto {
 // Who is looking at the PDF viewer. Adviser/faculty/program-head/admin may
 // create annotations; students only view them.
 export type ViewerRole = "adviser" | "faculty" | "program_head" | "admin" | "student";
+
+/**
+ * Maps the API profile role (UserProfileDto.role: "Student" | "Faculty" |
+ * "Admin" | "ProgramHead") onto the viewer vocabulary. Anything unrecognized
+ * falls back to "student" — the least-privileged role (view-only, no
+ * moderation actions).
+ */
+export function toViewerRole(role: string | null | undefined): ViewerRole {
+  switch (role) {
+    case "Admin":
+      return "admin";
+    case "ProgramHead":
+      return "program_head";
+    case "Faculty":
+      return "faculty";
+    case "Student":
+    default:
+      return "student";
+  }
+}
 
