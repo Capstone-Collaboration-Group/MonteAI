@@ -11,6 +11,13 @@ namespace server.Services.Interfaces
 
         Task<ThesisResponseDto?> GetByIdAsync(Guid id);
 
+        /// <summary>
+        /// The thesis submitted by the caller's research group — powers the
+        /// /submit page. Null when the caller isn't a student, has no group,
+        /// or the group hasn't submitted yet (client renders its empty state).
+        /// </summary>
+        Task<ThesisResponseDto?> GetMyThesisAsync(string callerId);
+
         Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false);
 
         Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto);
@@ -34,6 +41,16 @@ namespace server.Services.Interfaces
         Task<bool> CreateThesisVersion(CreateThesisVersionDto thesisVersionDto, string uploadedById);
 
         Task<bool> DeleteThesisVersion(Guid thesisId, string callerId, bool isAdmin);
+
+        /// <summary>
+        /// Deletes ONE version of a thesis. Only the LATEST version may be
+        /// deleted (flow 3→2→1); deleting the final remaining version removes
+        /// the whole thesis (SQL row, blobs, vectors, abstract doc, annotations).
+        /// Throws UnauthorizedAccessException (not group leader),
+        /// KeyNotFoundException (unknown thesis/version), or
+        /// InvalidOperationException (version is not the latest).
+        /// </summary>
+        Task<bool> DeleteThesisVersionById(Guid thesisId, Guid versionId, string callerId, bool isAdmin);
 
 
     }
