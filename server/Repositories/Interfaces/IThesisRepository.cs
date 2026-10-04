@@ -17,6 +17,13 @@ namespace server.Repositories.Interfaces
         Task<Thesis?> GetThesisByIdAsync(Guid id);
 
         /// <summary>
+        /// The thesis owned by a research group (a group may own at most one —
+        /// enforced in SubmitAsync). Loads the same graph as
+        /// GetThesisByIdAsync so Authors / Institute / ScheduledAt map correctly.
+        /// </summary>
+        Task<Thesis?> GetByGroupIdAsync(Guid groupId);
+
+        /// <summary>
         /// Exact-match (LIKE) search over thesis titles and abstracts — the
         /// keyword half of the agent's hybrid retrieval. Used by the
         /// keyword_search tool for acronyms and exact terms that dense
