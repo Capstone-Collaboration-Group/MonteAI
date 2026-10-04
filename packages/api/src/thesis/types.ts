@@ -15,6 +15,8 @@ export interface ThesisService {
     ingestThesis(dto: IngestThesisDto): Promise<IngestThesisResponseDto>;
     getDownloadUrl(thesisId: string): Promise<{url: string} | null>
     getThesis(thesisId: string): Promise<ThesisResponseDto | null>;
+    /** The caller's own group thesis (GET /thesis/my); null/404 = not submitted yet. */
+    getMyThesis(): Promise<ThesisResponseDto | null>;
     /** @param program Optional academic-program filter (ICS / IBE / ITE); omitted/unknown returns unfiltered. */
     getTheses(program?: ThesisProgram): Promise<ThesisResponseDto[]>;
     updateThesis(thesisId: string, dto: UpdateThesisDto): Promise<boolean>;
@@ -30,7 +32,13 @@ export interface ThesisService {
     // versions
     getVersions(thesisId: string): Promise<ThesisVersion[]>;
     getVersionFile(versionId: string): Promise<{ url: string } | null>;
-    createThesisVersion(thesisId: string, file: File, changeNote?: string): Promise<boolean>;
+    /** @param abstractText Optional revised abstract stored with this version. */
+    createThesisVersion(thesisId: string, file: File, changeNote?: string, abstractText?: string): Promise<boolean>;
+    /**
+     * Deletes ONE version — latest-only (server rejects non-latest with 400).
+     * Deleting the final version cascades into deleting the whole thesis.
+     */
+    deleteThesisVersion(thesisId: string, versionId: string): Promise<boolean>;
     
     // Proceedings
     generateProceedings(thesisId: string): Promise<Blob>;

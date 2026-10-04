@@ -34,6 +34,13 @@ namespace server.Models.DTOs.Thesis
 
         [MaxLength(500)]
         public string? ChangeNote { get; set; }
+
+        /// <summary>
+        /// Optional revised abstract for this version — stored in Firestore
+        /// under the new version number (see IThesisAbstractService). When
+        /// omitted, previous abstracts remain the latest for display.
+        /// </summary>
+        public string? Abstract { get; set; }
     }
 
     public class UpdateThesisVersionDto

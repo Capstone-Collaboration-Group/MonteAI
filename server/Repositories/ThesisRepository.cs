@@ -39,6 +39,8 @@ namespace server.Repositories
                     .ThenInclude(rg => rg!.Schedules)
                 .Include(t => t.ResearchGroup)
                     .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students) // member names → ThesisResponseDto.Authors
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(program) &&
@@ -60,7 +62,30 @@ namespace server.Repositories
                 .ToListAsync();
         }
         public async Task<Thesis?> GetThesisByIdAsync(Guid id)
-            => await _db.Theses.FindAsync(id);
+            // FindAsync would return the row without its navigations, so
+            // ThesisResponseDto.Institute / ScheduledAt / Authors would all come
+            // back empty on GET /thesis/{id}. Load the graph the response needs.
+            => await _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+        public async Task<Thesis?> GetByGroupIdAsync(Guid groupId)
+            // Same loaded graph as GetThesisByIdAsync — powers GET /thesis/my.
+            => await _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.GroupId == groupId);
 
         /// <summary>
         /// Exact-match (LIKE) search over titles and abstracts. LIKE

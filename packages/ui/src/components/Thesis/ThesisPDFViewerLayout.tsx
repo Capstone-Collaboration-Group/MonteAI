@@ -1,6 +1,6 @@
 // packages/ui/src/components/Thesis/ThesisPDFViewerLayout.tsx
 import { useCallback, useRef, useState } from "react";
-import { ArrowLeft, Calendar, FileDown } from "lucide-react";
+import { ArrowLeft, Calendar, FileDown, Trash2 } from "lucide-react";
 import type {
   ThesisVersion,
   AnnotationResponseDto,
@@ -11,6 +11,7 @@ import type {
   CreateScheduleDto,
 } from "@monteai/types";
 import { Spinner } from "../common/Spinner";
+import { ConfirmDialog } from "../common";
 import { AnnotationSidebar } from "./AnnotationSidebar";
 import { VersionSelector } from "./VersionSelector";
 import { PDFHighlightViewer, type PDFHighlightViewerHandle, type PdfOutlineItem } from "./PDFHighlightViewer";
@@ -35,6 +36,14 @@ interface ThesisPDFViewerLayoutProps {
   isCreating: boolean;
   isResolving: boolean;
   canAnnotate: boolean;
+  /** Show the delete-version button (leader/admin, latest version only). */
+  canDeleteVersion?: boolean;
+  deleteDialogOpen?: boolean;
+  isDeletingVersion?: boolean;
+  onRequestDelete?: () => void;
+  /** Called when the user confirms inside the dialog. */
+  onDeleteVersion?: () => void;
+  onCancelDelete?: () => void;
   onVersionChange: (versionId: string) => void;
   onAddAnnotation: (dto: Omit<CreateAnnotationDto, "thesisVersionId">) => void;
   onResolve: (annotationId: string, dto: ResolveAnnotationDto) => void;
@@ -61,6 +70,12 @@ export function ThesisPDFViewerLayout({
   isCreating,
   isResolving,
   canAnnotate,
+  canDeleteVersion = false,
+  deleteDialogOpen = false,
+  isDeletingVersion = false,
+  onRequestDelete,
+  onDeleteVersion,
+  onCancelDelete,
   onVersionChange,
   onAddAnnotation,
   onResolve,
@@ -120,6 +135,20 @@ export function ThesisPDFViewerLayout({
             <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
               {unresolvedCount} unresolved
             </span>
+          )}
+
+          {/* ── Delete latest version (group leader / admin only) ── */}
+          {canDeleteVersion && (
+            <Button
+              type="button"
+              variant="danger"
+              onClick={onRequestDelete}
+              disabled={isDeletingVersion}
+              className="flex items-center gap-1.5 text-sm"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Version
+            </Button>
           )}
 
           {/* ── Schedule For Defense ── */}
@@ -205,6 +234,22 @@ export function ThesisPDFViewerLayout({
           </aside>
         </div>
       )}
+
+      {/* ── Delete Version Confirmation ── */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        variant="danger"
+        title={`Delete Version ${activeVersion?.versionNumber ?? ""}?`}
+        description={
+          versions.length <= 1
+            ? "This is the only version — deleting it will remove the entire thesis and all of its annotations. This cannot be undone."
+            : "The version, its file, and its annotations will be removed. This cannot be undone."
+        }
+        confirmLabel="Delete"
+        loading={isDeletingVersion}
+        onConfirm={() => onDeleteVersion?.()}
+        onCancel={() => onCancelDelete?.()}
+      />
 
       {/* ── Schedule Defense Modal ── */}
       {thesis && (

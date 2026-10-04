@@ -30,6 +30,15 @@ export class LiveThesisService implements ThesisService {
             return handle404(err, null);
         }
     }
+    // The signed-in user's own group thesis — 404 means "not submitted yet".
+    async getMyThesis(): Promise<ThesisResponseDto | null> {
+        try {
+            const { data } = await this.client.get<ThesisResponseDto>(`/thesis/my`);
+            return data;
+        } catch (err) {
+            return handle404(err, null);
+        }
+    }
     // async getTheses
     async getTheses(program?: ThesisProgram): Promise<ThesisResponseDto[] | []> {
         try {
@@ -168,13 +177,22 @@ export class LiveThesisService implements ThesisService {
         }
     }
 
-    async createThesisVersion(thesisId: string, file: File, changeNote?: string): Promise<boolean> {
+    async createThesisVersion(
+        thesisId: string,
+        file: File,
+        changeNote?: string,
+        abstractText?: string,
+    ): Promise<boolean> {
         const formData = new FormData();
 
         formData.append("File", file);
 
         if (changeNote) {
         formData.append("ChangeNote", changeNote);
+        }
+
+        if (abstractText) {
+        formData.append("Abstract", abstractText);
         }
 
         formData.append("ThesisId", thesisId);
@@ -190,6 +208,19 @@ export class LiveThesisService implements ThesisService {
         return handle404(err, false);
     }
 }
+
+    // Deletes a single version (latest-only). Non-404 failures (400 latest-only
+    // rule, 403 not-leader) rethrow so callers can surface the server message.
+    async deleteThesisVersion(thesisId: string, versionId: string): Promise<boolean> {
+        try {
+            const { data } = await this.client.delete<{ message?: string }>(
+                `/thesis/${thesisId}/versions/${versionId}`
+            );
+            return data != null;
+        } catch (err) {
+            return handle404(err, false);
+        }
+    }
 
     // Proceedings 
     async generateProceedings(thesisId: string): Promise<Blob> {

@@ -186,6 +186,14 @@ export const mockThesisService: ThesisService = {
         return thesesMap.get(thesisId) ?? null;
     },
 
+    // The mock can't resolve the caller's group — closest analog is the most
+    // recently submitted thesis (what a fresh student demo expects to see).
+    async getMyThesis() {
+        await delay(150);
+        const all = Array.from(thesesMap.values());
+        return all.length ? all[all.length - 1] : null;
+    },
+
     async getTheses(program?: ThesisProgram) {
         await delay(300);
         const all = Array.from(thesesMap.values());
@@ -266,7 +274,71 @@ export const mockThesisService: ThesisService = {
         return thesesMap.delete(thesisId);
     },
 
-    async createThesisVersion(_thesisId: string, _file: File, _changeNote?: string): Promise<boolean> {
+    async createThesisVersion(
+        thesisId: string,
+        file: File,
+        changeNote?: string,
+        abstractText?: string,
+    ): Promise<boolean> {
+        await delay(300);
+        const versions = versionsMap.get(thesisId) ?? [];
+        const nextNumber = versions.length
+            ? Math.max(...versions.map((v) => v.versionNumber)) + 1
+            : 1;
+
+        versionsMap.set(thesisId, [
+            ...versions,
+            {
+                id: crypto.randomUUID(),
+                thesisId,
+                versionNumber: nextNumber,
+                filePath: file.name,
+                uploadedById: "mock-uploader",
+                uploadedAt: new Date().toISOString(),
+                changeNote: changeNote ?? "",
+            },
+        ]);
+
+        // The mock stores the latest abstract directly on the row — mirrors the
+        // server resolving the newest version's entry from Firestore.
+        if (abstractText) {
+            const thesis = thesesMap.get(thesisId);
+            if (thesis) thesesMap.set(thesisId, { ...thesis, abstract: abstractText });
+        }
+
+        return true;
+    },
+
+    // Latest-only delete (3→2→1); deleting the final version removes the whole
+    // thesis + its annotations — same cascade as the server.
+    async deleteThesisVersion(thesisId: string, versionId: string): Promise<boolean> {
+        await delay(300);
+        const versions = versionsMap.get(thesisId);
+        if (!versions) return false;
+
+        const sorted = [...versions].sort((a, b) => a.versionNumber - b.versionNumber);
+        const target = sorted.find((v) => v.id === versionId);
+        if (!target) return false;
+
+        if (sorted[sorted.length - 1].id !== versionId) {
+            throw new Error("Only the latest thesis version can be deleted.");
+        }
+
+        const dropAnnotations = (predicate: (key: string) => boolean) => {
+            for (const key of [...annotationsMap.keys()]) {
+                if (predicate(key)) annotationsMap.delete(key);
+            }
+        };
+
+        if (sorted.length === 1) {
+            thesesMap.delete(thesisId);
+            versionsMap.delete(thesisId);
+            dropAnnotations((key) => key.startsWith(`${thesisId}::`));
+            return true;
+        }
+
+        versionsMap.set(thesisId, versions.filter((v) => v.id !== versionId));
+        dropAnnotations((key) => key === `${thesisId}::${versionId}`);
         return true;
     },
 

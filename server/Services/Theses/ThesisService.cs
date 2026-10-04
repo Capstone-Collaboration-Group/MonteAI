@@ -1,4 +1,5 @@
 using AutoMapper;
+using Google.Cloud.Firestore;
 using Microsoft.Extensions.Options;
 using server.Configuration;
 using server.Models.DTOs.Thesis;
@@ -41,6 +42,8 @@ namespace server.Services.Theses
         private readonly IBlobService _blobService;
         private readonly PineconeConfig _pineconeConfig;
         private readonly IStudentRepository _studentRepo;
+        private readonly IThesisAbstractService _abstractService;
+        private readonly FirestoreDb _firestore;
 
         public ThesisService(
             IThesisRepository repo,
@@ -51,6 +54,8 @@ namespace server.Services.Theses
             IMapper mapper,
             IPineconeService pineconeService,
             IBlobService blobService,
+            IThesisAbstractService abstractService,
+            FirestoreDb firestore,
             IOptions<PineconeConfig> pineconeConfig)
         {
             _thesisRepo = repo;
@@ -61,6 +66,8 @@ namespace server.Services.Theses
             _mapper = mapper;
             _pineconeService = pineconeService;
             _blobService = blobService;
+            _abstractService = abstractService;
+            _firestore = firestore;
             _pineconeConfig = pineconeConfig.Value;
         }
 
@@ -85,7 +92,11 @@ namespace server.Services.Theses
                 }
 
                 return dto;
-            });
+            }).ToList();
+
+            // SQL holds the Firestore doc ID (legacy rows hold raw text) — swap
+            // in the actual abstract text before the client ever sees it.
+            await _abstractService.ResolveAbstractsAsync(dtos);
 
             return dtos;
 
@@ -97,7 +108,23 @@ namespace server.Services.Theses
             if (result == null) return null;
 
             var dto = _mapper.Map<ThesisResponseDto>(result);
+            await _abstractService.ResolveAbstractsAsync(new[] { dto });
             _logger.LogInformation("Thesis with Id: {id} successfully fetched", result.Id);
+            return dto;
+        }
+
+        public async Task<ThesisResponseDto?> GetMyThesisAsync(string callerId)
+        {
+            // Non-students (admins archiving via the modal) and students without
+            // a group simply have "no thesis yet".
+            var student = await _studentRepo.GetByIdAsync(callerId);
+            if (student?.ResearchGroup is null) return null;
+
+            var thesis = await _thesisRepo.GetByGroupIdAsync(student.ResearchGroup.Id);
+            if (thesis is null) return null;
+
+            var dto = _mapper.Map<ThesisResponseDto>(thesis);
+            await _abstractService.ResolveAbstractsAsync(new[] { dto });
             return dto;
         }
         public async Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false)
@@ -114,6 +141,13 @@ namespace server.Services.Theses
                 if (student == null)
                 {
                     throw new InvalidOperationException($"Student profile could not be found.");
+                }
+
+                // Only 3rd and 4th year students may submit manuscripts
+                // (admin archival uploads bypass this — see isAdmin above).
+                if (student.YearLevel is not (3 or 4))
+                {
+                    throw new InvalidOperationException("Only 3rd and 4th year students may submit a manuscript.");
                 }
 
                 if (student.ResearchGroup == null)
@@ -135,7 +169,26 @@ namespace server.Services.Theses
 
             thesis.SubmittedAt = DateTime.UtcNow;
 
+            // Generate the Id here (EF only uses the SQL NEWID() default for
+            // Guid.Empty) so the Firestore document ID can be written first and
+            // the SQL Abstract column stores that ID instead of the raw text.
+            thesis.Id = Guid.NewGuid();
             var result = await _thesisRepo.SubmitAsync(thesis);
+
+            try
+            {
+                await _abstractService.SetAbstractAsync(thesis.Id, 1, submitDto.Abstract);
+                thesis.Abstract = thesis.Id.ToString();
+            }
+            catch (Exception ex)
+            {
+                // Firestore must never block a submission — keep the raw text in
+                // the column; readers pass non-GUID values through unchanged.
+                _logger.LogError(ex,
+                    "Abstract store failed for thesis {ThesisId}; keeping raw text in SQL", thesis.Id);
+            }
+
+            
 
             var initialVersion = new ThesisVersion
             {
@@ -147,8 +200,10 @@ namespace server.Services.Theses
                 ChangeNote = "Initial Submission",
             };
             await _thesisVersionRepo.CreateThesisVersion(initialVersion);
-            
-            return _mapper.Map<ThesisResponseDto>(result);
+
+            var response = _mapper.Map<ThesisResponseDto>(result);
+            await _abstractService.ResolveAbstractsAsync(new[] { response });
+            return response;
         } 
         /// <summary>
         /// Ingestion hop of the RAG pipeline — see the file header for the flow.
@@ -283,6 +338,13 @@ namespace server.Services.Theses
         }
         public async Task<bool> DeleteAsync(Guid id)
         {
+            // Side-data references (blob URLs, version ids for Firestore) must be
+            // read BEFORE the SQL cascade removes the thesis + version rows.
+            var thesis = await _thesisRepo.GetThesisByIdAsync(id);
+            if (thesis is null) return false;
+
+            var versions = (await _thesisVersionRepo.GetVersionsByThesisId(id)).ToList();
+
             var result = await _thesisRepo.DeleteThesisAsync(id);
 
             if (result)
@@ -300,6 +362,25 @@ namespace server.Services.Theses
                     // than failing the whole request over orphaned vectors.
                     _logger.LogWarning(ex, "Thesis {ThesisId} deleted from SQL but vector cleanup failed", id);
                 }
+
+                // Blobs + Firestore annotations + the abstract doc are best-effort
+                // once the SQL rows are gone (same policy as the version cascade).
+                foreach (var version in versions)
+                    await CleanupVersionAsync(id, version, removeAbstractEntry: false);
+
+                await TryDeleteBlobAsync(thesis.FilePath);
+
+                try
+                {
+                    await _abstractService.DeleteThesisAsync(id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Abstract document cleanup failed for thesis {ThesisId}", id);
+                }
+
+                _logger.LogInformation(
+                    "Thesis {ThesisId} deleted (SQL, vectors, blobs, annotations, abstracts)", id);
             }
 
             return result;
@@ -348,6 +429,12 @@ namespace server.Services.Theses
                 throw new InvalidOperationException("Student profile could not be found.");
             }
 
+            // Same gate as initial submission — only 3rd/4th years revise.
+            if (student.YearLevel is not (3 or 4))
+            {
+                throw new InvalidOperationException("Only 3rd and 4th year students may submit a revision.");
+            }
+
             if (student.ResearchGroup == null)
             {
                 throw new InvalidOperationException("You must be part of a research group to submit a revised thesis.");
@@ -374,7 +461,16 @@ namespace server.Services.Theses
             dto.UploadedById = uploadedById;
             dto.UploadedAt = DateTime.UtcNow;
             dto.VersionNumber = await _thesisVersionRepo.GetNextVersionNumber(thesisVersionDto.ThesisId);
-            
+
+            // Optional revised abstract — store it BEFORE creating the version so
+            // a Firestore failure surfaces to the client instead of silently
+            // losing the author's text while the PDF still lands.
+            if (!string.IsNullOrWhiteSpace(thesisVersionDto.Abstract))
+            {
+                await _abstractService.SetAbstractAsync(
+                    thesisVersionDto.ThesisId, dto.VersionNumber, thesisVersionDto.Abstract);
+            }
+
             return await _thesisVersionRepo.CreateThesisVersion(dto);
         }
 
@@ -386,8 +482,123 @@ namespace server.Services.Theses
             // Students may only prune their own group's thesis versions (Admins bypass).
             if (!isAdmin) await EnsureGroupLeaderAsync(thesis, callerId);
 
-            var result = await _thesisVersionRepo.DeleteAllExceptLatestAsync(thesisId);
-            return result;
+            var versions = (await _thesisVersionRepo.GetVersionsByThesisId(thesisId))
+                .OrderBy(v => v.VersionNumber)
+                .ToList();
+
+            if (versions.Count == 0) return false;
+
+            // Everything but the newest version gets pruned — and each pruned
+            // version takes its blob/annotations/abstract entry with it, so
+            // pruning can't leak storage.
+            var pruned = versions.Take(versions.Count - 1).ToList();
+            if (pruned.Count > 0)
+            {
+                var result = await _thesisVersionRepo.DeleteAllExceptLatestAsync(thesisId);
+                if (!result) return false;
+
+                foreach (var version in pruned)
+                    await CleanupVersionAsync(thesisId, version);
+            }
+
+            return true;
+        }
+
+        public async Task<bool> DeleteThesisVersionById(Guid thesisId, Guid versionId, string callerId, bool isAdmin)
+        {
+            var thesis = await _thesisRepo.GetThesisByIdAsync(thesisId)
+                ?? throw new KeyNotFoundException("Thesis not found.");
+
+            // Students: group leader only, same rule as revisions (Admins bypass).
+            if (!isAdmin) await EnsureGroupLeaderAsync(thesis, callerId);
+
+            var version = await _thesisVersionRepo.GetByIdAsync(versionId)
+                ?? throw new KeyNotFoundException("Thesis version not found.");
+
+            if (version.ThesisId != thesisId)
+                throw new KeyNotFoundException("Thesis version not found.");
+
+            var versions = (await _thesisVersionRepo.GetVersionsByThesisId(thesisId))
+                .OrderBy(v => v.VersionNumber)
+                .ToList();
+
+            // Latest-only rule: versions are pruned from the top (3→2→1) so
+            // version history stays contiguous.
+            if (versions.Count == 0 || versions[^1].Id != version.Id)
+                throw new InvalidOperationException("Only the latest thesis version can be deleted.");
+
+            if (versions.Count == 1)
+            {
+                // Deleting the final version removes the whole thesis — an empty
+                // shell (title, status, schedule) with nothing to view is worse
+                // than an honest "not found". DeleteAsync handles the full
+                // teardown (SQL, vectors, blobs, annotations, abstract doc).
+                if (!await DeleteAsync(thesis.Id))
+                    throw new KeyNotFoundException("Thesis not found.");
+
+                _logger.LogInformation("Thesis {ThesisId} fully deleted with its last version", thesis.Id);
+                return true;
+            }
+
+            var deleted = await _thesisVersionRepo.DeleteAsync(version.Id);
+            if (!deleted) return false;
+
+            await CleanupVersionAsync(thesisId, version);
+            return true;
+        }
+
+        // Best-effort teardown of one version's side data — the SQL row is
+        // already gone when this runs, so failures are logged, never surfaced.
+        private async Task CleanupVersionAsync(Guid thesisId, ThesisVersion version, bool removeAbstractEntry = true)
+        {
+            try
+            {
+                // Annotations: theses/{thesisId}/versions/{versionId}/annotations
+                var annotations = _firestore
+                    .Collection("theses").Document(thesisId.ToString())
+                    .Collection("versions").Document(version.Id.ToString())
+                    .Collection("annotations");
+
+                var snapshot = await annotations.GetSnapshotAsync();
+                foreach (var doc in snapshot.Documents)
+                    await doc.Reference.DeleteAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Annotation cleanup failed for version {VersionId}", version.Id);
+            }
+
+            if (removeAbstractEntry)
+            {
+                try
+                {
+                    await _abstractService.RemoveVersionAsync(thesisId, version.VersionNumber);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Abstract cleanup failed for version {VersionId}", version.Id);
+                }
+            }
+
+            await TryDeleteBlobAsync(version.FilePath);
+        }
+
+        private async Task TryDeleteBlobAsync(string? blobUrl)
+        {
+            if (string.IsNullOrWhiteSpace(blobUrl))
+            {
+                _logger.LogWarning("Blob cleanup skipped — no FilePath stored for this record");
+                return;
+            }
+
+            try
+            {
+                await _blobService.DeleteAsync(blobUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Blob cleanup failed for {BlobUrl}", blobUrl);
+            }
         }
 
         private async Task EnsureGroupLeaderAsync(ThesisEntity thesis, string callerId)

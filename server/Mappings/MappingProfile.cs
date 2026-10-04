@@ -26,7 +26,20 @@ namespace server.Mappings
                 .ForMember(dest => dest.Institute, opt => opt.MapFrom(src =>
                     src.ResearchGroup != null && src.ResearchGroup.Leader != null
                         ? src.ResearchGroup.Leader.Institute
-                        : null));
+                        : null))
+                // Authors = the research group's members (ResearchGroup.Students),
+                // leader first, deduped by Id, then alphabetical. Empty for
+                // admin-archived/legacy theses without a group.
+                .ForMember(dest => dest.Authors, opt => opt.MapFrom(src =>
+                    src.ResearchGroup == null
+                        ? new List<string>()
+                        : src.ResearchGroup.Students
+                            .OrderByDescending(s => s.Id == (src.ResearchGroup.LeaderId ?? s.Id))
+                            .ThenBy(s => s.LastName)
+                            .ThenBy(s => s.FirstName)
+                            .Select(s => FormatPersonName(s))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList()));
             CreateMap<SubmitThesisDto, Thesis>();
             CreateMap<UpdateThesisDto, Thesis>();
             CreateMap<UpdateThesisStatusDto, Thesis>();

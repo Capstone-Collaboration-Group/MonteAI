@@ -44,6 +44,16 @@ namespace server.Repositories
             return true;
         }
 
+        public async Task<bool> DeleteAsync(Guid versionId)
+        {
+            var existing = await db.ThesisVersions.FindAsync(versionId);
+            if (existing is null) return false;
+
+            db.ThesisVersions.Remove(existing);
+            await db.SaveChangesAsync();
+            return true;
+        }
+
         public async Task<bool> DeleteAllExceptLatestAsync(Guid thesisId)
         {
             var latest = await db.ThesisVersions

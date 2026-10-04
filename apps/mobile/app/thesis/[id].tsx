@@ -8,7 +8,7 @@
 // Reachable from the Library tab (tap a thesis card).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -17,6 +17,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { useThesisAnnotations } from '@/hooks/useThesisAnnotations';
 import { getAnnotationService } from '@/lib/annotationService';
 import { thesisService } from '@/lib/thesisService';
+import { userService } from '@/lib/userService';
 import { FontSize, Radius, Spacing } from '@/constants/theme';
 import { ThesisPdfViewer } from '@/components/thesis/ThesisPdfViewer';
 import type { PdfOutlineItem, ThesisPdfViewerHandle } from '@/components/thesis/ThesisPdfViewer';
@@ -27,7 +28,24 @@ import type {
   AnnotationResponseDto,
   ThesisResponseDto,
   ThesisVersion,
+  UserProfileDto,
 } from '@monteai/types';
+
+// Best-effort message from an API error (mirrors @monteai/utils' helper —
+// mobile doesn't depend on that package).
+function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const data = (err as { response?: { data?: unknown } }).response?.data;
+    const payload =
+      typeof data === 'string'
+        ? data
+        : ((data as { message?: unknown; Message?: unknown } | undefined)?.message ??
+          (data as { Message?: unknown } | undefined)?.Message);
+    if (typeof payload === 'string' && payload.trim()) return payload.trim();
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
 
 export default function ThesisViewerScreen() {
   const router = useRouter();
@@ -46,6 +64,7 @@ export default function ThesisViewerScreen() {
   const body = useThemeColor({}, 'onSurfaceVariant');
   const surface = useThemeColor({}, 'surface');
   const outline = useThemeColor({}, 'outlineVariant');
+  const danger = useThemeColor({}, 'error');
 
   const viewerRef = useRef<ThesisPdfViewerHandle>(null);
   const annotationService = useMemo(() => getAnnotationService(), []);
@@ -64,6 +83,24 @@ export default function ThesisViewerScreen() {
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [profile, setProfile] = useState<UserProfileDto | null>(null);
+  const [deletingVersionId, setDeletingVersionId] = useState<string | null>(null);
+
+  // Profile decides whether the trash action shows (group leader / admin).
+  useEffect(() => {
+    let active = true;
+    userService
+      .getMe()
+      .then((p) => {
+        if (active) setProfile(p);
+      })
+      .catch(() => {
+        // leave null — trash stays hidden, viewing is unaffected
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // ── Load thesis + its versions ──────────────────────────────────────────────
   useEffect(() => {
@@ -161,6 +198,66 @@ export default function ThesisViewerScreen() {
     requestAnimationFrame(() => viewerRef.current?.flashAnnotation(annotation.id));
   }, []);
 
+  // ── Version deletion (owner-only: leader of THIS thesis's group) ────────────
+  // Mirrors the server's EnsureGroupLeaderAsync: leader position + thesis
+  // group must match the signed-in student's group. Latest-only too.
+  const canDeleteVersions =
+    profile?.role === 'Student' &&
+    profile.position === 'Leader' &&
+    !!thesis?.groupId &&
+    profile.researchGroup?.id === thesis.groupId;
+  // Versions arrive ascending; the latest (last) is the only deletable one.
+  const latestVersionId = versions.length > 0 ? versions[versions.length - 1].id : null;
+
+  const performDeleteVersion = useCallback(
+    async (version: ThesisVersion, isLastVersion: boolean) => {
+      if (!id || deletingVersionId) return;
+      setDeletingVersionId(version.id);
+      try {
+        await thesisService.deleteThesisVersion(id, version.id);
+        if (isLastVersion) {
+          // The whole thesis was removed together with its final version.
+          router.back();
+          return;
+        }
+        const list = await thesisService.getVersions(id);
+        const refreshed = Array.isArray(list) ? list : [];
+        setVersions(refreshed);
+        const nextLatest = refreshed.length > 0 ? refreshed[refreshed.length - 1] : null;
+        setSelectedVersionId(nextLatest ? nextLatest.id : null);
+        setVersionsOpen(false);
+      } catch (err) {
+        Alert.alert("Couldn't delete version", apiErrorMessage(err, 'Please try again.'));
+      } finally {
+        setDeletingVersionId(null);
+      }
+    },
+    [id, deletingVersionId, router],
+  );
+
+  const confirmDeleteVersion = useCallback(
+    (version: ThesisVersion) => {
+      const isLastVersion = versions.length <= 1;
+      Alert.alert(
+        isLastVersion ? 'Delete this thesis?' : `Delete version ${version.versionNumber}?`,
+        isLastVersion
+          ? 'This is the only version. Deleting it removes the entire thesis and all of its annotations. This cannot be undone.'
+          : 'The version, its file, and its annotations will be removed. This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              void performDeleteVersion(version, isLastVersion);
+            },
+          },
+        ],
+      );
+    },
+    [versions.length, performDeleteVersion],
+  );
+
   return (
     <View style={[s.root, { backgroundColor: background }]}>
       {/* Header */}
@@ -178,7 +275,7 @@ export default function ThesisViewerScreen() {
             {thesis?.title ?? 'Thesis'}
           </Text>
           <Pressable
-            onPress={() => versions.length > 1 && setVersionsOpen(true)}
+            onPress={() => versions.length > 0 && setVersionsOpen(true)}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Select version"
@@ -311,6 +408,24 @@ export default function ThesisViewerScreen() {
                     {v.changeNote ? ` · ${v.changeNote}` : ''}
                   </Text>
                 </View>
+                {canDeleteVersions && v.id === latestVersionId ? (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      confirmDeleteVersion(v);
+                    }}
+                    hitSlop={8}
+                    disabled={deletingVersionId !== null}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete version ${v.versionNumber}`}
+                    style={({ pressed }) => [s.versionTrash, pressed && s.pressed]}>
+                    {deletingVersionId === v.id ? (
+                      <ActivityIndicator size="small" color={danger} />
+                    ) : (
+                      <MaterialIcons name="delete-outline" size={20} color={danger} />
+                    )}
+                  </Pressable>
+                ) : null}
                 {active ? <MaterialIcons name="check" size={18} color={primary} /> : null}
               </Pressable>
             );
@@ -392,5 +507,6 @@ const s = StyleSheet.create({
   versionRowText: { flex: 1 },
   versionTitle: { fontSize: FontSize.sm, fontWeight: '700' },
   versionMeta: { fontSize: FontSize.xs, marginTop: 2 },
+  versionTrash: { padding: Spacing.xs, minWidth: 32, alignItems: 'center' },
   pressed: { opacity: 0.85 },
 });

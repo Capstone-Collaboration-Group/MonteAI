@@ -81,6 +81,22 @@ export function useThesisVersions(thesisService: ThesisService, thesisId: string
     };
 }
 
+// Deletes ONE version (latest-only). Errors rethrow (server 400/403 messages)
+// so callers can surface them; on success the thesis itself may be gone
+// (last-version cascade), so both list and detail are invalidated.
+export function useDeleteThesisVersion(thesisService: ThesisService) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ thesisId, versionId }: { thesisId: string; versionId: string }) =>
+            thesisService.deleteThesisVersion(thesisId, versionId),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: thesesKeys.all });
+            queryClient.invalidateQueries({ queryKey: thesesKeys.detail(variables.thesisId) });
+            queryClient.invalidateQueries({ queryKey: thesesKeys.versions(variables.thesisId) });
+        },
+    });
+}
+
 export function useAnnotations(
     thesisService: ThesisService,
     thesisId: string,
@@ -182,6 +198,22 @@ export function useThesis(thesisService: ThesisService, thesisId: string) {
         queryKey: thesesKeys.detail(thesisId),
         queryFn: () => thesisService.getThesis(thesisId),
         enabled: !!thesisId,
+    });
+
+    return {
+        ...query,
+        thesis: query.data ?? null,
+    };
+}
+
+// The signed-in student's own group thesis (GET /thesis/my) — data is null
+// when the server answers 404 ("not submitted yet"). Pass enabled=false for
+// non-student profiles so no request is made.
+export function useMyThesis(thesisService: ThesisService, enabled = true) {
+    const query = useQuery({
+        queryKey: [...thesesKeys.all, "my"],
+        queryFn: () => thesisService.getMyThesis(),
+        enabled,
     });
 
     return {

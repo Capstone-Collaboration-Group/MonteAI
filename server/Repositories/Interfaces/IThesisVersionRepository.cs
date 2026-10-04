@@ -10,6 +10,7 @@ namespace server.Repositories.Interfaces
         Task<ThesisVersion?> GetLatestThesisIdAsync(Guid thesisId);
         Task<int> GetNextVersionNumber(Guid thesisId);
         Task<bool> CreateThesisVersion(ThesisVersion thesisVersion);
+        Task<bool> DeleteAsync(Guid versionId);
         Task<bool> DeleteAllExceptLatestAsync(Guid thesisId);
     }
 }

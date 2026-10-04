@@ -78,6 +78,21 @@ namespace server.Controllers
 
             return Ok(result);
         }
+        // The signed-in student's own group thesis — powers the /submit page.
+        // 404 means "no thesis submitted yet" (client renders its empty state).
+        // Literal "my" takes precedence over the {id} route below.
+        [HttpGet("my")]
+        [Authorize(Roles = "Student,Admin")]
+        public async Task<IActionResult> GetMyThesis()
+        {
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(uid)) return Unauthorized();
+
+            var result = await _service.GetMyThesisAsync(uid);
+            if (result is null) return NotFound(new { Message = "No thesis submitted yet." });
+            return Ok(result);
+        }
+
         [HttpGet("{id}")]
         public async Task<IActionResult> GetThesisById(Guid id)
         {
@@ -130,12 +145,35 @@ namespace server.Controllers
             }
             catch (InvalidOperationException ex)
             {
-                _logger.LogWarning(ex, "Thesis submission rejected for an existing research group.");
+                _logger.LogWarning(ex, "Thesis submission rejected: {Reason}", ex.Message);
+
+                // The blob was uploaded before validation — take it back or every
+                // rejected attempt (year gate, duplicate group…) leaks a PDF.
+                await TryDeleteUploadedBlobAsync(blobUrl);
 
                 return Conflict(new
                 {
                     Message = ex.Message
                 });
+            }
+            catch
+            {
+                await TryDeleteUploadedBlobAsync(blobUrl);
+                throw;
+            }
+        }
+
+        // Best-effort rollback for uploads whose submit/revision never landed in SQL.
+        private async Task TryDeleteUploadedBlobAsync(string blobUrl)
+        {
+            try
+            {
+                await _blobService.DeleteAsync(blobUrl);
+                _logger.LogInformation("Rolled back orphaned upload: {BlobUrl}", blobUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to roll back orphaned upload {BlobUrl}", blobUrl);
             }
         }
 
@@ -273,12 +311,13 @@ namespace server.Controllers
             if (string.IsNullOrEmpty(uploadedById))
                 return Unauthorized();
 
+            string? blobUrl = null;
             try
             {
                 await using var stream = dto.File.OpenReadStream();
 
                 var thesisTitle = (await _service.GetByIdAsync(thesisId))?.Title;
-                var blobUrl = await _blobService.UploadAsync(
+                blobUrl = await _blobService.UploadAsync(
                     stream,
                     dto.File.FileName,
                     dto.File.ContentType,
@@ -297,11 +336,15 @@ namespace server.Controllers
 
             catch (UnauthorizedAccessException ex)
             {
+                if (blobUrl != null) await TryDeleteUploadedBlobAsync(blobUrl);
                 _logger.LogWarning(ex, "Unauthorized thesis revision attempt for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
                 return Forbid();
             }
             catch (InvalidOperationException ex)
             {
+                // Rejected after upload (year gate, missing thesis…) — roll the blob back.
+                if (blobUrl != null) await TryDeleteUploadedBlobAsync(blobUrl);
+
                 _logger.LogWarning(
             ex,
             "Thesis revision rejected for ThesisId: {ThesisId}",
@@ -312,6 +355,11 @@ namespace server.Controllers
                 {
                     Message = ex.Message
                 });
+            }
+            catch
+            {
+                if (blobUrl != null) await TryDeleteUploadedBlobAsync(blobUrl);
+                throw;
             }
         }
 
@@ -331,6 +379,28 @@ namespace server.Controllers
             }
             catch (UnauthorizedAccessException) { return Forbid(); }
             catch (KeyNotFoundException) { return NotFound(new { Message = "Thesis not found." }); }
+        }
+
+        // Deletes a SINGLE version — latest-only (3→2→1). Deleting the final
+        // remaining version cascades into deleting the whole thesis.
+        [HttpDelete("{thesisId}/versions/{versionId}")]
+        [Authorize(Roles = "Student,Admin")]
+        public async Task<IActionResult> DeleteThesisVersionById(Guid thesisId, Guid versionId)
+        {
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(uid)) return Unauthorized();
+
+            try
+            {
+                var result = await _service.DeleteThesisVersionById(thesisId, versionId, uid, User.IsInRole("Admin"));
+                if (!result) return StatusCode(500, "Failed to delete the thesis version.");
+
+                _logger.LogInformation("Version {VersionId} of thesis {ThesisId} deleted by {Uid}", versionId, thesisId, uid);
+                return Ok(new { Message = "Thesis version deleted successfully." });
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (KeyNotFoundException ex) { return NotFound(new { Message = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Message = ex.Message }); }
         }
 
     }
