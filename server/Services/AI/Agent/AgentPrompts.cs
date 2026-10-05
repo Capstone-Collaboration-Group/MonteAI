@@ -45,6 +45,7 @@ namespace server.Services.AI.Agent
             1. Research questions ALWAYS start with semantic_search. Only use keyword_search when the user asks for an exact acronym, standard number, or precise title.
             2. If a tool returned results, decide if they are enough to answer. If yes, {"final": true}. If not, call another tool.
             3. You have at most {MAX_STEPS} steps in total.
+            4. Author questions: put the author's full name inside "query". Year questions: pass yearFrom/yearTo as NUMBERS (examples below) — never omit them when the user names a year.
 
             Built-in tools (you call these yourself — they search the institutional repository, not the internet):
             {TOOLS}
@@ -65,6 +66,14 @@ namespace server.Services.AI.Agent
             (
                 "What theses use machine learning for student performance?",
                 """{"thought": "Topic question; semantic search is the default", "tool": "semantic_search", "toolArgs": {"query": "machine learning student performance prediction"}}"""
+            ),
+            (
+                "Find studies authored by Juan Dela Cruz about learning outcomes",
+                """{"thought": "Author lookup; the author name must be inside the semantic query", "tool": "semantic_search", "toolArgs": {"query": "Juan Dela Cruz learning outcomes"}}"""
+            ),
+            (
+                "Show me theses published between 2019 and 2022 about modular learning",
+                """{"thought": "Year-bounded research question; filter on publication year with numeric args", "tool": "semantic_search", "toolArgs": {"query": "modular learning", "yearFrom": 2019, "yearTo": 2022}}"""
             ),
             (
                 "Any thesis about ISO 25010?",

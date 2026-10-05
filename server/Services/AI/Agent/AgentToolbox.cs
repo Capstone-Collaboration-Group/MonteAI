@@ -49,14 +49,15 @@ namespace server.Services.AI.Agent
         }
 
         /// <summary>
-        /// Tool descriptions injected into the planner system prompt. Kept
-        /// byte-for-byte identical to the block used when the prompting recipe
-        /// was validated against the live Phi-4-mini deployment — see
-        /// AgentPrompts for details before editing.
+        /// Tool descriptions injected into the planner system prompt. Follows
+        /// the validated few-shot recipe in AgentPrompts (re-validate prompt
+        /// changes against the live Phi-4-mini deployment before shipping).
         /// </summary>
         public string GetToolManifest() =>
             """
             1. semantic_search — meaning-based search over thesis abstracts. DEFAULT choice for research questions. toolArgs: {"query": string, "topK"?: int, "yearFrom"?: int, "yearTo"?: int}
+               - Author questions ("studies by X"): put the author's full name inside "query".
+               - Year questions ("published in 2019", "between 2019 and 2022"): pass yearFrom/yearTo as NUMBERS, never as quoted strings. Omit both when no year is mentioned.
             2. keyword_search — exact-word search over titles/abstracts. ONLY for exact acronyms, standard numbers, or exact titles. toolArgs: {"term": string, "limit"?: int}
             3. thesis_metadata — full record of one thesis. ONLY when a thesisId is already known. toolArgs: {"thesisId": string}
             """;

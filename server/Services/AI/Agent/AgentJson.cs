@@ -107,11 +107,30 @@ namespace server.Services.AI.Agent
                 ? value.GetString()
                 : null;
 
-        /// <summary>Reads an integer argument from the tool-args JSON object.</summary>
+        /// <summary>
+        /// Reads an integer argument from the tool-args JSON object. Accepts
+        /// quoted numbers too ("yearFrom": "2019") — Phi-4-mini emits both
+        /// shapes and silently dropping the year filter made year-bounded
+        /// questions return topic-only results.
+        /// </summary>
         public static int? GetIntArg(JsonElement? args, string name)
-            => args is { ValueKind: JsonValueKind.Object } && args.Value.TryGetProperty(name, out var value)
-                && value.ValueKind is JsonValueKind.Number && value.TryGetInt32(out var parsed)
-                ? parsed
-                : null;
+        {
+            if (args is not { ValueKind: JsonValueKind.Object } ||
+                !args.Value.TryGetProperty(name, out var value))
+            {
+                return null;
+            }
+
+            if (value.ValueKind is JsonValueKind.Number && value.TryGetInt32(out var parsed))
+                return parsed;
+
+            if (value.ValueKind is JsonValueKind.String &&
+                int.TryParse(value.GetString(), out var quoted))
+            {
+                return quoted;
+            }
+
+            return null;
+        }
     }
 }
