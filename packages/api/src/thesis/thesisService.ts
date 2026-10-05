@@ -60,6 +60,15 @@ export class LiveThesisService implements ThesisService {
         formData.append("FilePath", dto.filePath ?? "");
         formData.append("UploadedById", dto.uploadedById);
 
+        // Admin archival metadata — one author per line so names containing
+        // commas survive the round trip (the server splits on \n).
+        if (dto.authors?.length) {
+            formData.append("Authors", dto.authors.join("\n"));
+        }
+        if (dto.publicationYear) {
+            formData.append("PublicationYear", dto.publicationYear);
+        }
+
         const { data } = await this.client.post<ThesisResponseDto>(`/thesis/submit`, formData, {
             // The client defaults to application/json, which would make axios
             // serialize the FormData as JSON instead of multipart. null removes

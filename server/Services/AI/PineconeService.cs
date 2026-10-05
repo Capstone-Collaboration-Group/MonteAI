@@ -5,14 +5,21 @@
 //
 // ── INGESTION (called by ThesisService.IngestAsync) ─────────────────────────
 //   chunks ──> EmbedBatchAsync (16 texts per text-embedding-3-small call,
-//              instead of one HTTP request per chunk)
+//              instead of one HTTP request per chunk). What gets EMBEDDED is
+//              BuildEmbeddingText: a Title/Authors/Publication year header
+//              above the abstract, so "studies by <author>" and year-bounded
+//              questions can match — the abstract alone never contains
+//              author names or years. metadata["abstract"] keeps the RAW
+//              excerpt for citations/prompts.
 //          ──> one bulk UpsertRequest per 100 vectors, with metadata:
 //              abstract, title, url (blob path, NEVER a SAS link), authors,
 //              publication_year, journal, thesis_id, chunk_index, uploaded_at
 //
 // ── RETRIEVAL (called by the agent's semantic_search tool and the fallback
 //   RAG path) ────────────────────────────────────────────────────────────────
-//   query ──> one embedding call ──> Pinecone QueryAsync(TopK, Filter)
+//   query ──> DetectYearRange (fills YearFrom/YearTo from years in the query
+//             when the planner omitted them — small models do that often)
+//          ──> one embedding call ──> Pinecone QueryAsync(TopK, Filter)
 //          ──> score-threshold filter ──> mapped to Chunk records (with the
 //              real match score and thesis_id for citation linking)
 //
@@ -22,6 +29,8 @@
 //   metadata filter. This keeps re-ingestion idempotent and removes vectors
 //   when a thesis is edited or deleted.
 
+using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using OpenAI.Embeddings;
 using Pinecone;
@@ -68,6 +77,14 @@ namespace server.Services.AI
                 _logger.LogWarning("Semantic search called with an empty query");
                 return new List<Chunk>();
             }
+
+            // Planner-supplied years win; otherwise detect them in the query
+            // text itself. Phi-4-mini often omits yearFrom/yearTo despite the
+            // few-shot examples, and the agent's guaranteed fallback passes no
+            // options at all — without this, "published in 2019" would only
+            // match on topic similarity (the year is not part of the embedding
+            // input for older vectors).
+            options = DetectYearRange(query, options);
 
             // 1. Embed the query once per turn (text-embedding-3-small).
             //    (The explicit OpenAIEmbedding type triggers the implicit
@@ -128,7 +145,47 @@ namespace server.Services.AI
             return chunks;
         }
 
-        /// <summary>Builds a Pinecone metadata filter from retrieval options (exact thesis match and/or year range).</summary>
+        /// <summary>
+        /// Fills YearFrom/YearTo from 4-digit years appearing in the query
+        /// ("published in 2019", "between 2019 and 2022") when the caller did
+        /// not supply a range. One year = exact-year filter; several = the
+        /// min/max span. Ranges/thesis filters already set on <paramref name="options"/>
+        /// are preserved, and planner-passed years always win.
+        /// </summary>
+        private static RetrievalOptions? DetectYearRange(string query, RetrievalOptions? options)
+        {
+            if (options is not null && (options.YearFrom is not null || options.YearTo is not null))
+                return options;
+
+            var years = Regex.Matches(query, @"\b(?:19|20)\d{2}\b")
+                .Select(match => int.Parse(match.Value))
+                .Where(year => year >= 1900 && year <= DateTime.UtcNow.Year + 1)
+                .Distinct()
+                .ToList();
+
+            if (years.Count == 0) return options;
+
+            return new RetrievalOptions
+            {
+                TopK = options?.TopK,
+                ScoreThreshold = options?.ScoreThreshold,
+                ThesisId = options?.ThesisId,
+                YearFrom = years.Min(),
+                YearTo = years.Max(),
+            };
+        }
+
+        /// <summary>
+        /// Builds a Pinecone metadata filter from retrieval options (exact thesis match and/or year span).
+        ///
+        /// The year condition enumerates the span into a <c>$in</c> list of strings
+        /// instead of $gte/$lte: Pinecone's range operators are NUMBER-only, while
+        /// publication_year has ALWAYS been stored as a string ("2020") — sending
+        /// string ranges made year-filtered queries fail outright, which is why
+        /// "published in 2019" returned nothing. $in does equality matching on the
+        /// stored values; a year span is at most a few hundred entries (Pinecone
+        /// allows 10,000 per $in).
+        /// </summary>
         private static Metadata? BuildFilter(RetrievalOptions? options)
         {
             if (options is null) return null;
@@ -143,26 +200,42 @@ namespace server.Services.AI
 
             if (options.YearFrom is not null || options.YearTo is not null)
             {
-                var range = new Metadata();
-                if (options.YearFrom is not null)
+                // Clamp so a bogus planner arg cannot fan the list out.
+                var from = Math.Clamp(options.YearFrom ?? 1900, 1900, 2100);
+                var to = Math.Clamp(options.YearTo ?? DateTime.UtcNow.Year, 1900, 2100);
+                if (from > to) (from, to) = (to, from);
+
+                var years = new List<MetadataValue>(to - from + 1);
+                for (var year = from; year <= to; year++)
                 {
-                    range["$gte"] = options.YearFrom.Value.ToString();
+                    years.Add(year.ToString());
                 }
-                if (options.YearTo is not null)
-                {
-                    range["$lte"] = options.YearTo.Value.ToString();
-                }
+
+                // $in must be wrapped in an operator object: {"publication_year":
+                // {"$in": [...]}} — a bare array is INVALID_ARGUMENT (gRPC 3).
                 filter ??= new Metadata();
-                filter["publication_year"] = new MetadataValue(range);
+                filter["publication_year"] = new Metadata
+                {
+                    ["$in"] = new MetadataValue(years)
+                };
             }
 
             return filter;
         }
 
         private static string? GetString(Metadata? metadata, string key)
-            => metadata is not null && metadata.TryGetValue(key, out var value)
-                ? value?.ToString()
-                : null;
+        {
+            if (metadata is null || !metadata.TryGetValue(key, out var value) || value is null)
+                return null;
+
+            // MetadataValue.ToString() JSON-serializes the wrapped value, so
+            // strings come back WITH surrounding double quotes (and inner
+            // quotes escaped): "c09a9d58-…". Unwrapping the OneOf's string arm
+            // directly keeps thesis_id / url / title / authors / the abstract
+            // excerpt free of stray quotes in citations, prompts and API URLs.
+            // Non-string arms serialize as bare JSON scalars (0, true) anyway.
+            return value.IsT0 ? value.AsT0 : value.ToString();
+        }
 
         // ────────────────────────── INGESTION ──────────────────────────
 
@@ -184,7 +257,10 @@ namespace server.Services.AI
             try
             {
                 // 1. Batch-embed all chunk texts (EmbeddingBatchSize per call).
-                var texts = valid.Select(c => c.Text!).ToList();
+                //    The embedded string carries a Title/Authors/Publication
+                //    year header so author and year questions can match — the
+                //    stored "abstract" metadata below stays the raw excerpt.
+                var texts = valid.Select(BuildEmbeddingText).ToList();
                 var embeddings = await EmbedBatchAsync(texts, cancellationToken);
 
                 // 2. Build vectors with full metadata.
@@ -237,6 +313,27 @@ namespace server.Services.AI
                 _logger.LogError(ex, "Failed to upsert abstract chunks for thesis {ThesisId} into index {Index}", thesisId, IndexName);
                 return 0;
             }
+        }
+
+        /// <summary>
+        /// What actually gets embedded: a short metadata header above the raw
+        /// abstract. Author names and publication years never appear inside
+        /// abstract text, so embedding the abstract alone made
+        /// "studies authored by X" unmatchable. The header fixes new
+        /// ingestions; metadata["abstract"] keeps the raw text so citations
+        /// and prompt excerpts are unaffected.
+        /// </summary>
+        private static string BuildEmbeddingText(Chunk chunk)
+        {
+            var sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(chunk.Title))
+                sb.Append("Title: ").AppendLine(chunk.Title);
+            if (!string.IsNullOrEmpty(chunk.Authors))
+                sb.Append("Authors: ").AppendLine(chunk.Authors);
+            if (!string.IsNullOrEmpty(chunk.PublicationYear))
+                sb.Append("Publication year: ").AppendLine(chunk.PublicationYear);
+            sb.Append("Abstract: ").Append(chunk.Text);
+            return sb.ToString();
         }
 
         /// <summary>Embeds texts in batches of EmbeddingBatchSize (max 16 per Azure OpenAI request).</summary>

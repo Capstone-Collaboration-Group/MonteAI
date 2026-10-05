@@ -5,6 +5,7 @@ import type { ThesisService } from "@monteai/api";
 import { toThesisSummary } from "@monteai/types";
 import type { ThesisActionType } from "@monteai/types";
 import { ThesisCatalog, ThesisCatalogSkeleton } from "../components/Thesis";
+import type { CatalogNotice } from "../components/Thesis";
 
 
 interface ThesisCatalogPageProps {
@@ -18,6 +19,9 @@ interface ThesisCatalogPageProps {
   canUpload?: boolean;
   onUploadThesis?: () => void;
   onFilterClick?: () => void;
+  /** Optional banner above the catalog (edit/delete results, load failures). */
+  notice?: CatalogNotice | null;
+  onDismissNotice?: () => void;
 }
 
 export function ThesisCatalogPage({
@@ -28,6 +32,8 @@ export function ThesisCatalogPage({
   allowedActions = [],
   canUpload = false,
   onUploadThesis,
+  notice = null,
+  onDismissNotice,
   // onFilterClick, remove this comment if there will be future Filter features from the ThesisCatalog Component.
 }: ThesisCatalogPageProps) {
   const { theses: rawTheses, isLoading } = useTheses(thesisService);
@@ -37,7 +43,11 @@ export function ThesisCatalogPage({
 
   const counts = useMemo(() => {
     const active = theses.filter((t) => t.status === "pending" || t.status === "revision").length;
-    const archived = theses.filter((t) => t.status === "approved" || t.status === "rejected").length;
+    // "indexed" counts as archived: admin uploads land Indexed immediately
+    // (no review step), so leaving it out would hide them from both buckets.
+    const archived = theses.filter(
+      (t) => t.status === "approved" || t.status === "rejected" || t.status === "indexed",
+    ).length;
     return { active, archived };
   }, [theses]);
 
@@ -58,6 +68,8 @@ export function ThesisCatalogPage({
       allowedActions={allowedActions}
       canUpload={canUpload}
       onUploadThesis={onUploadThesis}
+      notice={notice}
+      onDismissNotice={onDismissNotice}
       // onFilterClick={onFilterClick}
     />
   );

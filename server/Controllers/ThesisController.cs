@@ -204,6 +204,12 @@ namespace server.Controllers
             }
             catch (UnauthorizedAccessException) { return Forbid(); }
             catch (KeyNotFoundException) { return NotFound(new { Message = "Thesis not found." }); }
+            catch (InvalidOperationException ex)
+            {
+                // Rejected before anything persisted (e.g. abstract store down).
+                _logger.LogWarning(ex, "Thesis details update rejected for {ThesisId}", id);
+                return BadRequest(new { Message = ex.Message });
+            }
         }
         [HttpPatch("update/status/{id}")]
         [Authorize(Policy = "Reviewer")]

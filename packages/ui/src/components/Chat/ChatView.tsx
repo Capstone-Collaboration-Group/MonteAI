@@ -121,6 +121,15 @@ function streamingAssistantPresent(
 }
 
 /**
+ * Chat sources persisted while Pinecone metadata was read through
+ * MetadataValue.ToString() carry JSON-quoted ids ("c09a…"). Strip any
+ * surrounding quotes so old messages still deep-link to a valid URL.
+ */
+function cleanThesisId(id: string): string {
+  return id.replace(/^"+|"+$/g, "");
+}
+
+/**
  * Citation panel: one row per retrieved thesis, ordered as the [Source n]
  * numbers inside the answer. Links to the web thesis viewer when possible.
  */
@@ -132,7 +141,8 @@ function SourcesPanel({ sources }: { sources: ChatSourceDto[] }) {
       </span>
       {sources.map((source, index) => {
         const label = source.title ?? "Untitled thesis";
-        const href = source.thesisId ? `/thesis/view/${source.thesisId}` : undefined;
+        const thesisId = source.thesisId ? cleanThesisId(source.thesisId) : "";
+        const href = thesisId ? `/thesis/view/${thesisId}` : undefined;
         const body = (
           <>
             <BookOpen className="mt-0.5 h-3 w-3 shrink-0" />
@@ -145,7 +155,7 @@ function SourcesPanel({ sources }: { sources: ChatSourceDto[] }) {
 
         return href ? (
           <a
-            key={`${source.thesisId ?? index}-${index}`}
+            key={`${thesisId || index}`}
             href={href}
             title={source.snippet ?? label}
             className="flex items-center gap-1.5 text-xs text-primary underline-offset-2 hover:underline"
@@ -154,7 +164,7 @@ function SourcesPanel({ sources }: { sources: ChatSourceDto[] }) {
           </a>
         ) : (
           <div
-            key={`${source.thesisId ?? index}-${index}`}
+            key={`${thesisId || index}`}
             title={source.snippet ?? label}
             className="flex items-center gap-1.5 text-xs text-on-surface-variant"
           >

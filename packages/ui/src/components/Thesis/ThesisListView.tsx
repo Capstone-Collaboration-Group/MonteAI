@@ -1,12 +1,10 @@
 // packages/ui/src/components/Thesis/ThesisListView.tsx
 import { useState } from "react";
 import { LayoutGrid, List, MoreHorizontal } from "lucide-react";
-import type { ThesisSummary, ThesisStatus } from "@monteai/types";
+import type { ThesisSummary, ThesisStatus, ThesisActionType } from "@monteai/types";
 import { StatusBadge } from "./StatusBadge";
 import { Dropdown } from "../common/Dropdown";
 import { Button } from "../Button"; // <-- Imported your reusable Button
-
-export type ThesisActionType = "approve" | "reject" | "revision" | "schedule";
 
 interface ThesisAction {
   label: string;
@@ -43,6 +41,14 @@ const ACTIONS_BY_STATUS: Record<ThesisStatus, ThesisAction[]> = {
   ],
 };
 
+// Status-independent full-CRUD actions. They are appended to the per-status
+// moderation list and gated by allowedActions like everything else — desktop
+// passes "edit"/"delete" only for Admin sessions; web/mobile never pass them.
+const CRUD_ACTIONS: ThesisAction[] = [
+  { label: "Edit details", action: "edit", className: "text-primary hover:bg-primary/10" },
+  { label: "Delete", action: "delete", className: "text-error hover:bg-error/10" },
+];
+
 interface ThesisListViewProps {
   theses: ThesisSummary[];
   onSelect?: (thesisId: string) => void;
@@ -68,8 +74,10 @@ function ActionMenu({
   onAction?: (thesisId: string, action: ThesisActionType) => void;
   allowedActions: ThesisActionType[];
 }) {
-  const actions = (ACTIONS_BY_STATUS[thesis.status.toLowerCase() as ThesisStatus] ?? [])
-    .filter((a) => allowedActions.includes(a.action));   // ← gate by role here
+  const actions = [
+    ...(ACTIONS_BY_STATUS[thesis.status.toLowerCase() as ThesisStatus] ?? []),
+    ...CRUD_ACTIONS,
+  ].filter((a) => allowedActions.includes(a.action));   // ← gate by role here
 
   if (actions.length === 0) return null;
 

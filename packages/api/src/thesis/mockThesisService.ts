@@ -208,18 +208,24 @@ export const mockThesisService: ThesisService = {
 
         const id = crypto.randomUUID();
 
+        // Mirrors the live server: admin archival uploads (those carrying
+        // authors + publication year) are auto-indexed in one step, while
+        // student submissions stay Pending for the approve flow.
+        const autoIndexed = (dto.authors?.length ?? 0) > 0 && !!dto.publicationYear;
+
         const newThesis = {
             id,
             title: dto.title,
             abstract: dto.abstract,
             filePath: file.name,
             uploadedById: dto.uploadedById,
-            status: "Pending",
-            authors: [],
+            status: autoIndexed ? "Indexed" : "Pending",
+            authors: dto.authors ?? [],
+            publicationYear: dto.publicationYear,
             institute: "",
-            pineconeStatus: "None",
+            pineconeStatus: autoIndexed ? "Indexed" : "None",
             approvedAt: "",
-            indexedAt: "",
+            indexedAt: autoIndexed ? new Date().toISOString() : "",
             rejectedAt: "",
             reviewedAt: "",
             updatedAt: new Date().toISOString(),

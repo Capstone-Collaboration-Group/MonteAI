@@ -47,7 +47,19 @@ export function useUpdateThesis(thesisService: ThesisService) {
         });
 }
 
-// I'll add update thesis status and delete here soon
+// Full-CRUD delete (Admin-only server endpoint). Errors rethrow (403/409/500)
+// so callers can surface them; on success the thesis is gone entirely, so the
+// list and its detail entry are both invalidated.
+export function useDeleteThesis(thesisService: ThesisService) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id }: { id: string }) => thesisService.deleteThesis(id),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: thesesKeys.all });
+            queryClient.invalidateQueries({ queryKey: thesesKeys.detail(variables.id) });
+        },
+    });
+}
 
 
 export function useIngestThesis(thesisService: ThesisService) { 
