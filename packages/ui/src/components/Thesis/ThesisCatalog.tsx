@@ -8,9 +8,16 @@ import { ThesisListView } from "./ThesisListView";
 import { PageHeader, PageLayout} from "../common";
 import { Input } from "../Input";
 import { Button } from "../Button";
-import { UploadCloud } from "lucide-react";
+import { Alert } from "../common/Alert";
+import { UploadCloud, X } from "lucide-react";
 
 type StatusFilter = "None" | ThesisStatus;
+
+/** Status banner for catalog operations (edit/delete results, load failures). */
+export interface CatalogNotice {
+    variant: "success" | "error";
+    message: string;
+}
 
 interface ThesisCatalogProps {
   featuredThesis: ThesisSummary;
@@ -25,6 +32,9 @@ interface ThesisCatalogProps {
   /** RBAC: only render the upload CTA when the viewer is allowed to upload (Admin). */
   canUpload?: boolean;
   onUploadThesis?: () => void;
+  /** Optional banner above the catalog (edit/delete results, load failures). */
+  notice?: CatalogNotice | null;
+  onDismissNotice?: () => void;
   // onFilterClick?: () => void;
 }
 const STATUS_OPTIONS: StatusFilter[] = ["None", "pending", "approved", "rejected", "revision", "indexed"];
@@ -41,6 +51,8 @@ export function ThesisCatalog({
   allowedActions = [],
   canUpload = false,
   onUploadThesis,
+  notice = null,
+  onDismissNotice,
   // onFilterClick,  
 }: ThesisCatalogProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("None");
@@ -110,6 +122,26 @@ export function ThesisCatalog({
             </>
           }
         />
+
+        {notice && (
+          <div className="relative">
+            <Alert
+              variant={notice.variant}
+              title={notice.variant === "success" ? "Done" : "Something went wrong"}
+              message={notice.message}
+            />
+            {onDismissNotice && (
+              <button
+                type="button"
+                aria-label="Dismiss notice"
+                onClick={onDismissNotice}
+                className="absolute right-3 top-3 rounded-full p-1 text-on-surface-variant transition-colors hover:bg-black/5"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
 
         <p className="text-sm text-on-surface-variant">
           Reviewing {counts.active} active submissions and {counts.archived} archived works.
