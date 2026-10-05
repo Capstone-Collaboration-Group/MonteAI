@@ -5,7 +5,7 @@
 // visibility with RBAC (`canUpload` on ThesisCatalog) — this component
 // only handles the form.
 import { useRef, useState } from "react";
-import { FileText, UploadCloud } from "lucide-react";
+import { FileText, Plus, UploadCloud, X } from "lucide-react";
 import { Modal, ModalHeader } from "../common/Modal";
 import { Alert } from "../common/Alert";
 import { Button } from "../Button";
@@ -18,6 +18,10 @@ export interface ThesisUploadInput {
     title: string;
     abstract: string;
     file: File;
+    /** One entry per author, from the dynamic rows below (trimmed, non-empty). */
+    authors: string[];
+    /** 4-digit publication year. */
+    publicationYear: string;
 }
 
 interface ThesisUploadModalProps {
@@ -51,11 +55,22 @@ function ThesisUploadForm({
     success = null,
 }: Omit<ThesisUploadModalProps, "isOpen">) {
     const [title, setTitle] = useState("");
+    // Dynamic author rows — one name per row, starts with a single empty row.
+    const [authors, setAuthors] = useState<string[]>([""]);
+    const [publicationYear, setPublicationYear] = useState("");
     const [abstract, setAbstract] = useState("");
     const [file, setFile] = useState<File | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    const currentYear = new Date().getFullYear();
+    const cleanedAuthors = authors.map((a) => a.trim()).filter(Boolean);
+    const trimmedYear = publicationYear.trim();
+    const yearValid =
+        /^\d{4}$/.test(trimmedYear) &&
+        Number(trimmedYear) >= 1900 &&
+        Number(trimmedYear) <= currentYear;
 
     const handleFile = (selected: File | null | undefined) => {
         if (!selected) return;
@@ -73,14 +88,33 @@ function ThesisUploadForm({
 
     const canSubmit =
         title.trim().length > 0 &&
+        cleanedAuthors.length > 0 &&
+        yearValid &&
         abstract.trim().length > 0 &&
         file !== null &&
         !submitting;
 
     const handleSubmit = () => {
         if (!canSubmit || !file) return;
-        onSubmit({ title: title.trim(), abstract: abstract.trim(), file });
+        onSubmit({
+            title: title.trim(),
+            authors: cleanedAuthors,
+            publicationYear: trimmedYear,
+            abstract: abstract.trim(),
+            file,
+        });
     };
+
+    const setAuthorAt = (index: number, value: string) =>
+        setAuthors((prev) => prev.map((a, i) => (i === index ? value : a)));
+
+    const addAuthor = () => setAuthors((prev) => [...prev, ""]);
+
+    const removeAuthor = (index: number) =>
+        setAuthors((prev) =>
+            // Keep at least one row so the field never disappears.
+            prev.length > 1 ? prev.filter((_, i) => i !== index) : [""],
+        );
 
     // Confirmation view: the upload landed — show the success Alert and wait
     // for an explicit Done instead of silently closing the dialog.
@@ -114,7 +148,8 @@ function ThesisUploadForm({
                         Upload Thesis
                     </p>
                     <p className="truncate text-xs font-normal text-on-surface-variant">
-                        Add a thesis document to the catalog for review.
+                        Add a thesis document to the catalog — it is indexed for
+                        MonteAI right after upload.
                     </p>
                 </div>
             </ModalHeader>
@@ -134,13 +169,75 @@ function ThesisUploadForm({
                         />
                     </div>
 
+                    <div className="flex flex-col gap-1.5">
+                        <label className="block text-sm font-medium text-on-surface">
+                            Authors
+                        </label>
+                        <div className="flex flex-col gap-2">
+                            {authors.map((author, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                    <Input
+                                        value={author}
+                                        onChange={(e) =>
+                                            setAuthorAt(index, e.target.value)
+                                        }
+                                        placeholder={
+                                            index === 0
+                                                ? "e.g. Juan Dela Cruz"
+                                                : "Add another author"
+                                        }
+                                        disabled={submitting}
+                                    />
+                                    <button
+                                        type="button"
+                                        aria-label={`Remove author ${index + 1}`}
+                                        onClick={() => removeAuthor(index)}
+                                        disabled={submitting || authors.length === 1}
+                                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-on-surface-variant"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={addAuthor}
+                            disabled={submitting}
+                            className="mt-1 flex w-fit items-center gap-1.5 text-sm font-semibold text-primary transition-opacity hover:opacity-70 disabled:opacity-50"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Add author
+                        </button>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <label className="block text-sm font-medium text-on-surface">
+                            Publication year
+                        </label>
+                        <Input
+                            value={publicationYear}
+                            onChange={(e) => setPublicationYear(e.target.value)}
+                            placeholder={`e.g. ${currentYear - 1}`}
+                            inputMode="numeric"
+                            maxLength={4}
+                            className="w-40"
+                            disabled={submitting}
+                        />
+                        {trimmedYear.length > 0 && !yearValid && (
+                            <p className="text-xs text-error">
+                                Enter a 4-digit year between 1900 and {currentYear}.
+                            </p>
+                        )}
+                    </div>
+
                     <Textarea
                         label="Abstract"
                         value={abstract}
                         onChange={(e) => setAbstract(e.target.value)}
                         placeholder="Paste or type the thesis abstract."
                         rows={6}
-                        helperText="Used by MonteAI's retrieval pipeline when the thesis is approved and indexed."
+                        helperText="Used by MonteAI's retrieval pipeline to answer research questions."
                         disabled={submitting}
                     />
 

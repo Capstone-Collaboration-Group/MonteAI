@@ -3,6 +3,10 @@ export interface SubmitThesisDto {
   abstract: string;
   filePath?: string;
   uploadedById: string;
+  /** Admin archival uploads: author names, one array entry per author. */
+  authors?: string[];
+  /** Admin archival uploads: 4-digit publication year. */
+  publicationYear?: string;
 }
 
 export interface UpdateThesisDto {
@@ -33,6 +37,8 @@ export interface ThesisResponseDto {
   scheduledAt: string;
   scheduledVenue: string;
   authors: string[];
+  /** Firestore-resolved publication year (admin archival uploads). */
+  publicationYear?: string;
   institute?: string;
 }
 
@@ -47,7 +53,18 @@ export interface ThesisCatalogCounts {
 
 export type ThesisStatus = "pending" | "approved" | "scheduled" | "rejected" | "revision" | "indexed";
 
-export type ThesisActionType = "approve" | "reject" | "revision" | "schedule";
+/**
+ * Catalog row actions. Moderation actions (approve/reject/revision/schedule)
+ * are reviewer powers; "edit"/"delete" are full-CRUD management actions that
+ * desktop only passes for Admin sessions (web/mobile stay read-only).
+ */
+export type ThesisActionType =
+  | "approve"
+  | "reject"
+  | "revision"
+  | "schedule"
+  | "edit"
+  | "delete";
 
 // ── Academic programs ────────────────────────────────────────────────────────
 // Codes sent to the API as ?program=; labels are the canonical display names
