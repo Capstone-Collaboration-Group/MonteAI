@@ -171,6 +171,10 @@ namespace server.Repositories
                     break;
                 case "Indexed":
                     existing.IndexedAt = DateTime.UtcNow;
+                    // Vectors are what "Indexed" means — keep the dedicated
+                    // flag in sync (admin auto-index and desktop ingest both
+                    // land here through UpdateStatusAsync).
+                    existing.PineconeStatus = "Indexed";
                     break;
             }
 

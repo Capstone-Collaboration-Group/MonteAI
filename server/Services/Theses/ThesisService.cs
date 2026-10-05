@@ -169,6 +169,13 @@ namespace server.Services.Theses
 
             thesis.SubmittedAt = DateTime.UtcNow;
 
+            // Admin archival metadata (authors + publication year) — kept in
+            // memory for the Firestore write below and the Pinecone upsert.
+            var authors = SplitAuthors(submitDto.Authors);
+            var publicationYear = string.IsNullOrWhiteSpace(submitDto.PublicationYear)
+                ? null
+                : submitDto.PublicationYear.Trim();
+
             // Generate the Id here (EF only uses the SQL NEWID() default for
             // Guid.Empty) so the Firestore document ID can be written first and
             // the SQL Abstract column stores that ID instead of the raw text.
@@ -177,7 +184,13 @@ namespace server.Services.Theses
 
             try
             {
-                await _abstractService.SetAbstractAsync(thesis.Id, 1, submitDto.Abstract);
+                // Admin uploads merge authors + publication year into the same
+                // document in the same write; student submissions pass nothing
+                // (their authors come from the research group at read time).
+                await _abstractService.SetAbstractAsync(
+                    thesis.Id, 1, submitDto.Abstract,
+                    authors.Count > 0 ? authors : null,
+                    publicationYear);
                 thesis.Abstract = thesis.Id.ToString();
             }
             catch (Exception ex)
@@ -201,10 +214,109 @@ namespace server.Services.Theses
             };
             await _thesisVersionRepo.CreateThesisVersion(initialVersion);
 
+            // ── Admin archival uploads land FULLY INDEXED ────────────────────
+            // The server chunks the abstract itself, reuses the ingestion hop
+            // (delete-then-upsert, chunk cap, SQL = source of truth for the
+            // blob URL) and lets IngestAsync mark the row "Indexed". Student
+            // submissions never enter this block — they stay "Pending" and go
+            // through the desktop approve pipeline as before.
+            if (isAdmin)
+            {
+                var ingestResult = await IngestAsync(new IngestThesisDto
+                {
+                    ThesisId = result.Id,
+                    Chunks = BuildAdminChunks(result, submitDto.Abstract, authors, publicationYear),
+                });
+
+                if (ingestResult.Status == "Failed" || ingestResult.VectorCount == 0)
+                {
+                    // Roll back everything so a rejected attempt never leaks a
+                    // PDF: SQL row (cascades the version row), Firestore
+                    // document (abstract + metadata) and any vectors that
+                    // landed before the failure. The controller then deletes
+                    // the blob and returns this message to the client.
+                    await RollbackAdminUploadAsync(result.Id);
+
+                    throw new InvalidOperationException(
+                        "The thesis was uploaded but could not be indexed, so the upload was rolled back. Please try again.");
+                }
+
+                _logger.LogInformation(
+                    "Admin upload {ThesisId} auto-indexed ({VectorCount} vectors, status {Status})",
+                    result.Id, ingestResult.VectorCount, ingestResult.Status);
+            }
+
             var response = _mapper.Map<ThesisResponseDto>(result);
             await _abstractService.ResolveAbstractsAsync(new[] { response });
             return response;
-        } 
+        }
+
+        // "Juan Cruz\nMaria Santos" → ["Juan Cruz", "Maria Santos"].
+        // The admin modal sends one author per line; empty lines are dropped.
+        private static List<string> SplitAuthors(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return [];
+
+            return raw
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(line => line.Length > 0)
+                .ToList();
+        }
+
+        // Chunks for the admin auto-index path. Url/ThesisId are set from SQL
+        // inside IngestAsync anyway — they're filled here so the DTO is
+        // self-describing if it is ever logged.
+        private static List<ThesisChunkDto> BuildAdminChunks(
+            ThesisEntity thesis,
+            string abstractText,
+            IReadOnlyList<string> authors,
+            string? publicationYear)
+        {
+            var texts = AbstractChunker.Chunk(abstractText);
+            var authorsMeta = authors.Count > 0 ? string.Join(", ", authors) : null;
+
+            var chunks = new List<ThesisChunkDto>(texts.Count);
+            for (var i = 0; i < texts.Count; i++)
+            {
+                chunks.Add(new ThesisChunkDto
+                {
+                    ChunkIndex = i,
+                    Text = texts[i],
+                    Title = thesis.Title,
+                    Url = thesis.FilePath,
+                    Authors = authorsMeta,
+                    PublicationYear = publicationYear,
+                });
+            }
+
+            return chunks;
+        }
+
+        // Best-effort full teardown of an admin upload whose Pinecone upsert
+        // failed: vectors, SQL row (+ cascaded version row) and the Firestore
+        // document. The controller handles the blob on the thrown exception.
+        private async Task RollbackAdminUploadAsync(Guid thesisId)
+        {
+            try
+            {
+                await _pineconeService.DeleteThesisVectorsAsync(thesisId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Vector rollback failed for thesis {ThesisId}", thesisId);
+            }
+
+            await _thesisRepo.DeleteThesisAsync(thesisId);
+
+            try
+            {
+                await _abstractService.DeleteThesisAsync(thesisId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Firestore rollback failed for thesis {ThesisId}", thesisId);
+            }
+        }
         /// <summary>
         /// Ingestion hop of the RAG pipeline — see the file header for the flow.
         /// Chunks arrive from the desktop pipeline; this method makes the
@@ -323,9 +435,84 @@ namespace server.Services.Theses
             if (!isAdmin) await EnsureGroupLeaderAsync(thesis, callerId);
 
             var dto = _mapper.Map<ThesisEntity>(updateDto);
-            var result = await _thesisRepo.UpdateDetailsAsync(id, dto);
 
-            return result;
+            // When SQL Abstract holds the Firestore doc ID (current pipeline),
+            // overwriting it with raw text would orphan the document and drop
+            // the resolved authors/publicationYear from every future read.
+            // Route the edited abstract INTO Firestore instead and leave the
+            // GUID column untouched; legacy raw-text rows keep the plain
+            // column update. Firestore runs first so a failure rejects the
+            // whole edit before anything lands in SQL.
+            if (dto.Abstract is not null && Guid.TryParse(thesis.Abstract, out _))
+            {
+                var editedText = dto.Abstract;
+                dto.Abstract = null;
+                try
+                {
+                    await _abstractService.UpdateAbstractAsync(id, editedText);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Abstract edit failed for thesis {ThesisId}", id);
+                    throw new InvalidOperationException(
+                        "The abstract could not be saved, so the update was rejected. Please try again.");
+                }
+            }
+
+            var result = await _thesisRepo.UpdateDetailsAsync(id, dto);
+            if (!result) return false;
+
+            // An "Indexed" thesis otherwise keeps serving the pre-edit title/
+            // abstract to MonteAI forever — re-ingest from the stored sources.
+            await ReindexEditedThesisAsync(id);
+
+            return true;
+        }
+
+        // Best-effort re-ingest after a catalog edit. Only theses that are
+        // already in the vector store are touched; failures log a warning
+        // instead of failing the save (the edit itself already landed).
+        private async Task ReindexEditedThesisAsync(Guid thesisId)
+        {
+            try
+            {
+                var thesis = await _thesisRepo.GetThesisByIdAsync(thesisId);
+                if (thesis is null) return;
+
+                var indexed =
+                    string.Equals(thesis.Status, "Indexed", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(thesis.PineconeStatus, "Indexed", StringComparison.OrdinalIgnoreCase);
+                if (!indexed) return;
+
+                var response = _mapper.Map<ThesisResponseDto>(thesis);
+                await _abstractService.ResolveAbstractsAsync(new[] { response });
+
+                if (string.IsNullOrWhiteSpace(response.Abstract))
+                {
+                    _logger.LogWarning(
+                        "Thesis {ThesisId} was edited but its abstract could not be resolved — search results stay stale",
+                        thesisId);
+                    return;
+                }
+
+                var ingestResult = await IngestAsync(new IngestThesisDto
+                {
+                    ThesisId = thesisId,
+                    Chunks = BuildAdminChunks(
+                        thesis, response.Abstract, response.Authors ?? [], response.PublicationYear),
+                });
+
+                if (ingestResult.Status == "Failed")
+                {
+                    _logger.LogWarning(
+                        "Thesis {ThesisId} was edited but re-indexing failed — search results stay stale",
+                        thesisId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Re-index after edit failed for thesis {ThesisId}", thesisId);
+            }
         }
 
         public async Task<bool> UpdateStatusAsync(Guid id, UpdateThesisStatusDto updateStatusDto)

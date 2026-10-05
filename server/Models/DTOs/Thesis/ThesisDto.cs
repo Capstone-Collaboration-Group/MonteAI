@@ -17,6 +17,15 @@ namespace server.Models.DTOs.Thesis
 
         [Required]
         public string UploadedById { get; set; } = string.Empty;
+
+        // Admin archival uploads only: one author per line (\n-separated).
+        // Stored in Firestore beside the abstract — NEVER in the SQL Abstract
+        // column — and forwarded to Pinecone as vector metadata.
+        public string? Authors { get; set; }
+
+        // Admin archival uploads only: 4-digit publication year, same
+        // Firestore + Pinecone treatment as Authors.
+        public string? PublicationYear { get; set; }
     }
 
     public class UpdateThesisDto
@@ -66,10 +75,15 @@ namespace server.Models.DTOs.Thesis
         // submitted without a research group.
         public string? Institute { get; set; }
 
-        // Author names resolved from the research group's members
-        // (ResearchGroup.Students) with the group leader listed first.
-        // Empty for legacy/admin-archived uploads without a group.
+        // Author names. Resolution order: the Firestore "authors" array
+        // (admin archival uploads) overwrites the mapped value, which comes
+        // from the research group's members (ResearchGroup.Students) with the
+        // group leader listed first. Empty when neither source has authors.
         public List<string> Authors { get; set; } = [];
+
+        // Publication year resolved from Firestore for admin archival uploads
+        // (null for student submissions and legacy rows).
+        public string? PublicationYear { get; set; }
 
     }
     public class ThesisChunkDto

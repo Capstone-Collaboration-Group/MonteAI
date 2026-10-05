@@ -9,10 +9,18 @@ namespace server.Services.Theses
     // Firestore layout: collection "thesis_abstracts" → one document per thesis
     // (doc id = thesis Guid) → map field "abstracts" keyed by version number
     // as a string: { "1": "text", "2": "revised text", ... }.
+    //
+    // Admin archival uploads additionally store their metadata in the SAME
+    // document (never in the SQL Theses table — the Abstract column keeps
+    // holding only this document's ID):
+    //     authors:         ["Cruz, Juan", "Santos, Maria"]  (array)
+    //     publicationYear: "2019"                            (string)
     public class ThesisAbstractService : IThesisAbstractService
     {
         private const string CollectionName = "thesis_abstracts";
         private const string AbstractsField = "abstracts";
+        private const string AuthorsField = "authors";
+        private const string PublicationYearField = "publicationYear";
 
         private readonly FirestoreDb _firestore;
         private readonly ILogger<ThesisAbstractService> _logger;
@@ -26,13 +34,25 @@ namespace server.Services.Theses
         private DocumentReference DocRef(Guid thesisId)
             => _firestore.Collection(CollectionName).Document(thesisId.ToString());
 
-        public async Task SetAbstractAsync(Guid thesisId, int versionNumber, string text)
+        public async Task SetAbstractAsync(
+            Guid thesisId,
+            int versionNumber,
+            string text,
+            IReadOnlyList<string>? authors = null,
+            string? publicationYear = null)
         {
             // Merge into the nested map key — creates the document when missing
-            // and leaves sibling version entries intact.
-            await DocRef(thesisId).SetAsync(
-                new Dictionary<string, object> { [Key(versionNumber)] = text },
-                SetOptions.MergeAll);
+            // and leaves sibling version entries intact. Admin uploads add the
+            // metadata fields in the SAME write so there is no partial state.
+            var payload = new Dictionary<string, object> { [Key(versionNumber)] = text };
+
+            if (authors is { Count: > 0 })
+                payload[AuthorsField] = authors.ToList();
+
+            if (!string.IsNullOrWhiteSpace(publicationYear))
+                payload[PublicationYearField] = publicationYear.Trim();
+
+            await DocRef(thesisId).SetAsync(payload, SetOptions.MergeAll);
 
             _logger.LogInformation(
                 "Abstract stored for thesis {ThesisId} version {Version}", thesisId, versionNumber);
@@ -43,22 +63,34 @@ namespace server.Services.Theses
             var snapshot = await DocRef(thesisId).GetSnapshotAsync();
             if (!snapshot.Exists || !snapshot.ContainsField(AbstractsField)) return null;
 
-            var map = snapshot.GetValue<Dictionary<string, object>>(AbstractsField);
+            return ReadLatestAbstract(snapshot);
+        }
 
-            string? text = null;
-            int bestVersion = int.MinValue;
+        public async Task UpdateAbstractAsync(Guid thesisId, string text)
+        {
+            // In-place overwrite of the newest entry: ReadLatestAbstract always
+            // takes the highest version key, so replacing it is a pure edit —
+            // no new version key is minted (the map stays aligned with the
+            // ThesisVersion rows). A missing document is created at version 1.
+            var snapshot = await DocRef(thesisId).GetSnapshotAsync();
 
-            foreach (var entry in map)
+            var latestKey = 1;
+            if (snapshot.Exists && snapshot.ContainsField(AbstractsField))
             {
-                if (!int.TryParse(entry.Key, out var version)) continue;
-                if (version > bestVersion)
+                var map = snapshot.GetValue<Dictionary<string, object>>(AbstractsField);
+                foreach (var entry in map)
                 {
-                    bestVersion = version;
-                    text = entry.Value?.ToString();
+                    if (int.TryParse(entry.Key, out var version) && version >= latestKey)
+                        latestKey = version;
                 }
             }
 
-            return text;
+            await DocRef(thesisId).SetAsync(
+                new Dictionary<string, object> { [Key(latestKey)] = text },
+                SetOptions.MergeAll);
+
+            _logger.LogInformation(
+                "Abstract edited in place for thesis {ThesisId} version {Version}", thesisId, latestKey);
         }
 
         public async Task RemoveVersionAsync(Guid thesisId, int versionNumber)
@@ -94,7 +126,31 @@ namespace server.Services.Theses
             {
                 try
                 {
-                    dto.Abstract = await GetLatestAsync(dto.Id);
+                    var snapshot = await DocRef(dto.Id).GetSnapshotAsync();
+
+                    dto.Abstract = snapshot.Exists && snapshot.ContainsField(AbstractsField)
+                        ? ReadLatestAbstract(snapshot)
+                        : null;
+
+                    // Admin archival metadata — only overwrite the mapped
+                    // (research-group) values when Firestore actually has them.
+                    // Isolated so a metadata read failure never nulls the
+                    // abstract that was already resolved above.
+                    try
+                    {
+                        if (snapshot.Exists && snapshot.ContainsField(AuthorsField))
+                        {
+                            var authors = ReadAuthors(snapshot.GetValue<object>(AuthorsField));
+                            if (authors.Count > 0) dto.Authors = authors;
+                        }
+
+                        if (snapshot.Exists && snapshot.ContainsField(PublicationYearField))
+                            dto.PublicationYear = snapshot.GetValue<string>(PublicationYearField);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Could not resolve metadata for thesis {ThesisId}", dto.Id);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -104,6 +160,45 @@ namespace server.Services.Theses
                     dto.Abstract = null;
                 }
             }));
+        }
+
+        // Highest-versioned entry of the "abstracts" map.
+        private static string? ReadLatestAbstract(DocumentSnapshot snapshot)
+        {
+            var map = snapshot.GetValue<Dictionary<string, object>>(AbstractsField);
+
+            string? text = null;
+            var bestVersion = int.MinValue;
+
+            foreach (var entry in map)
+            {
+                if (!int.TryParse(entry.Key, out var version)) continue;
+                if (version > bestVersion)
+                {
+                    bestVersion = version;
+                    text = entry.Value?.ToString();
+                }
+            }
+
+            return text;
+        }
+
+        // Firestore materializes arrays as List<object> (strings inside);
+        // accept any non-string IEnumerable so a typed list works too.
+        private static List<string> ReadAuthors(object? raw)
+        {
+            if (raw is null) return [];
+
+            if (raw is string single)
+                return string.IsNullOrWhiteSpace(single) ? [] : [single.Trim()];
+
+            return raw is System.Collections.IEnumerable sequence
+                ? sequence.Cast<object?>()
+                    .Select(value => value?.ToString()?.Trim())
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(value => value!)
+                    .ToList()
+                : [];
         }
 
         // Firestore map key for a version ("abstracts.<n>" field path).
