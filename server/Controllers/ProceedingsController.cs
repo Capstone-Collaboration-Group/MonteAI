@@ -28,6 +28,11 @@ namespace server.Controllers
 
             var pdf = await _proceedingsService.GenerateProceedingsAsync(thesisId);
 
+            if (pdf is null)
+            {
+                return NotFound(new { Message = $"Thesis {thesisId} not found." });
+            }
+
             _logger.LogInformation(
                 "Proceedings generated successfully for thesis {ThesisId}",
                 thesisId

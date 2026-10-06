@@ -186,7 +186,7 @@ export default function LandingShowcase() {
 
           {/* Video and platform benefits */}
           <div className="grid gap-8 lg:grid-cols-12 lg:items-stretch">
-            <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-outline-variant/60 bg-on-surface shadow-2xl shadow-primary/10 lg:col-span-8">
+            <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-outline-variant/60 bg-on-surface shadow-2xl shadow-primary/10 lg:col-span-12">
               <video
                 src={promoVideo}
                 aria-label="MonteSkolar and MonteAI platform showcase"
@@ -199,7 +199,7 @@ export default function LandingShowcase() {
               />
             </div>
 
-            <div className="flex flex-col justify-between rounded-2xl border border-outline-variant/60 bg-surface-container-low p-6 sm:p-8 lg:col-span-4">
+            <div className="flex flex-col justify-between rounded-2xl border border-outline-variant/60 bg-surface-container-low p-6 sm:p-8 lg:col-span-12">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-primary">
                   Why use MonteSkolar + MonteAI?
@@ -213,7 +213,7 @@ export default function LandingShowcase() {
                 </p>
 
                 {/* Feature stack */}
-                <div className="mt-6 space-y-4">
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="rounded-xl border border-outline-variant/40 bg-surface p-4 transition hover:border-primary/40 hover:shadow-sm">
                     <div className="flex items-center gap-2.5">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -265,7 +265,7 @@ export default function LandingShowcase() {
               <div className="mt-6 border-t border-outline-variant/50 pt-4">
                 <Link
                   to="/login"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-xs font-semibold text-on-primary transition hover:bg-primary-container"
+                  className="flex w-full max-w-md items-center justify-center gap-2 rounded-xl bg-primary py-3 text-xs font-semibold text-on-primary transition hover:bg-primary-container"
                 >
                   Start Your Research
                   <ArrowUpRight size={15} />
