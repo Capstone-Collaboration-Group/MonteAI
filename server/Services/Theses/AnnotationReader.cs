@@ -27,7 +27,8 @@ namespace server.Services.Theses
 
         public async Task<IReadOnlyList<ProceedingsAnnotationDto>> ReadAsync(
             Guid thesisId,
-            IReadOnlyList<Guid> versionIds)
+            IReadOnlyList<Guid> versionIds,
+            CancellationToken cancellationToken)
         {
             var rows = new List<ProceedingsAnnotationDto>();
             if (versionIds.Count == 0) return rows;
@@ -36,31 +37,26 @@ namespace server.Services.Theses
 
             var tasks = versionIds.Select(async versionId =>
             {
-                try
-                {
-                    var snapshot = await thesisDoc
-                        .Collection(VersionsCollection)
-                        .Document(versionId.ToString())
-                        .Collection(AnnotationsCollection)
-                        .OrderBy("createdAt")
-                        .GetSnapshotAsync();
+                var snapshot = await thesisDoc
+                    .Collection(VersionsCollection)
+                    .Document(versionId.ToString())
+                    .Collection(AnnotationsCollection)
+                    .OrderBy("createdAt")
+                    .GetSnapshotAsync(cancellationToken);
 
-                    return snapshot.Documents.Select(ToDto).ToList();
-                }
-                catch (Exception ex)
-                {
-                    // Degrade to "no comments" rather than failing the whole PDF
-                    // over one Firestore hiccup.
-                    _logger.LogWarning(
-                        ex,
-                        "Could not read annotations for thesis {ThesisId} version {VersionId}",
-                        thesisId, versionId);
-                    return new List<ProceedingsAnnotationDto>();
-                }
+                return snapshot.Documents.Select(ToDto).ToList();
             }).ToList();
 
-            foreach (var batch in await Task.WhenAll(tasks))
-                rows.AddRange(batch);
+            try
+            {
+                foreach (var batch in await Task.WhenAll(tasks))
+                    rows.AddRange(batch);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Could not read proceedings annotations for thesis {ThesisId}", thesisId);
+                throw new AnnotationReadException(thesisId, ex);
+            }
 
             return rows
                 .OrderBy(r => r.CreatedAt, StringComparer.Ordinal)
