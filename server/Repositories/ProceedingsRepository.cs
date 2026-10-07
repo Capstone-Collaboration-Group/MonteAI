@@ -15,7 +15,9 @@ namespace server.Repositories
             _db = db;
         }
 
-        public async Task<ProceedingsDataDto?> GetProceedingsDataAsync(Guid thesisId)
+        public async Task<ProceedingsDataDto?> GetProceedingsDataAsync(
+            Guid thesisId,
+            CancellationToken cancellationToken)
         {
             var thesis = await _db.Theses
                 .AsNoTracking()
@@ -28,7 +30,7 @@ namespace server.Repositories
                 .Include(t => t.ResearchGroup)
                     .ThenInclude(rg => rg!.Schedules)
                         .ThenInclude(s => s.Panelists)
-                .FirstOrDefaultAsync(t => t.Id == thesisId);
+                .FirstOrDefaultAsync(t => t.Id == thesisId, cancellationToken);
 
             if (thesis == null) return null;
 
@@ -39,9 +41,11 @@ namespace server.Repositories
                 VersionIds = await _db.ThesisVersions
                     .AsNoTracking()
                     .Where(v => v.ThesisId == thesisId)
-                    .OrderBy(v => v.VersionNumber)
+                    .OrderByDescending(v => v.VersionNumber)
+                    .ThenByDescending(v => v.UploadedAt)
                     .Select(v => v.Id)
-                    .ToListAsync(),
+                    .Take(1)
+                    .ToListAsync(cancellationToken),
             };
 
             var group = thesis.ResearchGroup;
@@ -75,6 +79,7 @@ namespace server.Repositories
                 .OrderByDescending(s => s.Date)
                 .ThenByDescending(s => s.StartTime)
                 .FirstOrDefault();
+            data.DefenseDate = schedule?.Date;
 
             var panelistRows = (schedule?.Panelists ?? [])
                 .OrderByDescending(p => p.Role != null && p.Role.Contains("chair", StringComparison.OrdinalIgnoreCase))
@@ -83,7 +88,9 @@ namespace server.Repositories
 
             if (panelistRows.Count == 0) return data;
 
-            var names = await GetDisplayNamesAsync(panelistRows.Select(p => p.PanelistId));
+            var names = await GetDisplayNamesAsync(
+                panelistRows.Select(p => p.PanelistId),
+                cancellationToken);
 
             for (var i = 0; i < panelistRows.Count; i++)
             {
@@ -105,7 +112,23 @@ namespace server.Repositories
             return data;
         }
 
-        public async Task<IReadOnlyDictionary<string, string>> GetDisplayNamesAsync(IEnumerable<string> userIds)
+        public Task<bool> IsStudentThesisMemberAsync(
+            Guid thesisId,
+            string studentId,
+            CancellationToken cancellationToken)
+        {
+            return _db.Theses
+                .AsNoTracking()
+                .AnyAsync(
+                    thesis => thesis.Id == thesisId
+                        && thesis.ResearchGroup != null
+                        && thesis.ResearchGroup.Students.Any(student => student.Id == studentId),
+                    cancellationToken);
+        }
+
+        public async Task<IReadOnlyDictionary<string, string>> GetDisplayNamesAsync(
+            IEnumerable<string> userIds,
+            CancellationToken cancellationToken)
         {
             var ids = userIds
                 .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -117,10 +140,10 @@ namespace server.Repositories
 
             // A reviewer id is a Firebase UID, and every role table uses the UID
             // as its primary key — so the same id may resolve in only one table.
-            var students = await _db.Students.AsNoTracking().Where(u => ids.Contains(u.Id)).ToListAsync();
-            var faculties = await _db.Faculties.AsNoTracking().Where(u => ids.Contains(u.Id)).ToListAsync();
-            var heads = await _db.ProgramHeads.AsNoTracking().Where(u => ids.Contains(u.Id)).ToListAsync();
-            var admins = await _db.Admins.AsNoTracking().Where(u => ids.Contains(u.Id)).ToListAsync();
+            var students = await _db.Students.AsNoTracking().Where(u => ids.Contains(u.Id)).ToListAsync(cancellationToken);
+            var faculties = await _db.Faculties.AsNoTracking().Where(u => ids.Contains(u.Id)).ToListAsync(cancellationToken);
+            var heads = await _db.ProgramHeads.AsNoTracking().Where(u => ids.Contains(u.Id)).ToListAsync(cancellationToken);
+            var admins = await _db.Admins.AsNoTracking().Where(u => ids.Contains(u.Id)).ToListAsync(cancellationToken);
 
             // Each role table declares its own Id (the Firebase UID) — the shared
             // User base does not carry one, so seed the map per table.
