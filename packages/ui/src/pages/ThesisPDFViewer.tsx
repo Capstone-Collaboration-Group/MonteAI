@@ -57,6 +57,44 @@ const ANNOTATOR_ROLES: ViewerRole[] = [
   "admin",
 ];
 
+function hasBlobErrorResponse(error: unknown): error is { response: { data: Blob } } {
+  if (typeof error !== "object" || error === null || !("response" in error))
+    return false;
+
+  const response = error.response;
+  return (
+    typeof response === "object" &&
+    response !== null &&
+    "data" in response &&
+    response.data instanceof Blob
+  );
+}
+
+async function getProceedingsErrorMessage(
+  error: unknown,
+  fallback: string
+): Promise<string> {
+  if (!hasBlobErrorResponse(error))
+    return getApiErrorMessage(error, fallback);
+
+  const body = await error.response.data.text();
+  if (!body.trim()) return fallback;
+
+  try {
+    const payload: unknown = JSON.parse(body);
+    if (typeof payload === "object" && payload !== null) {
+      const message =
+        ("Message" in payload && payload.Message) ||
+        ("message" in payload && payload.message);
+      if (typeof message === "string" && message.trim()) return message.trim();
+    }
+  } catch {
+    return body.trim();
+  }
+
+  return getApiErrorMessage(error, fallback);
+}
+
 export function ThesisPDFViewerPage({
   thesisId,
   thesisService,
@@ -189,7 +227,14 @@ export function ThesisPDFViewerPage({
   }, [activeVersionId, versions.length, deleteVersion, thesisId, onBack]);
 
   const handleGenerateProceedings = useCallback(() => {
-    generateProceedings(thesisId);
+    generateProceedings(thesisId, {
+      onError: (error) => {
+        const fallback = "Couldn't generate the proceedings.";
+        void getProceedingsErrorMessage(error, fallback)
+          .then((message) => toast.error(message))
+          .catch(() => toast.error(fallback));
+      },
+    });
   }, [thesisId, generateProceedings]);
 
   const { data: panelistPool } = usePanelistPool(
