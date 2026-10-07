@@ -9,6 +9,8 @@ namespace server.Models.DTOs.Thesis
 
         public string? WorkingTitle { get; set; }
 
+        public DateOnly? DefenseDate { get; set; }
+
         /// <summary>Group members in defense order (leader first), already formatted.</summary>
         public List<ProceedingsMemberDto> Members { get; set; } = [];
 
@@ -22,7 +24,7 @@ namespace server.Models.DTOs.Thesis
         /// <summary>Panelists of the group's latest defense schedule (Chairman first).</summary>
         public List<ProceedingsPanelistDto> Panelists { get; set; } = [];
 
-        /// <summary>Thesis version ids — annotations are stored per version in Firestore.</summary>
+        /// <summary>The latest thesis version id; proceedings include its annotations only.</summary>
         public List<Guid> VersionIds { get; set; } = [];
     }
 
