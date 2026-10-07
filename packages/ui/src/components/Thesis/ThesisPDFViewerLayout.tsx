@@ -91,6 +91,10 @@ export function ThesisPDFViewerLayout({
   const [sections, setSections] = useState<PdfOutlineItem[]>([]);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const isIndexed =
+    thesis?.status?.toLowerCase() === "indexed" ||
+    thesis?.pineconeStatus?.toLowerCase() === "indexed";
+  const canShowThesisWorkflow = thesis !== null && !isIndexed;
 
   const pdfViewerRef = useRef<PDFHighlightViewerHandle>(null);
 
@@ -122,23 +126,25 @@ export function ThesisPDFViewerLayout({
         </div>
 
         <div className="flex items-center gap-3">
-          <VersionSelector
-            versions={versions}
-            activeVersion={activeVersion}
-            onVersionChange={(id) => {
-              onVersionChange(id);
-              setCurrentPage(1);
-            }}
-          />
+          {canShowThesisWorkflow && (
+            <VersionSelector
+              versions={versions}
+              activeVersion={activeVersion}
+              onVersionChange={(id) => {
+                onVersionChange(id);
+                setCurrentPage(1);
+              }}
+            />
+          )}
 
-          {unresolvedCount > 0 && (
+          {canShowThesisWorkflow && unresolvedCount > 0 && (
             <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
               {unresolvedCount} unresolved
             </span>
           )}
 
           {/* ── Delete latest version (group leader / admin only) ── */}
-          {canDeleteVersion && (
+          {canShowThesisWorkflow && canDeleteVersion && (
             <Button
               type="button"
               variant="danger"
@@ -152,38 +158,43 @@ export function ThesisPDFViewerLayout({
           )}
 
           {/* ── Schedule For Defense ── */}
-            {role === "student" ? (
-          <Button
-            type="button"
-            onClick={onSubmitRevision}
-            className="flex items-center gap-2 text-sm"
-            >
-             Submit a Revised Version
-          </Button>
+          {role === "student" ? (
+            canShowThesisWorkflow ? (
+              <Button
+                type="button"
+                onClick={onSubmitRevision}
+                className="flex items-center gap-2 text-sm"
+              >
+                Submit a Revised Version
+              </Button>
+            ) : null
           ) : (
-          <Button
-            type="button"
-            onClick={() => setScheduleModalOpen(true)}
-            className="flex items-center gap-2 text-sm"
-          >
-            <Calendar className="h-4 w-4" />
-            Schedule For Defense
-          </Button>)}
+            <Button
+              type="button"
+              onClick={() => setScheduleModalOpen(true)}
+              className="flex items-center gap-2 text-sm"
+            >
+              <Calendar className="h-4 w-4" />
+              Schedule For Defense
+            </Button>
+          )}
 
           {/* ── Generate Proceedings ── */}
-          <Button
-            type="button"
-            onClick={onGenerateProceedings}
-            disabled={isGenerating}
-            className="flex items-center gap-2 text-sm"
-          >
-            {isGenerating ? (
-              <Spinner className="h-4 w-4" />
-            ) : (
-              <FileDown className="h-4 w-4" />
-            )}
-            {isGenerating ? "Generating…" : "Generate Proceedings"}
-          </Button>
+          {canShowThesisWorkflow && (
+            <Button
+              type="button"
+              onClick={onGenerateProceedings}
+              disabled={isGenerating}
+              className="flex items-center gap-2 text-sm"
+            >
+              {isGenerating ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              {isGenerating ? "Generating…" : "Generate Proceedings"}
+            </Button>
+          )}
         </div>
       </header>
 
@@ -221,35 +232,39 @@ export function ThesisPDFViewerLayout({
             />
           </main>
 
-          <aside className="w-80 shrink-0 overflow-y-auto border-l border-outline-variant bg-white">
-            <AnnotationSidebar
-              annotations={annotations}
-              unresolvedCount={unresolvedCount}
-              resolvedCount={resolvedCount}
-              isResolving={isResolving}
-              onResolve={onResolve}
-              onDelete={onDelete}
-              onJumpToPage={handleJumpToPage}
-            />
-          </aside>
+          {canShowThesisWorkflow && (
+            <aside className="w-80 shrink-0 overflow-y-auto border-l border-outline-variant bg-white">
+              <AnnotationSidebar
+                annotations={annotations}
+                unresolvedCount={unresolvedCount}
+                resolvedCount={resolvedCount}
+                isResolving={isResolving}
+                onResolve={onResolve}
+                onDelete={onDelete}
+                onJumpToPage={handleJumpToPage}
+              />
+            </aside>
+          )}
         </div>
       )}
 
       {/* ── Delete Version Confirmation ── */}
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        variant="danger"
-        title={`Delete Version ${activeVersion?.versionNumber ?? ""}?`}
-        description={
-          versions.length <= 1
-            ? "This is the only version — deleting it will remove the entire thesis and all of its annotations. This cannot be undone."
-            : "The version, its file, and its annotations will be removed. This cannot be undone."
-        }
-        confirmLabel="Delete"
-        loading={isDeletingVersion}
-        onConfirm={() => onDeleteVersion?.()}
-        onCancel={() => onCancelDelete?.()}
-      />
+      {!isIndexed && (
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          variant="danger"
+          title={`Delete Version ${activeVersion?.versionNumber ?? ""}?`}
+          description={
+            versions.length <= 1
+              ? "This is the only version — deleting it will remove the entire thesis and all of its annotations. This cannot be undone."
+              : "The version, its file, and its annotations will be removed. This cannot be undone."
+          }
+          confirmLabel="Delete"
+          loading={isDeletingVersion}
+          onConfirm={() => onDeleteVersion?.()}
+          onCancel={() => onCancelDelete?.()}
+        />
+      )}
 
       {/* ── Schedule Defense Modal ── */}
       {thesis && (
