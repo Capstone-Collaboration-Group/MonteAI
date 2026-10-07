@@ -5,9 +5,19 @@ namespace server.Repositories.Interfaces
     public interface IProceedingsRepository
     {
         /// <summary>Thesis + group + panel data for the proceedings PDF, or null when the thesis does not exist.</summary>
-        Task<ProceedingsDataDto?> GetProceedingsDataAsync(Guid thesisId);
+        Task<ProceedingsDataDto?> GetProceedingsDataAsync(
+            Guid thesisId,
+            CancellationToken cancellationToken);
+
+        /// <summary>Whether the student is a member of the thesis research group.</summary>
+        Task<bool> IsStudentThesisMemberAsync(
+            Guid thesisId,
+            string studentId,
+            CancellationToken cancellationToken);
 
         /// <summary>Firebase UID → "First M. Last" for the given ids (students, faculty, program heads, admins).</summary>
-        Task<IReadOnlyDictionary<string, string>> GetDisplayNamesAsync(IEnumerable<string> userIds);
+        Task<IReadOnlyDictionary<string, string>> GetDisplayNamesAsync(
+            IEnumerable<string> userIds,
+            CancellationToken cancellationToken);
     }
 }
