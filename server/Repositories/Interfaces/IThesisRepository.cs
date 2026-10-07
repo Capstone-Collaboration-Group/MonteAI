@@ -12,7 +12,9 @@ namespace server.Repositories.Interfaces
         /// <param name="program">Optional academic-program filter (ICS / IBE /
         /// ITE). Matched case-insensitively against the research group leader's
         /// institute via keyword; null / unknown returns unfiltered.</param>
-        Task<IEnumerable<Thesis>> GetFirst20ThesisAsync(string? program = null);
+        Task<IEnumerable<Thesis>> GetFirst20ThesisAsync(
+            string? program = null,
+            string? studentId = null);
 
         Task<Thesis?> GetThesisByIdAsync(Guid id);
 

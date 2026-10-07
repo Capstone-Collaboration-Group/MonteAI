@@ -74,7 +74,13 @@ namespace server.Controllers
         [HttpGet]
         public async Task<IActionResult> GetFirst20Thesis([FromQuery] string? program)
         {
-            var result = await _service.GetFirst20ThesisAsync(program);
+            var studentId = User.IsInRole("Student")
+                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null;
+            if (User.IsInRole("Student") && string.IsNullOrEmpty(studentId))
+                return Unauthorized();
+
+            var result = await _service.GetFirst20ThesisAsync(program, studentId);
 
             return Ok(result);
         }

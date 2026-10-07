@@ -1,6 +1,7 @@
 ﻿using System.ClientModel;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Azure.AI.OpenAI;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
@@ -120,6 +121,9 @@ try
         options.AddPolicy("Reviewer", policy => 
             policy.RequireRole("Faculty", "Admin", "ProgramHead"));
 
+        options.AddPolicy("Proceedings", policy =>
+            policy.RequireRole("Student", "Faculty", "Admin", "ProgramHead"));
+
         options.AddPolicy("FirebaseAuthenticated", policy =>
             policy.RequireAuthenticatedUser());
     });
@@ -162,6 +166,18 @@ try
             opt.Window = TimeSpan.FromMinutes(1);
             opt.QueueLimit = 0;
         });
+
+        options.AddPolicy("ProceedingsLimit", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     });
 

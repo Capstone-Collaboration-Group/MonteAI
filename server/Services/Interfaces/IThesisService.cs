@@ -7,7 +7,9 @@ namespace server.Services.Interfaces
     {
         /// <param name="program">Optional academic-program filter (ICS / IBE /
         /// ITE) forwarded to the repository. Null / unknown returns unfiltered.</param>
-        Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync(string? program = null);
+        Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync(
+            string? program = null,
+            string? studentId = null);
 
         Task<ThesisResponseDto?> GetByIdAsync(Guid id);
 

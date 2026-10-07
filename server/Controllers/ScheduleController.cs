@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using server.Models.DTOs.Schedule;
+using server.Models.Exceptions;
 using server.Services.Interfaces;
 
 namespace server.Controllers
@@ -37,13 +38,22 @@ namespace server.Controllers
         [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> CreateSchedule([FromBody] CreateScheduleDto dto)
         {
-            var result = await _service.CreateAsync(dto);
-            if(result)
+            try
             {
-                _logger.LogInformation("Schedule Created Successfully");
-                return Ok(new { Message = "Schedule Created Successfully", result });
+                var result = await _service.CreateAsync(dto);
+                if(result)
+                {
+                    _logger.LogInformation("Schedule Created Successfully");
+                    return Ok(new { Message = "Schedule Created Successfully", result });
+                }
+
+                return BadRequest(new { Message = "That timeslot is taken, or one of the panelists is already booked that day.", result });
             }
-            return BadRequest(new { Message = "That timeslot is taken, or one of the panelists is already booked that day.", result });
+            catch (ScheduleAlreadyExistsException ex)
+            {
+                _logger.LogWarning(ex, "Rejected duplicate schedule for research group {GroupId}", ex.GroupId);
+                return Conflict(new { Message = ex.Message });
+            }
         }
         [HttpPatch("update/{id}")]
         [Authorize(Roles = "Admin,ProgramHead")]

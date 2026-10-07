@@ -32,7 +32,9 @@ namespace server.Repositories
             _db = db;
         }
 
-        public async Task<IEnumerable<Thesis>> GetFirst20ThesisAsync(string? program = null)
+        public async Task<IEnumerable<Thesis>> GetFirst20ThesisAsync(
+            string? program = null,
+            string? studentId = null)
         {
             var query = _db.Theses
                 .Include(t => t.ResearchGroup)
@@ -41,7 +43,17 @@ namespace server.Repositories
                     .ThenInclude(rg => rg!.Leader)
                 .Include(t => t.ResearchGroup)
                     .ThenInclude(rg => rg!.Students) // member names → ThesisResponseDto.Authors
+                .AsNoTracking()
                 .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(studentId))
+            {
+                query = query.Where(t =>
+                    t.Status == "Indexed" ||
+                    t.PineconeStatus == "Indexed" ||
+                    (t.ResearchGroup != null &&
+                     t.ResearchGroup.Students.Any(student => student.Id == studentId)));
+            }
 
             if (!string.IsNullOrWhiteSpace(program) &&
                 ProgramKeywords.TryGetValue(program.Trim(), out var keywords))
