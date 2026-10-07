@@ -1,5 +1,9 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using server.Services.Interfaces;
+using server.Services.Theses;
 
 namespace server.Controllers
 {
@@ -19,30 +23,49 @@ namespace server.Controllers
         }
 
         [HttpPost("{thesisId}/proceedings")]
-        public async Task<IActionResult> GenerateProceedings(Guid thesisId)
+        [Authorize(Policy = "Proceedings")]
+        [EnableRateLimiting("ProceedingsLimit")]
+        public async Task<IActionResult> GenerateProceedings(
+            Guid thesisId,
+            CancellationToken cancellationToken)
         {
-            _logger.LogInformation(
-                "Generating proceedings for thesis {ThesisId}",
-                thesisId
-            );
-
-            var pdf = await _proceedingsService.GenerateProceedingsAsync(thesisId);
-
-            if (pdf is null)
+            if (User.IsInRole("Student"))
             {
-                return NotFound(new { Message = $"Thesis {thesisId} not found." });
+                var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(studentId))
+                    return Unauthorized();
+
+                if (!await _proceedingsService.IsStudentThesisMemberAsync(
+                    thesisId,
+                    studentId,
+                    cancellationToken))
+                    return Forbid();
             }
 
-            _logger.LogInformation(
-                "Proceedings generated successfully for thesis {ThesisId}",
-                thesisId
-            );
+            try
+            {
+                var pdf = await _proceedingsService.GenerateProceedingsAsync(thesisId, cancellationToken);
+                if (pdf is null)
+                    return NotFound(new { Message = $"Thesis {thesisId} not found." });
 
-            return File(
-                pdf,
-                "application/pdf",
-                $"thesis-proceedings-{thesisId}.pdf"
-            );
+                _logger.LogInformation("Proceedings generated for thesis {ThesisId}", thesisId);
+
+                return File(pdf, "application/pdf", $"thesis-proceedings-{thesisId}.pdf");
+            }
+            catch (AnnotationReadException ex)
+            {
+                _logger.LogError(ex, "Proceedings generation cancelled because annotations could not be read for thesis {ThesisId}", thesisId);
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { Message = "Proceedings could not be generated because annotations could not be retrieved. Please try again." });
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogError(ex, "Failed to generate proceedings for thesis {ThesisId}", thesisId);
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { Message = "Proceedings could not be generated. Please try again." });
+            }
         }
     }
 }
