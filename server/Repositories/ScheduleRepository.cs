@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using server.Data;
 using server.Models.Entities;
+using server.Models.Exceptions;
 using server.Repositories.Interfaces;
 
 namespace server.Repositories
@@ -57,6 +58,10 @@ namespace server.Repositories
 
         public async Task<bool> CreateScheduleAsync(Schedule schedule)
         {
+            if (schedule.GroupId is Guid groupId &&
+                await _db.Schedules.AnyAsync(s => s.GroupId == groupId))
+                throw new ScheduleAlreadyExistsException(groupId);
+
             var hasConflict = await _db.Schedules
                 .AnyAsync(s => s.Date == schedule.Date &&
                        s.RoomVenue == schedule.RoomVenue &&
@@ -65,6 +70,19 @@ namespace server.Repositories
             if (hasConflict) return false;
 
             if (await HasPanelistConflictAsync(schedule, excludeScheduleId: null)) return false;
+
+            if (schedule.GroupId is Guid scheduledGroupId)
+            {
+                var thesis = await _db.Theses
+                    .FirstOrDefaultAsync(t => t.GroupId == scheduledGroupId);
+                
+                if (thesis != null) 
+                {
+                    thesis.UpdatedAt = DateTime.UtcNow;
+                    thesis.Status = "Scheduled";
+                }
+                    
+            }
 
             await _db.Schedules.AddAsync(schedule);
             await _db.SaveChangesAsync();
