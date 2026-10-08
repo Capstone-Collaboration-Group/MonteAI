@@ -7,7 +7,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-console.log("mockUserService loaded — using in-memory profile");
 
 let mockProfile: UserProfileDto = {
   id: "mock-uid-101",

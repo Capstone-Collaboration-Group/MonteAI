@@ -3,16 +3,17 @@ import {
   NavLink,
   useNavigate
 } from "react-router-dom";
-import { LayoutDashboard,
-    Users,
-    Info,
-    FileText,
-    Calendar,
-    LogOut,
-    Settings as SettingsIcon,
-      HardDriveDownload,
-     Megaphone,
-     View} from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  Calendar,
+  LogOut,
+  Settings as SettingsIcon,
+  HardDriveDownload,
+  Info,
+  Megaphone,
+} from "lucide-react";
 import { auth } from "../lib/firebaseServices";
 import { queryClient } from "@monteai/hooks";
 export default function AppSidebar() {

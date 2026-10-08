@@ -89,13 +89,19 @@ body {
   width: 100%;
 }
 
+@media (max-width: 767px) {
+  .schedule-grid {
+    min-width: 700px;
+  }
+}
+
 .time-row {
   height: 60px; 
 }
 
 @font-face { 
   font-family: 'DM Sans';
-  src: url('./DM_Sans/DMSans-VariableFont_opsz\,wght.ttf') format('truetype');
+  src: url("./DM_Sans/DMSans-VariableFont_opsz,wght.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -103,7 +109,7 @@ body {
 
 @font-face { 
   font-family: 'DM Sans';
-  src: url('./DM_Sans/DMSans-Italic-VariableFont_opsz\,wght.ttf') format('truetype');
+  src: url("./DM_Sans/DMSans-Italic-VariableFont_opsz,wght.ttf") format("truetype");
   font-weight: 100 900;
   font-style: italic;
   font-display: swap;
@@ -111,14 +117,14 @@ body {
 
 @font-face { 
   font-family: 'DM Serif Display';
-  src: url('./DM_Serif_Display//DMSerifDisplay-Regular.ttf') format('truetype');
+  src: url("./DM_Serif_Display/DMSerifDisplay-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face { 
   font-family: 'DM Serif Display';
-  src: url('./DM_Serif_Display//DMSerifDisplay-Italic.ttf') format('truetype');
+  src: url("./DM_Serif_Display/DMSerifDisplay-Italic.ttf") format("truetype");
   font-weight: 400;
   font-style: italic;
   font-display: swap;

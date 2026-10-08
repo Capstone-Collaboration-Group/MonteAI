@@ -28,7 +28,6 @@ const TEST_PDF = MOCK_THESIS_PDF_DATA_URL;
 const REMOTE_TEST_PDF = "https://arxiv.org/pdf/1708.08021";
 
 
-console.log("mockThesisService loaded — Initialized with seed data");
 
 // ── Theses ────────────────────────────────────────────────────────────────────
 
@@ -351,9 +350,6 @@ export const mockThesisService: ThesisService = {
     // Versions
     async getVersions(thesisId) {
         await delay(150);
-        console.log("[mock] getVersions called with:", thesisId);
-        console.log("[mock] versionsMap keys:", Array.from(versionsMap.keys()));
-        console.log("[mock] result:", versionsMap.get(thesisId));
         return versionsMap.get(thesisId) ?? [];
     },
 

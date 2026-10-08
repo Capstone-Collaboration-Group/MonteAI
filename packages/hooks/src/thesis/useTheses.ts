@@ -240,7 +240,6 @@ export function useVersionFileUrl(thesisService: ThesisService, versionId: strin
     const query = useQuery({
         queryKey: ["thesis-version-url", versionId],
         queryFn: () => {
-            console.log("[useVersionFileUrl] fetching for", versionId);
             return thesisService.getVersionFile(versionId);
         },
         enabled: !!versionId,

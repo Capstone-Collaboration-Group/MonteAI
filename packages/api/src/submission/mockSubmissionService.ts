@@ -11,7 +11,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-console.log("mockSubmissionService loaded — Initialized with seed data");
 
 function buildSeed(): SubmissionResponseDto[] {
   return [

@@ -1,10 +1,11 @@
 // packages/ui/src/components/Thesis/ThesisListView.tsx
 import { useState } from "react";
-import { LayoutGrid, List, MoreHorizontal } from "lucide-react";
+import { FileText, LayoutGrid, List, MoreHorizontal } from "lucide-react";
 import type { ThesisSummary, ThesisStatus, ThesisActionType } from "@monteai/types";
 import { StatusBadge } from "./StatusBadge";
 import { Dropdown } from "../common/Dropdown";
 import { Button } from "../Button"; // <-- Imported your reusable Button
+import { EmptyState } from "../common/EmptyState";
 
 interface ThesisAction {
   label: string;
@@ -51,6 +52,7 @@ const CRUD_ACTIONS: ThesisAction[] = [
 
 interface ThesisListViewProps {
   theses: ThesisSummary[];
+  emptyMessage?: string;
   onSelect?: (thesisId: string) => void;
   onAction?: (thesisId: string, action: ThesisActionType) => void;
   defaultView?: "list" | "grid";
@@ -113,6 +115,7 @@ function ActionMenu({
 
 export function ThesisListView({
   theses,
+  emptyMessage = "No theses are available.",
   onSelect,
   onAction,
   defaultView = "list",
@@ -155,46 +158,55 @@ export function ThesisListView({
         </div>
       </div>
 
-      {view === "list" ? (
-        <table className="w-full text-left">
-          <thead>
-            <tr className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-              <th className="px-6 py-3 font-medium">Title</th>
-              <th className="px-6 py-3 font-medium">Authors</th>
-              <th className="px-6 py-3 font-medium">Status</th>
-              <th className="px-6 py-3 font-medium">Date</th>
-              <th className="px-6 py-3 font-medium text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {theses.map((thesis) => (
-              <tr
-                key={thesis.id}
-                className="cursor-pointer border-t border-outline-variant transition-colors hover:bg-surface-container-low"
-                onClick={() => onSelect?.(thesis.id)}
-              >
-                <td className="px-6 py-4">
-                  <p className="font-medium text-on-surface">{thesis.title}</p>
-                  <p className="text-xs text-on-surface-variant">{thesis.institute}</p>
-                </td>
-                <td className="px-6 py-4 text-sm text-on-surface-variant">
-                  {(thesis.authors ?? []).join(", ")}
-                </td>
-                <td className="px-6 py-4">
-                  <StatusBadge status={thesis.status} />
-                </td>
-                <td className="px-6 py-4 text-sm text-on-surface-variant">
-                  {formatDate(thesis.submittedDate)}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ActionMenu thesis={thesis} onAction={onAction} allowedActions={allowedActions} />
-                  </div>
-                </td>
+      {theses.length === 0 ? (
+        <EmptyState
+          className="m-6"
+          icon={<FileText aria-hidden="true" className="h-10 w-10" />}
+          title="No theses to display"
+          description={emptyMessage}
+        />
+      ) : view === "list" ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left">
+            <thead>
+              <tr className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                <th className="px-6 py-3 font-medium">Title</th>
+                <th className="px-6 py-3 font-medium">Authors</th>
+                <th className="px-6 py-3 font-medium">Status</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium">Date</th>
+                <th className="px-6 py-3 font-medium text-right">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {theses.map((thesis) => (
+                <tr
+                  key={thesis.id}
+                  className="cursor-pointer border-t border-outline-variant transition-colors hover:bg-surface-container-low"
+                  onClick={() => onSelect?.(thesis.id)}
+                >
+                  <td className="px-6 py-4">
+                    <p className="font-medium text-on-surface">{thesis.title}</p>
+                    <p className="text-xs text-on-surface-variant">{thesis.institute}</p>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    {(thesis.authors ?? []).join(", ")}
+                  </td>
+                  <td className="px-6 py-4">
+                    <StatusBadge status={thesis.status} />
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-on-surface-variant">
+                    {formatDate(thesis.submittedDate)}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <ActionMenu thesis={thesis} onAction={onAction} allowedActions={allowedActions} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
           {theses.map((thesis) => (

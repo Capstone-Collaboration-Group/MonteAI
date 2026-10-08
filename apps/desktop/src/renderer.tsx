@@ -42,10 +42,6 @@ import { createRoot } from 'react-dom/client';
 
 import App from './App';
 
-console.log(
-  '👋 This message is being logged by "renderer.tsx", included via Vite',
-);
-
 const rootElement = document.getElementById('root');
 
 if(!rootElement) { 

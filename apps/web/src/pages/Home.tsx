@@ -35,7 +35,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-full flex-col items-center justify-center bg-surface px-6">
+    <div className="flex min-h-full flex-col items-center justify-start bg-surface px-4 py-8 sm:justify-center sm:px-6">
       <div className="w-full max-w-3xl">
         <h1 className="mb-6 text-center text-2xl font-medium text-on-surface">
           Welcome back

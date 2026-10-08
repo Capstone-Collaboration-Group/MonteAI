@@ -10,10 +10,6 @@ export function NotificationSettings() {
     emailNotifications: false,
   });
 
-  const handleSave = () => {
-    console.log("Saving notification settings:", notifications);
-  };
-
   return (
     <Card className="overflow-hidden p-0">
       <div className="border-b border-outline/10 px-6 py-5">
@@ -75,7 +71,7 @@ export function NotificationSettings() {
       </div>
 
       <div className="flex justify-end border-t border-outline/10 px-6 py-4">
-        <Button type="button" onClick={handleSave}>
+        <Button type="button">
           Save Changes
         </Button>
       </div>

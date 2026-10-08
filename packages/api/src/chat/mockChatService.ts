@@ -19,7 +19,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-console.log("mockChatService loaded — Initialized with seed data");
 
 function buildSeed(): ChatSessionResponseDto[] {
   return [
