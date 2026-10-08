@@ -11,7 +11,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-console.log("mockAnnouncementService loaded — Initialized with seed data");
 
 function buildSeed(): AnnouncementResponseDto[] {
   return [

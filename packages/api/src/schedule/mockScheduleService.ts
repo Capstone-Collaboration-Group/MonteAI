@@ -13,7 +13,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-console.log("mockScheduleService loaded — v2 with 20 records (Conflict-Free Seed)");
 
 function getMonday(date: Date): Date {
   const day = date.getDay(); // 0 = Sun ... 6 = Sat

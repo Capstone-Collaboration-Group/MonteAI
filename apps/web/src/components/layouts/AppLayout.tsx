@@ -17,7 +17,6 @@ import { useUserProfile, useAuth, useChatSessions, queryClient } from "@monteai/
 import { profileService } from "../../lib/authService";
 import { chatService } from "../../lib/chat/chatService";
 import { auth } from "../../lib/firebase";
-import { useEffect } from "react";
 
 function AppSidebar() {
   const navigate = useNavigate();
@@ -38,10 +37,6 @@ function AppSidebar() {
   const activeSessionId =
     matchPath("/chat/:sessionId", location.pathname)?.params.sessionId ?? null;
 
-  // I'LL REMOVE THIS SOON JUST FOR TESTING
-  useEffect(() => { 
-    auth.currentUser?.getIdToken().then(token => console.log("TOKEN:", token));
-  }, []);
   // 3. Handle secure sign out
   const handleLogout = async () => {
     try {
