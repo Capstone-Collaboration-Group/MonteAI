@@ -8,10 +8,10 @@ export default function Register() {
   const navigate = useNavigate();
 
   return (
-    <Modal onClose={() => navigate(-1)}>
+    <Modal onClose={() => navigate('/')}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/')}
           className="flex w-fit items-center gap-2 text-sm font-semibold text-primary transition hover:opacity-80"
         >
           <ArrowLeft className="h-4 w-4" />

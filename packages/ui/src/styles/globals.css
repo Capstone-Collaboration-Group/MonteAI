@@ -31,6 +31,42 @@ body {
   font-family: var(--font-sans);
 }
 
+* {
+  scrollbar-color: var(--outline-variant) var(--surface-container-low);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--surface-container-low);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid var(--surface-container-low);
+  border-radius: 999px;
+  background: var(--outline-variant);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-container);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--primary);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--surface-container-low);
+}
+
 .dark {
   --primary: #7dd8b0;
   --primary-container: #005139;
