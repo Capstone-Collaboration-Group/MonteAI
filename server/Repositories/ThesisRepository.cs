@@ -70,7 +70,7 @@ namespace server.Repositories
 
             return await query
                 .OrderBy(t => t.SubmittedAt)
-                .Take(20)
+                .Take(5)
                 .ToListAsync();
         }
         public async Task<Thesis?> GetThesisByIdAsync(Guid id)
@@ -117,6 +117,81 @@ namespace server.Repositories
                 .OrderByDescending(t => t.SubmittedAt)
                 .Take(Math.Clamp(limit, 1, 10))
                 .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Thesis>> SearchCatalogAsync(
+            string term,
+            int limit,
+            string? studentId,
+            CancellationToken cancellationToken = default)
+        {
+            var normalizedTerm = term.Trim().ToLower();
+            var terms = normalizedTerm.Split(' ', StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
+            var query = _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(studentId))
+            {
+                query = query.Where(t =>
+                    t.Status == "Indexed" ||
+                    t.PineconeStatus == "Indexed" ||
+                    (t.ResearchGroup != null &&
+                     t.ResearchGroup.Students.Any(student => student.Id == studentId)));
+            }
+
+            query = query.Where(t => terms.Any(keyword =>
+                (t.Title ?? "").ToLower().Contains(keyword) ||
+                (t.Abstract ?? "").ToLower().Contains(keyword) ||
+                (t.ResearchGroup != null && t.ResearchGroup.Students.Any(student =>
+                    ((student.FirstName ?? "") + " " + (student.LastName ?? ""))
+                        .ToLower().Contains(keyword)))));
+
+            return await query
+                .OrderByDescending(t => (t.Title ?? "").ToLower() == normalizedTerm)
+                .ThenByDescending(t => (t.Title ?? "").ToLower().StartsWith(normalizedTerm))
+                .ThenByDescending(t => (t.Title ?? "").ToLower().Contains(normalizedTerm))
+                .ThenByDescending(t => t.ResearchGroup != null && t.ResearchGroup.Students.Any(student =>
+                    ((student.FirstName ?? "") + " " + (student.LastName ?? ""))
+                        .ToLower().Contains(normalizedTerm)))
+                .ThenByDescending(t => t.SubmittedAt)
+                .Take(Math.Clamp(limit, 1, 10))
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Thesis>> GetThesesByIdsAsync(
+            IReadOnlyCollection<Guid> thesisIds,
+            string? studentId,
+            CancellationToken cancellationToken = default)
+        {
+            if (thesisIds.Count == 0) return [];
+
+            var query = _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .Where(t => thesisIds.Contains(t.Id));
+
+            if (!string.IsNullOrWhiteSpace(studentId))
+            {
+                query = query.Where(t =>
+                    t.Status == "Indexed" ||
+                    t.PineconeStatus == "Indexed" ||
+                    (t.ResearchGroup != null &&
+                     t.ResearchGroup.Students.Any(student => student.Id == studentId)));
+            }
+
+            return await query.ToListAsync(cancellationToken);
         }
 
         public async Task<Thesis> SubmitAsync(Thesis submitThesis)

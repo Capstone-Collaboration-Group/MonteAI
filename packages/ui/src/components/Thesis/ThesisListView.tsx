@@ -1,6 +1,6 @@
 // packages/ui/src/components/Thesis/ThesisListView.tsx
 import { useState } from "react";
-import { FileText, LayoutGrid, List, MoreHorizontal } from "lucide-react";
+import { FileText, LayoutGrid, List, LoaderCircle, MoreHorizontal } from "lucide-react";
 import type { ThesisSummary, ThesisStatus, ThesisActionType } from "@monteai/types";
 import { StatusBadge } from "./StatusBadge";
 import { Dropdown } from "../common/Dropdown";
@@ -53,6 +53,7 @@ const CRUD_ACTIONS: ThesisAction[] = [
 interface ThesisListViewProps {
   theses: ThesisSummary[];
   emptyMessage?: string;
+  isLoading?: boolean;
   onSelect?: (thesisId: string) => void;
   onAction?: (thesisId: string, action: ThesisActionType) => void;
   defaultView?: "list" | "grid";
@@ -116,6 +117,7 @@ function ActionMenu({
 export function ThesisListView({
   theses,
   emptyMessage = "No theses are available.",
+  isLoading = false,
   onSelect,
   onAction,
   defaultView = "list",
@@ -158,7 +160,16 @@ export function ThesisListView({
         </div>
       </div>
 
-      {theses.length === 0 ? (
+      {isLoading ? (
+        <div
+          className="flex min-h-48 items-center justify-center gap-2 px-6 py-12 text-sm text-on-surface-variant"
+          role="status"
+          aria-live="polite"
+        >
+          <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+          Searching theses…
+        </div>
+      ) : theses.length === 0 ? (
         <EmptyState
           className="m-6"
           icon={<FileText aria-hidden="true" className="h-10 w-10" />}

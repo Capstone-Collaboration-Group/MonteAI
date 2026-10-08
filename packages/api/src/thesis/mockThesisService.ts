@@ -202,6 +202,32 @@ export const mockThesisService: ThesisService = {
             : all;
     },
 
+    async searchTheses(query, mode) {
+        await delay(mode === "exact" ? 250 : 400);
+        const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        const all = Array.from(thesesMap.values());
+        const scored = all
+            .map((thesis) => {
+                const title = thesis.title?.toLowerCase() ?? "";
+                const authors = thesis.authors.join(" ").toLowerCase();
+                const abstract = thesis.abstract?.toLowerCase() ?? "";
+                const matches = terms.filter((term) =>
+                    `${title} ${authors} ${abstract}`.includes(term),
+                ).length;
+                const titleMatches = terms.filter((term) => title.includes(term)).length;
+                return { thesis, matches, titleMatches, title };
+            })
+            .filter((item) => mode === "semantic" ? item.matches > 0 : item.matches === terms.length)
+            .sort((a, b) =>
+                mode === "semantic"
+                    ? b.matches - a.matches || b.titleMatches - a.titleMatches
+                    : Number(b.title === query.toLowerCase()) - Number(a.title === query.toLowerCase())
+                        || b.titleMatches - a.titleMatches,
+            )
+            .slice(0, 10);
+        return scored.map(({ thesis }) => thesis);
+    },
+
     async submitThesis(dto: SubmitThesisDto, file: File) {
         await delay(300);
 

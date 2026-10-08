@@ -1,4 +1,5 @@
 // apps/desktop/src/App.tsx (or wherever your renderer root component is)
+import { useState } from "react";
 import { Toaster, NotFound, SettingsPage, ProtectedRoute, BackupPage } from "@monteai/ui";
 import {
   HashRouter,
@@ -29,42 +30,48 @@ function NotFoundPage() {
 
 
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider auth={auth}>
-    <HashRouter>
-      <Toaster />
-      <div className="flex h-screen">
-        <AppSidebar />
-        <main className="flex-1 overflow-y-auto">
-           <Routes>
-          {/* Public routes */}
-          <Route path="/register" element={<Register />} />
-          <Route path="/login" element={<Login />} />
+const App = () => {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider auth={auth}>
+        <HashRouter>
+          <Toaster />
+          <div className="flex h-screen">
+            <AppSidebar
+              collapsed={sidebarCollapsed}
+              onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            />
+            <main className="min-w-0 flex-1 overflow-y-auto">
+              <Routes>
+                {/* Public routes */}
+                <Route path="/register" element={<Register />} />
+                <Route path="/login" element={<Login />} />
 
-          {/* Protected routes — wrapped inside ProtectedRoute */}
-          <Route element={<ProtectedRoute profileService={profileService}/>}>
-          <Route path="/" element={<Dashboard />} />
-            <Route path="/announcements" element={<Announcements />} />
-            <Route path="/theses" element={<Theses />} />
-            <Route path="/faculty" element={<Faculty />} />
-            <Route path="/research-groups" element={<ResearchGroups />} />
-            <Route path="/panelist" element={<Panelist />} />
-            <Route path="/schedule" element={<Schedule />} />
-            <Route path="/settings" element={<SettingsPage userService={userService} />} />
-            <Route path="/backup" element={<BackupPage />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
-          </Route>
+                {/* Protected routes — wrapped inside ProtectedRoute */}
+                <Route element={<ProtectedRoute profileService={profileService} />}>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/announcements" element={<Announcements />} />
+                  <Route path="/theses" element={<Theses />} />
+                  <Route path="/faculty" element={<Faculty />} />
+                  <Route path="/research-groups" element={<ResearchGroups />} />
+                  <Route path="/panelist" element={<Panelist />} />
+                  <Route path="/schedule" element={<Schedule />} />
+                  <Route path="/settings" element={<SettingsPage userService={userService} />} />
+                  <Route path="/backup" element={<BackupPage />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
+                </Route>
 
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-        </main>
-      </div>
-    </HashRouter>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </main>
+          </div>
+        </HashRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

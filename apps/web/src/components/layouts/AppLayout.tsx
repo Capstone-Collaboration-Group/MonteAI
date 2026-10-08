@@ -21,7 +21,15 @@ import { profileService } from "../../lib/authService";
 import { chatService } from "../../lib/chat/chatService";
 import { auth } from "../../lib/firebase";
 
-function AppSidebar({ onClose }: { onClose: () => void }) {
+function AppSidebar({
+  onClose,
+  collapsed,
+  onToggleCollapsed,
+}: {
+  onClose: () => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -53,21 +61,25 @@ function AppSidebar({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Sidebar aria-label="Main navigation" className="shrink-0">
+    <Sidebar collapsed={collapsed} aria-label="Main navigation" className="shrink-0">
       <Sidebar.Header className="gap-2.5">
-        <img
-          src={CdmLogo}
-          alt="Colegio de Montalban"
-          className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
-        />
-        <div className="min-w-0 flex-1">
-          <p className="text-md font-bold leading-tight text-on-surface">
-            MonteAI
-          </p>
-          <p className="text-[11px] leading-tight text-on-surface-variant">
-            Your AI research assistant
-          </p>
-        </div>
+        {!collapsed && (
+          <>
+            <img
+              src={CdmLogo}
+              alt="Colegio de Montalban"
+              className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-md font-bold leading-tight text-on-surface">
+                MonteAI
+              </p>
+              <p className="text-[11px] leading-tight text-on-surface-variant">
+                Your AI research assistant
+              </p>
+            </div>
+          </>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -76,11 +88,28 @@ function AppSidebar({ onClose }: { onClose: () => void }) {
         >
           <X className="h-5 w-5" />
         </button>
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high md:flex ${
+            collapsed ? "mx-auto" : "ml-auto"
+          }`}
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "Expand navigation" : "Collapse navigation"}
+        >
+          <Menu className="h-5 w-5" />
+        </button>
       </Sidebar.Header>
 
       <div className="px-2 pb-2">
-        <Sidebar.NewChatButton onClick={() => { onClose(); navigate("/home"); }}>
-          <Plus className="h-4 w-4" /> New chat
+        <Sidebar.NewChatButton
+          onClick={() => { onClose(); navigate("/home"); }}
+          title={collapsed ? "New chat" : undefined}
+          aria-label={collapsed ? "New chat" : undefined}
+        >
+          <Plus className="h-4 w-4" />
+          {!collapsed && "New chat"}
         </Sidebar.NewChatButton>
       </div>
 
@@ -141,15 +170,17 @@ function AppSidebar({ onClose }: { onClose: () => void }) {
       <Sidebar.Nav className="gap-0.5">
         {sessionsLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 px-3 py-2">
+            <div key={i} className={`flex items-center gap-3 px-3 py-2 ${collapsed ? "justify-center" : ""}`}>
               <div className="h-5 w-5 shrink-0 animate-pulse rounded bg-surface-container-high" />
-              <div className="h-4 w-full animate-pulse rounded bg-surface-container-high" />
+              {!collapsed && <div className="h-4 w-full animate-pulse rounded bg-surface-container-high" />}
             </div>
           ))
         ) : sessionsError ? (
-          <p className="px-3 py-2 text-xs text-on-surface-variant">
-            Couldn't load conversations.
-          </p>
+          !collapsed && (
+            <p className="px-3 py-2 text-xs text-on-surface-variant">
+              Couldn't load conversations.
+            </p>
+          )
         ) : chatSessions && chatSessions.length > 0 ? (
           chatSessions.map((session) => (
             <Sidebar.Item
@@ -161,22 +192,26 @@ function AppSidebar({ onClose }: { onClose: () => void }) {
             />
           ))
         ) : (
-          <p className="px-3 py-2 text-xs text-on-surface-variant">
-            No conversations yet
-          </p>
+          !collapsed && (
+            <p className="px-3 py-2 text-xs text-on-surface-variant">
+              No conversations yet
+            </p>
+          )
         )}
       </Sidebar.Nav>
 
       {/* 3. Make the Footer dynamic and add the logout trigger */}
-      <Sidebar.Footer className="flex items-center justify-between gap-2.5 px-1">
+      <Sidebar.Footer className={`flex items-center gap-2.5 px-1 ${collapsed ? "justify-center" : "justify-between"}`}>
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-xs font-semibold uppercase text-on-primary-container">
+          {!collapsed && <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-xs font-semibold uppercase text-on-primary-container">
             {/* Extract the first letter of the email dynamically */}
             {isLoading ? "..." : profile?.email?.[0] || "U"}
-          </div>
-          <span className="truncate text-xs text-on-surface-variant">
-            {isLoading ? "Loading..." : profile?.email}
-          </span>
+          </div>}
+          {!collapsed && (
+            <span className="truncate text-xs text-on-surface-variant">
+              {isLoading ? "Loading..." : profile?.email}
+            </span>
+          )}
         </div>
 
         <button
@@ -193,6 +228,7 @@ function AppSidebar({ onClose }: { onClose: () => void }) {
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -219,7 +255,11 @@ export default function AppLayout() {
           sidebarOpen ? "visible translate-x-0" : "invisible -translate-x-full"
         } md:visible md:static md:z-auto md:h-full md:translate-x-0`}
       >
-        <AppSidebar onClose={() => setSidebarOpen(false)} />
+        <AppSidebar
+          onClose={() => setSidebarOpen(false)}
+          collapsed={sidebarOpen ? false : sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        />
       </div>
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-outline-variant/70 bg-surface px-4 md:hidden">
