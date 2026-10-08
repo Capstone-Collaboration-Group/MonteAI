@@ -20,7 +20,7 @@ export interface CatalogNotice {
 }
 
 interface ThesisCatalogProps {
-  featuredThesis: ThesisSummary;
+  featuredThesis: ThesisSummary | null;
   theses: ThesisSummary[];
   thesisData: ThesisResponseDto[];
   counts: ThesisCatalogCounts;
@@ -147,13 +147,20 @@ export function ThesisCatalog({
           Reviewing {counts.active} active submissions and {counts.archived} archived works.
         </p>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
-          <FeaturedThesisCard thesis={featuredThesis} onViewDetails={onViewDetails} />
-          <SubmissionHealthCard theses={thesisData} />
-        </div>
+        {featuredThesis ? (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
+            <FeaturedThesisCard thesis={featuredThesis} onViewDetails={onViewDetails} />
+            <SubmissionHealthCard theses={thesisData} />
+          </div>
+        ) : null}
 
         <ThesisListView
           theses={filteredTheses}
+          emptyMessage={
+            theses.length === 0
+              ? "No theses are available yet. New submissions and archived works will appear here."
+              : "No theses match your current search or status filter."
+          }
           onSelect={onViewDetails ?? onSelectThesis}
           onAction={onThesisAction}
           allowedActions={allowedActions}

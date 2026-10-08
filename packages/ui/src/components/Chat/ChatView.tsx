@@ -43,7 +43,7 @@ export function ChatView({
   return (
     <div className="flex h-full flex-col">
       {/* ── Message list ── */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto flex max-w-2xl flex-col gap-4">
           {messages.length === 0 && !isSending && (
             <p className="mt-20 text-center text-sm text-on-surface-variant">
@@ -85,14 +85,14 @@ export function ChatView({
           e.preventDefault();
           onSend();
         }}
-        className="border-t border-outline-variant bg-surface-container-low px-6 py-4"
+        className="border-t border-outline-variant bg-surface-container-low px-3 py-3 sm:px-6 sm:py-4"
       >
         <div className="relative mx-auto max-w-2xl">
           <input
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
             placeholder="Ask MonteAI anything..."
-            className="w-full rounded-full border border-outline-variant bg-surface px-5 py-3.5 pr-12 text-sm text-on-surface outline-none placeholder:text-on-surface-variant focus:ring-2 focus:ring-primary"
+            className="w-full rounded-full border border-outline-variant bg-surface px-4 py-3 pr-12 text-sm text-on-surface outline-none placeholder:text-on-surface-variant focus:ring-2 focus:ring-primary sm:px-5 sm:py-3.5"
           />
           <button
             type="submit"
@@ -104,7 +104,7 @@ export function ChatView({
         </div>
       </form>
 
-      <div className="mb-5 text-center text-xs text-on-surface-variant">
+      <div className="shrink-0 px-2 pb-2 text-center text-[11px] text-on-surface-variant sm:mb-5 sm:pb-0 sm:text-xs">
         MonteAI can make mistakes, always double check the output.
       </div>
     </div>

@@ -6,6 +6,7 @@ import { toThesisSummary } from "@monteai/types";
 import type { ThesisActionType } from "@monteai/types";
 import { ThesisCatalog, ThesisCatalogSkeleton } from "../components/Thesis";
 import type { CatalogNotice } from "../components/Thesis";
+import { ErrorState } from "../components/common";
 
 
 interface ThesisCatalogPageProps {
@@ -36,7 +37,7 @@ export function ThesisCatalogPage({
   onDismissNotice,
   // onFilterClick, remove this comment if there will be future Filter features from the ThesisCatalog Component.
 }: ThesisCatalogPageProps) {
-  const { theses: rawTheses, isLoading } = useTheses(thesisService);
+  const { theses: rawTheses, isLoading, isError, refetch } = useTheses(thesisService);
 
   const theses = useMemo(() => rawTheses.map(toThesisSummary), [rawTheses]);
   const featuredThesis = theses[0];
@@ -51,13 +52,25 @@ export function ThesisCatalogPage({
     return { active, archived };
   }, [theses]);
 
-  if (isLoading || !featuredThesis) {
+  if (isLoading) {
     return <ThesisCatalogSkeleton />;
+  }
+
+  if (isError) {
+    return (
+      <div className="h-full overflow-y-auto bg-surface-container-low p-8">
+        <ErrorState
+          title="Thesis catalog unavailable"
+          message="We couldn't load the thesis catalog. Check your connection and try again."
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
   }
 
   return (
     <ThesisCatalog
-      featuredThesis={featuredThesis}
+      featuredThesis={featuredThesis ?? null}
       theses={theses}
       thesisData={rawTheses}
       counts={counts}

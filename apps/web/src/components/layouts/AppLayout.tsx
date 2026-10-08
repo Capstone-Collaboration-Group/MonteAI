@@ -1,4 +1,5 @@
 // layouts/AppLayout.tsx
+import { useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation, matchPath } from "react-router-dom";
 import { Sidebar } from "@monteai/ui";
 import {
@@ -9,6 +10,8 @@ import {
   LogOut,
   Settings,
   Users,
+  Menu,
+  X,
 } from "lucide-react"; // Imported LogOut
 import CdmLogo from "../../assets/cdm-logo.png";
 
@@ -18,7 +21,7 @@ import { profileService } from "../../lib/authService";
 import { chatService } from "../../lib/chat/chatService";
 import { auth } from "../../lib/firebase";
 
-function AppSidebar() {
+function AppSidebar({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -42,6 +45,7 @@ function AppSidebar() {
     try {
       await auth.signOut();
       queryClient.clear(); // Wipe the TanStack query cache to prevent data leaks
+      onClose();
       navigate("/"); // Send them back to the landing page
     } catch (error) {
       console.error("Failed to sign out", error);
@@ -49,14 +53,14 @@ function AppSidebar() {
   };
 
   return (
-    <Sidebar>
+    <Sidebar aria-label="Main navigation" className="shrink-0">
       <Sidebar.Header className="gap-2.5">
         <img
           src={CdmLogo}
           alt="Colegio de Montalban"
           className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
         />
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-md font-bold leading-tight text-on-surface">
             MonteAI
           </p>
@@ -64,16 +68,24 @@ function AppSidebar() {
             Your AI research assistant
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high md:hidden"
+          aria-label="Close navigation menu"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </Sidebar.Header>
 
       <div className="px-2 pb-2">
-        <Sidebar.NewChatButton onClick={() => navigate("/home")}>
+        <Sidebar.NewChatButton onClick={() => { onClose(); navigate("/home"); }}>
           <Plus className="h-4 w-4" /> New chat
         </Sidebar.NewChatButton>
       </div>
 
       <Sidebar.Nav className="gap-0.5">
-        <NavLink to="/chat">
+        <NavLink to="/chat" onClick={onClose}>
           {({ isActive }) => (
             <Sidebar.Item
               icon={<MessageSquare className="h-4 w-4" />}
@@ -82,7 +94,7 @@ function AppSidebar() {
             />
           )}
         </NavLink>
-        <NavLink to="/theses">
+        <NavLink to="/theses" onClick={onClose}>
           {({ isActive }) => (
             <Sidebar.Item
               icon={<Search className="h-4 w-4" />}
@@ -91,7 +103,7 @@ function AppSidebar() {
             />
           )}
         </NavLink>
-        <NavLink to="/submit">
+        <NavLink to="/submit" onClick={onClose}>
           {({ isActive }) => (
             <Sidebar.Item
               icon={<Search className="h-4 w-4" />}
@@ -100,7 +112,7 @@ function AppSidebar() {
             />
           )}
         </NavLink>
-        <NavLink to="/settings">
+        <NavLink to="/settings" onClick={onClose}>
           {({ isActive }) => (
             <Sidebar.Item
               icon={<Settings className="h-4 w-4" />}
@@ -109,12 +121,12 @@ function AppSidebar() {
             />
           )}
         </NavLink>
-        <NavLink to="/announcements">
+        <NavLink to="/announcements" onClick={onClose}>
           {({ isActive }) => (
             <Sidebar.Item icon={<Search className="h-4 w-4" />} label="Announcements" active={isActive} />
           )}
         </NavLink>
-        <NavLink to="/research-groups">
+        <NavLink to="/research-groups" onClick={onClose}>
           {({ isActive }) => (
             <Sidebar.Item
               icon={<Users className="h-4 w-4" />}
@@ -145,7 +157,7 @@ function AppSidebar() {
               icon={<MessageCircle className="h-4 w-4" />}
               label={session.title}
               active={session.id === activeSessionId}
-              onClick={() => navigate(`/chat/${session.id}`)}
+              onClick={() => { onClose(); navigate(`/chat/${session.id}`); }}
             />
           ))
         ) : (
@@ -180,11 +192,57 @@ function AppSidebar() {
 }
 
 export default function AppLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSidebarOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sidebarOpen]);
+
   return (
-    <div className="flex h-screen bg-surface">
-      <AppSidebar />
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-surface">
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close navigation menu"
+        />
+      )}
+      <div
+        id="app-navigation"
+        className={`fixed inset-y-0 left-0 z-50 h-dvh transition-transform duration-200 ${
+          sidebarOpen ? "visible translate-x-0" : "invisible -translate-x-full"
+        } md:visible md:static md:z-auto md:h-full md:translate-x-0`}
+      >
+        <AppSidebar onClose={() => setSidebarOpen(false)} />
+      </div>
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-outline-variant/70 bg-surface px-4 md:hidden">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={sidebarOpen}
+            aria-controls="app-navigation"
+            className="flex h-10 w-10 items-center justify-center rounded-md text-on-surface hover:bg-surface-container-high"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <img
+            src={CdmLogo}
+            alt=""
+            className="h-8 w-8 rounded-full object-cover"
+          />
+          <span className="font-semibold text-on-surface">MonteAI</span>
+        </header>
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

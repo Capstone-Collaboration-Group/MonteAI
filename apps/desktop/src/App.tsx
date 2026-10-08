@@ -1,5 +1,5 @@
 // apps/desktop/src/App.tsx (or wherever your renderer root component is)
-import { Toaster, Sidebar, NotFound, SettingsPage, ProtectedRoute, BackupPage } from "@monteai/ui";
+import { Toaster, NotFound, SettingsPage, ProtectedRoute, BackupPage } from "@monteai/ui";
 import {
   HashRouter,
   Routes,
@@ -7,6 +7,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import Dashboard from "./renderer/pages/Dashboard";
+import About from "./renderer/pages/About";
 import Faculty from "./renderer/pages/Faculty";
 import Theses from "./renderer/pages/Theses";
 import Panelist from "./renderer/pages/Panelist";
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/settings" element={<SettingsPage userService={userService} />} />
             <Route path="/backup" element={<BackupPage />} />
+            <Route path="/about" element={<About />} />
             <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
           </Route>
 
