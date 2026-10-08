@@ -13,10 +13,16 @@ import {
   HardDriveDownload,
   Info,
   Megaphone,
+  Menu,
 } from "lucide-react";
 import { auth } from "../lib/firebaseServices";
 import { queryClient } from "@monteai/hooks";
-export default function AppSidebar() {
+interface AppSidebarProps {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}
+
+export default function AppSidebar({ collapsed, onToggleCollapsed }: AppSidebarProps) {
 
   const navigate = useNavigate();
   const handleLogout = async () => {
@@ -29,19 +35,35 @@ export default function AppSidebar() {
     }
   };
   return (
-    <Sidebar>
+    <Sidebar collapsed={collapsed}>
       <Sidebar.Header className="gap-2.5">
-        <img
-          src="/cdm-logo.png"
-          alt="Colegio de Montalban"
-          className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
-        />
-        <div>
+        {!collapsed && (
+          <>
+            <img
+              src="/cdm-logo.png"
+              alt="Colegio de Montalban"
+              className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
+            />
+            <div className="min-w-0 flex-1">
           <p className="text-[15px] font-medium leading-tight">MonteSkolar</p>
           <p className="text-[11px] leading-tight text-on-surface-variant">
             Admin console
           </p>
-        </div>
+            </div>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "Expand navigation" : "Collapse navigation"}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high ${
+            collapsed ? "mx-auto" : "ml-auto"
+          }`}
+        >
+          <Menu className="h-5 w-5" />
+        </button>
       </Sidebar.Header>
 
       <Sidebar.Nav>

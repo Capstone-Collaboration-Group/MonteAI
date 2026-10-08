@@ -19,6 +19,8 @@ export interface ThesisService {
     getMyThesis(): Promise<ThesisResponseDto | null>;
     /** @param program Optional academic-program filter (ICS / IBE / ITE); omitted/unknown returns unfiltered. */
     getTheses(program?: ThesisProgram): Promise<ThesisResponseDto[]>;
+    /** Searches the catalog with a fast SQL title/author match or Pinecone similarity. */
+    searchTheses(query: string, mode: "exact" | "semantic"): Promise<ThesisResponseDto[]>;
     updateThesis(thesisId: string, dto: UpdateThesisDto): Promise<boolean>;
     updateThesisStatus(thesisId: string, status: string): Promise<boolean>;
     deleteThesis(thesisId: string): Promise<boolean>;
@@ -43,4 +45,3 @@ export interface ThesisService {
     // Proceedings
     generateProceedings(thesisId: string): Promise<Blob>;
 }
-

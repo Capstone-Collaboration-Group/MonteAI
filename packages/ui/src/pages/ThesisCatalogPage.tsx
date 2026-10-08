@@ -83,6 +83,7 @@ export function ThesisCatalogPage({
       onUploadThesis={onUploadThesis}
       notice={notice}
       onDismissNotice={onDismissNotice}
+      searchTheses={(query, mode) => thesisService.searchTheses(query, mode)}
       // onFilterClick={onFilterClick}
     />
   );

@@ -77,24 +77,7 @@ namespace server.Services.Theses
         {
             var result = await _thesisRepo.GetFirst20ThesisAsync(program, studentId);
 
-            var dtos = result.Select(thesis =>
-            {
-                var dto = _mapper.Map<ThesisResponseDto>(thesis);
-
-                // Pick the latest schedule for this group if multiple exist
-                var schedule = thesis.ResearchGroup?.Schedules
-                    .OrderByDescending(s => s.Date)
-                    .FirstOrDefault();
-
-                if (schedule is not null)
-                {
-                    dto.GroupId = schedule.GroupId;
-                    dto.ScheduledAt = schedule.Date.ToDateTime(schedule.StartTime);
-                    dto.ScheduledVenue = schedule.RoomVenue;
-                }
-
-                return dto;
-            }).ToList();
+            var dtos = result.Select(MapThesisToResponse).ToList();
 
             // SQL holds the Firestore doc ID (legacy rows hold raw text) — swap
             // in the actual abstract text before the client ever sees it.
@@ -102,6 +85,62 @@ namespace server.Services.Theses
 
             return dtos;
 
+        }
+
+        public async Task<IReadOnlyList<ThesisResponseDto>> SearchAsync(
+            string query,
+            bool semantic,
+            string? studentId,
+            CancellationToken cancellationToken = default)
+        {
+            if (!semantic)
+            {
+                var exactMatches = await _thesisRepo.SearchCatalogAsync(
+                    query, 10, studentId, cancellationToken);
+                var exactDtos = exactMatches.Select(MapThesisToResponse).ToList();
+                await _abstractService.ResolveAbstractsAsync(exactDtos);
+                return exactDtos;
+            }
+
+            var chunks = await _pineconeService.RetrieveRelevantChunksAsync(
+                query,
+                new RetrievalOptions { TopK = 50 },
+                cancellationToken);
+            var thesisIds = chunks
+                .Select(chunk => Guid.TryParse(chunk.ThesisId, out var id) ? id : (Guid?)null)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Distinct()
+                .Take(10)
+                .ToList();
+            var matches = await _thesisRepo.GetThesesByIdsAsync(
+                thesisIds, studentId, cancellationToken);
+            var matchesById = matches.ToDictionary(thesis => thesis.Id);
+            var orderedMatches = thesisIds
+                .Where(matchesById.ContainsKey)
+                .Select(id => matchesById[id])
+                .Select(MapThesisToResponse)
+                .ToList();
+
+            await _abstractService.ResolveAbstractsAsync(orderedMatches);
+            return orderedMatches;
+        }
+
+        private ThesisResponseDto MapThesisToResponse(Thesis thesis)
+        {
+            var dto = _mapper.Map<ThesisResponseDto>(thesis);
+            var schedule = thesis.ResearchGroup?.Schedules
+                .OrderByDescending(item => item.Date)
+                .FirstOrDefault();
+
+            if (schedule is not null)
+            {
+                dto.GroupId = schedule.GroupId;
+                dto.ScheduledAt = schedule.Date.ToDateTime(schedule.StartTime);
+                dto.ScheduledVenue = schedule.RoomVenue;
+            }
+
+            return dto;
         }
 
         public async Task<ThesisResponseDto?> GetByIdAsync(Guid id)

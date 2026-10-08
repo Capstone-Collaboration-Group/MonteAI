@@ -32,6 +32,15 @@ namespace server.Repositories.Interfaces
         /// embeddings tend to miss.
         /// </summary>
         Task<IReadOnlyList<Thesis>> SearchByKeywordAsync(string term, int limit, CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<Thesis>> SearchCatalogAsync(
+            string term,
+            int limit,
+            string? studentId,
+            CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<Thesis>> GetThesesByIdsAsync(
+            IReadOnlyCollection<Guid> thesisIds,
+            string? studentId,
+            CancellationToken cancellationToken = default);
 
         Task<Thesis> SubmitAsync(Thesis thesis);
 

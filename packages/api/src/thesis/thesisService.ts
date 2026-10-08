@@ -50,6 +50,12 @@ export class LiveThesisService implements ThesisService {
             return handle404(err, []);
         }
     }
+    async searchTheses(query: string, mode: "exact" | "semantic"): Promise<ThesisResponseDto[]> {
+        const { data } = await this.client.get<ThesisResponseDto[]>(`/thesis/search`, {
+            params: { q: query, mode },
+        });
+        return data;
+    }
     // async submitThesis
     async submitThesis(dto: SubmitThesisDto, file: File): Promise<ThesisResponseDto> {
         const formData = new FormData();

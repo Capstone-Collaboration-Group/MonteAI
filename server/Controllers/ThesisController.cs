@@ -28,6 +28,35 @@ namespace server.Controllers
 
         private const long MaxUploadBytes = 25 * 1024 * 1024;
 
+        [HttpGet("search")]
+        public async Task<IActionResult> Search(
+            [FromQuery(Name = "q")] string? query,
+            [FromQuery] string? mode,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return BadRequest(new { Message = "A search query is required." });
+            if (query.Length > 200)
+                return BadRequest(new { Message = "Search queries must be 200 characters or fewer." });
+            if (!string.IsNullOrWhiteSpace(mode) &&
+                !string.Equals(mode, "exact", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(mode, "semantic", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { Message = "Search mode must be 'exact' or 'semantic'." });
+
+            var studentId = User.IsInRole("Student")
+                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null;
+            if (User.IsInRole("Student") && string.IsNullOrEmpty(studentId))
+                return Unauthorized();
+
+            var results = await _service.SearchAsync(
+                query.Trim(),
+                string.Equals(mode, "semantic", StringComparison.OrdinalIgnoreCase),
+                studentId,
+                cancellationToken);
+            return Ok(results);
+        }
+
         // Server-side gate for every thesis upload (initial submission + revisions).
         // The UI already restricts the file picker to PDFs, but the API must not
         // trust the client. Returns null when the file is acceptable, otherwise a

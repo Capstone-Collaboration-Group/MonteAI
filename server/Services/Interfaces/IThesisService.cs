@@ -10,6 +10,11 @@ namespace server.Services.Interfaces
         Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync(
             string? program = null,
             string? studentId = null);
+        Task<IReadOnlyList<ThesisResponseDto>> SearchAsync(
+            string query,
+            bool semantic,
+            string? studentId,
+            CancellationToken cancellationToken = default);
 
         Task<ThesisResponseDto?> GetByIdAsync(Guid id);
 
