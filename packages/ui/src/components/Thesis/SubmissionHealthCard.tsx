@@ -1,51 +1,76 @@
-import type { SubmissionHealthStatus } from "@monteai/types";
+import type { ThesisResponseDto } from "@monteai/types";
+import {LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,} from "recharts";
 
 interface SubmissionHealthCardProps {
-  stats: SubmissionHealthStatus;
+  theses: ThesisResponseDto[];
 }
 
-const TICKS = [0, 25, 50, 75, 100];
+export function SubmissionHealthCard({ theses }: SubmissionHealthCardProps) {
+  const indexedTheses = theses.filter((thesis) => thesis.status === "Indexed" && thesis.indexedAt);
 
-export function SubmissionHealthCard({ stats }: SubmissionHealthCardProps) {
-  const pct = Math.max(0, Math.min(100, stats.approvalRate));
+  const yearlyCounts = indexedTheses.reduce<Record<number, number>>(
+    (counts, thesis) => {
+      const year = new Date(thesis.indexedAt!).getFullYear();
+      counts[year] = (counts[year] ?? 0) + 1;
+      return counts;
+    },
+    {}
+  );
+
+  const yearlyData = Object.entries(yearlyCounts)
+    .map(([year, count]) => ({
+      year,
+      count,
+    }))
+    .sort((a, b) => Number(a.year) - Number(b.year));
+
+  const approvalRate =
+    theses.length > 0
+      ? Math.round((indexedTheses.length / theses.length) * 100)
+      : 0;
 
   return (
-  <div className="flex h-full flex-col rounded-2xl bg-primary p-6">
-    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-primary/60">
-      Submission Health
-    </p>
+    <div className="flex h-full flex-col rounded-2xl bg-primary p-6">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-primary/60">
+        Submission Health
+      </p>
 
-    <p className="mt-3 font-serif text-4xl font-semibold leading-none text-on-primary">
-      {pct}%
-      <span className="ml-2 align-middle text-base font-sans font-normal text-on-primary/75">
-        Approval
-      </span>
-    </p>
+      <p className="mt-3 font-serif text-4xl font-semibold leading-none text-on-primary">
+        {approvalRate}%
+        <span className="ml-2 align-middle text-base font-sans font-normal text-on-primary/75">
+          Approval
+        </span>
+      </p>
 
-    <p className="mt-3 text-sm leading-relaxed text-on-primary/75">
-      {stats.note ??
-        `Historical data shows a high standard of peer-reviewed content for ${stats.yearLabel}.`}
-    </p>
+      <p className="mt-3 text-sm leading-relaxed text-on-primary/75">
+        Based on indexed theses in the repository.
+      </p>
 
-    <div className="mt-auto pt-8">
-      <div className="relative h-px w-full bg-on-primary/20">
-        <div
-          className="absolute inset-y-0 left-0 h-px bg-on-primary-container"
-          style={{ width: `${pct}%` }}
-        />
-        <div
-          className="absolute -top-1 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-on-primary-container"
-          style={{ left: `${pct}%` }}
-        />
-      </div>
-      <div className="mt-2 flex justify-between">
-        {TICKS.map((t) => (
-          <span key={t} className="text-[10px] font-medium text-on-primary/50">
-            {t}
-          </span>
-        ))}
+      <div className="mt-auto h-40 pt-6">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={yearlyData}>
+            <XAxis
+              dataKey="year"
+              tick={{ fontSize: 10 }}
+              stroke="currentColor"
+            />
+            <YAxis
+              allowDecimals={false}
+              tick={{ fontSize: 10 }}
+              stroke="currentColor"
+            />
+            <Tooltip />
+            <Line
+              type="monotone"
+              dataKey="count"
+              stroke="currentColor"
+              strokeWidth={2}
+              dot
+              activeDot={{ r: 5 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
-  </div>
-);
+  );
 }

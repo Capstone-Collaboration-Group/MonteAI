@@ -1,3 +1,24 @@
+// apps/desktop/src/handlers/approveThesis.ts
+//
+// LOCAL INGESTION PIPELINE (Electron main process), triggered when an admin
+// approves a thesis in the desktop panel:
+//
+//   1. Ask the API for a short-lived SAS download URL for the thesis PDF.
+//   2. Download the PDF to a temp file.
+//   3. Extract text from the first 5 pages (pdfjs-dist).
+//   4. Isolate the ABSTRACT + metadata (title/authors/year) via regex heuristics.
+//   5. Chunk the abstract (512 words, 50-word overlap).
+//   6. POST the chunks to /thesis/ingest.
+//
+//   The SERVER then takes over (ThesisService.IngestAsync): it embeds the
+//   chunks in batches (Azure OpenAI text-embedding-3-small), deletes any
+//   previous vectors for the thesis, bulk-upserts to Pinecone, and marks the
+//   thesis Indexed in Azure SQL. The server also overrides each chunk's URL
+//   with the thesis' permanent blob path — the SAS link sent here would
+//   expire within minutes and must never be stored in vector metadata.
+//
+//   Embedding is NOT done on the desktop.
+
 import { ipcMain } from 'electron';
 import { extractText } from '../pipeline/pdfExtractor';
 import { isolateAbstract, extractMetadata } from '../pipeline/abstractIsolator';
@@ -15,8 +36,7 @@ const client = createApiClient({
 });
 const thesisService = createThesisService(client, false);
 
-export function registerApproveThesisHandler() { 
-  // apps/desktop/src/handlers/approveThesis.ts
+export function registerApproveThesisHandler() {
   ipcMain.handle('thesis:approve', async (_event, { thesisId }) => {
     let tempPath: string | null = null;
 
@@ -42,8 +62,10 @@ export function registerApproveThesisHandler() {
             throw new Error('ABSTRACT_NOT_FOUND');
         }
 
-        const { title, authors, publicationYear, url } = extractMetadata(rawText, result.url);
+        const { title, authors, publicationYear } = extractMetadata(rawText, result.url);
 
+        // The `url` below is only a fallback — the server replaces it with the
+        // thesis' permanent blob path from Azure SQL before upserting.
         const chunks = chunkText(abstract, 512, 50).map((text, chunkIndex) => ({
             chunkIndex,
             text,

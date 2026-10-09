@@ -1,11 +1,11 @@
 // packages/ui/src/components/Thesis/PDFHighlightViewer.tsx
-import { useState, useCallback, useRef } from "react";
+import { forwardRef, useState, useCallback, useMemo, useRef, useEffect, useImperativeHandle } from "react";
 import { Document, Page } from "react-pdf";
 import type {
   AnnotationResponseDto,
   CreateAnnotationDto,
 } from "@monteai/types";
-import { ChevronLeft, ChevronRight, MessageSquarePlus } from "lucide-react";
+import { ChevronDown, MessageSquarePlus } from "lucide-react";
 import { Spinner } from "../common/Spinner";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -32,6 +32,106 @@ interface PendingSelection {
   popupY: number;
 }
 
+interface PageSize {
+  width: number;
+  height: number;
+}
+
+export interface PdfOutlineItem {
+  id: string;
+  title: string;
+  level: number;
+  page: number;
+}
+
+export interface PDFHighlightViewerHandle {
+  scrollToPage: (page: number) => void;
+}
+
+interface PdfOutlineNode {
+  title?: string;
+  dest?: string | unknown[] | null;
+  items?: PdfOutlineNode[];
+}
+
+// Structural view of the pdf.js objects we touch, typed locally so
+// @monteai/ui keeps no direct pdfjs-dist dependency (the runtime objects
+// returned by react-pdf's Document satisfy this shape).
+interface PdfDocumentProxy {
+  numPages: number;
+  getPage(pageNumber: number): Promise<{
+    getViewport(opts: { scale: number }): PageSize;
+  }>;
+  getOutline(): Promise<PdfOutlineNode[] | null>;
+  getDestination(dest: string): Promise<unknown[] | null>;
+  getPageIndex(ref: unknown): Promise<number>;
+}
+
+async function resolveOutlinePage(
+  pdf: PdfDocumentProxy,
+  dest: string | unknown[] | null | undefined,
+): Promise<number | null> {
+  if (dest == null) {
+    return null;
+  }
+
+  try {
+    const explicit =
+      typeof dest === "string" ? await pdf.getDestination(dest) : dest;
+
+    if (!Array.isArray(explicit) || explicit.length === 0 || explicit[0] == null) {
+      return null;
+    }
+
+    const pageIndex = await pdf.getPageIndex(explicit[0]);
+
+    return pageIndex + 1;
+  } catch {
+    return null;
+  }
+}
+
+async function flattenPdfOutline(
+  pdf: PdfDocumentProxy,
+  nodes: PdfOutlineNode[],
+  level = 0,
+  items: PdfOutlineItem[] = [],
+): Promise<PdfOutlineItem[]> {
+  for (const node of nodes) {
+    const page = await resolveOutlinePage(pdf, node.dest);
+
+    items.push({
+      id: `o${items.length}`,
+      title: node.title?.trim() || "Untitled",
+      level,
+      page: page ?? 1,
+    });
+
+    if (node.items?.length) {
+      await flattenPdfOutline(pdf, node.items, level + 1, items);
+    }
+  }
+
+  return items;
+}
+// Border-box allowance for the page card around each PDF page: p-3 padding
+// (12px × 2) + 1px border × 2 (Tailwind sets box-sizing: border-box).
+const PAGE_FRAME_PX = 26;
+
+// pdf.js init options — defined at module scope so the object identity never
+// changes (react-pdf restarts the download when `options` is a new object).
+//
+// `disableStream` + `disableAutoFetch` switch pdf.js into HTTP range-request
+// mode: instead of downloading the whole PDF before anything renders (which
+// took ~20s on 100+ page scanned theses), it fetches only the head/xref and
+// the chunks needed for the visible window — first page shows in ~1–2s and
+// later pages are fetched on demand. If the server doesn't support range
+// requests, pdf.js silently falls back to a normal full download.
+const PDF_OPTIONS = {
+  disableStream: true,
+  disableAutoFetch: true,
+};
+
 interface PDFHighlightViewerProps {
   fileUrl: string;
   annotations: AnnotationResponseDto[];
@@ -40,6 +140,9 @@ interface PDFHighlightViewerProps {
   currentPage: number;
   onPageChange: (page: number) => void;
   onAddAnnotation: (dto: Omit<CreateAnnotationDto, "thesisVersionId">) => void;
+  onOutlineChange?: (items: PdfOutlineItem[]) => void;
+  sections: PdfOutlineItem[];
+  onSectionSelect: (item: PdfOutlineItem) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -175,9 +278,28 @@ function HighlightOverlay({
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Loading Indicator ─────────────────────────────────────────────────────────
 
-export function PDFHighlightViewer({
+// Spinner + indeterminate bar. Deliberately shows no percentage: pdf.js byte
+// progress never tracks perceived readiness — in range mode it barely moves
+// while pages already paint, and in full mode it hits 100% before parsing and
+// first render are done.
+function LoadingIndicator() {
+  return (
+    <div className="flex h-64 flex-col items-center justify-center gap-3">
+      <Spinner className="h-8 w-8 text-primary" />
+      <div className="w-64 text-center">
+        <p className="mb-2 text-xs text-on-surface-variant">Loading…</p>
+        <div className="h-1.5 overflow-hidden rounded-full bg-surface-container-low">
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+export const PDFHighlightViewer = forwardRef<PDFHighlightViewerHandle, PDFHighlightViewerProps>(function PDFHighlightViewer({
   fileUrl,
   annotations,
   isCreating,
@@ -185,43 +307,313 @@ export function PDFHighlightViewer({
   currentPage,
   onPageChange,
   onAddAnnotation,
-}: PDFHighlightViewerProps) {
+  onOutlineChange,
+  sections,
+  onSectionSelect,
+},
+ref,
+){
+
   const [numPages, setNumPages] = useState<number>(0);
   const [scale, setScale] = useState<number>(1.2);
   const [pending, setPending] = useState<PendingSelection | null>(null);
-  const pageRef = useRef<HTMLDivElement>(null);
+  const [visiblePage, setVisiblePage] = useState<number>(1);
+  // Page dimensions at scale 1, indexed by page − 1. Only page 1 is measured
+  // up front (thesis pages are uniform); pages near the viewport are refined
+  // exactly afterwards. `null` = "not measured yet, use page 1's size".
+  const [pageSizes, setPageSizes] = useState<(PageSize | null)[]>([]);
+  const viewerScrollRef = useRef<HTMLDivElement | null>(null);
+  // The pdf.js document handle, kept in a ref so the size-refinement effect
+  // can measure pages without re-creating callbacks on every render.
+  const pdfDocRef = useRef<PdfDocumentProxy | null>(null);
+  const [sectionsOpen, setSectionsOpen] = useState(false);
+  const sectionsRef = useRef<HTMLDivElement | null>(null);
 
-  const onDocumentLoadSuccess = useCallback(
-    ({ numPages }: { numPages: number }) => {
-      setNumPages(numPages);
-    },
-    [],
+  const outlineGenerationRef = useRef(0);
+
+  // Close the Sections dropdown when clicking outside of it.
+  useEffect(() => {
+    if (!sectionsOpen) return;
+    const handleMouseDown = (event: MouseEvent) => {
+      if (!sectionsRef.current?.contains(event.target as Node)) {
+        setSectionsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [sectionsOpen]);
+
+  const loadPdfOutline = useCallback(
+  async (pdf: PdfDocumentProxy) => {
+    const generation = ++outlineGenerationRef.current;
+
+    try {
+      const outline = await pdf.getOutline();
+
+      if (
+        generation !== outlineGenerationRef.current ||
+        pdfDocRef.current !== pdf
+      ) {
+        return;
+      }
+
+      if (!outline?.length) {
+        onOutlineChange?.([]);
+        return;
+      }
+
+      const items = await flattenPdfOutline(pdf, outline);
+
+      if (
+        generation !== outlineGenerationRef.current ||
+        pdfDocRef.current !== pdf
+      ) {
+        return;
+      }
+
+      onOutlineChange?.(items);
+    } catch {
+      if (
+        generation === outlineGenerationRef.current &&
+        pdfDocRef.current === pdf
+      ) {
+        onOutlineChange?.([]);
+      }
+    }
+  },
+  [onOutlineChange],
   );
 
-  const handleMouseUp = useCallback(() => {
+  const updateVisiblePage = useCallback(() => {
+    const container = viewerScrollRef.current;
+    if (!container || numPages === 0) return;
+
+    const pageEls = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-page-number]")
+    );
+
+    if (pageEls.length === 0) return;
+
+    const middleOfView = container.scrollTop + container.clientHeight / 2;
+    let closestPage = 1;
+    let closestDistance = Number.MAX_SAFE_INTEGER;
+
+    for (const pageEl of pageEls) {
+      const pageNumber = Number(pageEl.dataset.pageNumber ?? 1);
+      const pageTop = pageEl.offsetTop;
+      const pageMiddle = pageTop + pageEl.offsetHeight / 2;
+      const distance = Math.abs(pageMiddle - middleOfView);
+
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestPage = pageNumber;
+      }
+    }
+
+    setVisiblePage(closestPage);
+    if (closestPage !== currentPage) {
+      onPageChange(closestPage);
+    }
+  }, [currentPage, numPages, onPageChange]);
+
+    const scrollToPage = useCallback(
+  (page: number) => {
+    const container = viewerScrollRef.current;
+
+    if (!container || numPages === 0) {
+      return;
+    }
+
+    const targetPage = Math.max(
+      1,
+      Math.min(numPages, Math.floor(page)),
+    );
+
+    const pageElement = container.querySelector<HTMLElement>(
+      `[data-page-number="${targetPage}"]`,
+    );
+
+    if (!pageElement) {
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const pageRect = pageElement.getBoundingClientRect();
+
+    const top =
+      container.scrollTop +
+      pageRect.top -
+      containerRect.top -
+      24;
+
+    container.scrollTo({
+      top,
+      behavior: "smooth",
+    });
+  },
+  [numPages],
+);
+
+useImperativeHandle(
+  ref,
+  () => ({
+    scrollToPage,
+  }),
+  [scrollToPage],
+);
+
+  // Measure only page 1 up front (parse-only — no rasterization): it seeds
+  // every placeholder so the viewer can paint immediately. Measuring all N
+  // pages here would stall first paint — and in range-request mode it would
+  // fan out one network fetch per page for no visible benefit.
+  const sizeLoadGenRef = useRef(0);
+  const seedPageSize = useCallback(async (pdf: PdfDocumentProxy) => {
+    // Each measurement supersedes any still in flight (rapid version
+    // switches): a stale resolve must never size the newer document.
+    const generation = ++sizeLoadGenRef.current;
+    const first = await pdf
+      .getPage(1)
+      .then((page) => page.getViewport({ scale: 1 }))
+      .catch(() => null);
+    // A newer file superseded this measurement — discard it.
+    if (generation !== sizeLoadGenRef.current) return;
+    const size =
+      first ??
+      // US Letter — matches pdf.js's default when a page cannot be measured.
+      { width: 612, height: 792 };
+    setPageSizes(
+      Array.from({ length: pdf.numPages }, (_, index) =>
+        index === 0 ? size : null
+      )
+    );
+  }, []);
+
+  const onDocumentLoadSuccess = useCallback(
+    (pdf: PdfDocumentProxy) => {
+      pdfDocRef.current = pdf;
+      onOutlineChange?.([]);
+      void loadPdfOutline(pdf);
+      setNumPages(pdf.numPages);
+      setVisiblePage(1);
+      // Start the new document at the top — react-pdf swaps files while this
+      // callback is the only place we run, and content grows from empty.
+      if (viewerScrollRef.current) viewerScrollRef.current.scrollTop = 0;
+      if (pdf.numPages > 0) {
+        onPageChange(1);
+      }
+      void seedPageSize(pdf);
+    },
+    [loadPdfOutline, onOutlineChange, onPageChange, seedPageSize]
+  );
+
+  // Only pages near the viewport are mounted as real react-pdf <Page>s;
+  // everything else stays a cheap sized placeholder. This mirrors the mobile
+  // WebView viewer's render window (current −1 … current + 3): mounting all
+  // N pages at once is what made large theses slow to open. Pages leaving the
+  // window unmount, releasing their canvases.
+  const renderWindow = useMemo(() => {
+    const from = Math.max(1, visiblePage - 1);
+    const to = Math.min(numPages, visiblePage + 3);
+    const pages = new Set<number>();
+    for (let page = from; page <= to; page++) pages.add(page);
+    return pages;
+  }, [visiblePage, numPages]);
+
+  // Refine pages near the viewport to their exact size (matters only for
+  // mixed-size documents — landscape pages etc.). Pages keep page 1's
+  // dimensions until they approach the window, so this never blocks paint and
+  // never storms the network up front. Runs whenever the window or the size
+  // table changes and stops as soon as everything in view is measured.
+  useEffect(() => {
+    const pdf = pdfDocRef.current;
+    if (!pdf || pageSizes.length === 0) return;
+    const pendingPages = [...renderWindow].filter(
+      (page) => page >= 1 && page <= pageSizes.length && !pageSizes[page - 1]
+    );
+    if (pendingPages.length === 0) return;
+
+    let stale = false;
+    void Promise.all(
+      pendingPages.map((page) =>
+        pdf
+          .getPage(page)
+          .then((p) => p.getViewport({ scale: 1 }))
+          .catch(() => null)
+      )
+    ).then((measured) => {
+      // Ignore stale resolutions: another document loaded, or this effect
+      // was cleaned up by a newer run.
+      if (stale || pdfDocRef.current !== pdf) return;
+      setPageSizes((prev) => {
+        const next = [...prev];
+        pendingPages.forEach((page, i) => {
+          const size = measured[i];
+          if (size && page - 1 < next.length && !next[page - 1]) {
+            next[page - 1] = size;
+          }
+        });
+        return next;
+      });
+    });
+    return () => {
+      stale = true;
+    };
+  }, [renderWindow, pageSizes]);
+
+  useEffect(() => {
+    updateVisiblePage();
+  }, [scale, updateVisiblePage]);
+
+  // Ctrl + scroll to zoom the PDF.
+  // This MUST be a native (non-React) event listener registered with
+  // { passive: false }. React's built-in onWheel prop is passive by
+  // default, which means event.preventDefault() inside a JSX onWheel
+  // handler silently does nothing — the browser's own zoom/scroll still
+  // fires alongside it. Attaching the listener manually like this is
+  // the only reliable way to actually stop the browser's default
+  // behavior and let our custom zoom take over cleanly.
+  useEffect(() => {
+    const container = viewerScrollRef.current;
+    if (!container) return;
+
+    const handleWheelNative = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+
+      setScale((prevScale) => {
+        const next =
+          event.deltaY > 0
+            ? Math.max(0.7, prevScale - 0.1)
+            : Math.min(2.5, prevScale + 0.1);
+        return next;
+      });
+    };
+
+    container.addEventListener("wheel", handleWheelNative, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheelNative);
+  }, []);
+
+  const handleMouseUp = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!canAnnotate) return;
 
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.toString().trim())
       return;
 
-    const pageEl = pageRef.current;
-    if (!pageEl) return;
+    const pageEl = event.currentTarget;
+    if (!pageEl || !pageEl.contains(selection.anchorNode)) return;
 
-    // Ensure selection is inside the PDF page
-    if (!pageEl.contains(selection.anchorNode)) return;
-
+    const pageNumber = Number(pageEl.dataset.pageNumber ?? currentPage);
     const rects = getRectsFromSelection(selection, pageEl, scale);
     if (rects.length === 0) return;
 
-    // Position popup near the end of the selection
     const lastRect = rects[rects.length - 1];
     const pageRect = pageEl.getBoundingClientRect();
-    const containerRect = pageEl.parentElement!.getBoundingClientRect();
+    const containerRect = pageEl.parentElement?.getBoundingClientRect() ?? pageRect;
 
     setPending({
       text: selection.toString().trim(),
-      position: { pageNumber: currentPage, rects },
+      position: { pageNumber, rects },
       popupX: pageRect.left - containerRect.left,
       popupY:
         pageRect.top -
@@ -251,37 +643,94 @@ export function PDFHighlightViewer({
     setPending(null);
   }, []);
 
+  // Page 1's measured size — seeds every placeholder until refined.
+  const seedSize = pageSizes[0];
+
+  // The active section is the last bookmark at or before the visible page.
+  const activeSectionId =
+    [...sections]
+      .reverse()
+      .find((section) => section.page <= currentPage)?.id ?? null;
+
   return (
     <div className="relative flex h-full w-full flex-col bg-surface-container-low">
-      {/* ── Toolbar ── */}
-      <div className="flex items-center justify-between border-b border-outline-variant bg-white px-4 py-2">
-        {/* Page nav */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-            disabled={currentPage <= 1}
-            className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-low disabled:opacity-40"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-sm text-on-surface-variant">
-            <span className="font-semibold text-on-surface">{currentPage}</span>
-            {" / "}
-            {numPages}
+      <div className="relative flex items-center justify-between border-b border-outline-variant bg-white px-4 py-2">
+        <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+          <div className="relative" ref={sectionsRef}>
+            <button
+              type="button"
+              onClick={() => setSectionsOpen((open) => !open)}
+              className="flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
+            >
+              <span>Sections</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${
+                  sectionsOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {sectionsOpen && (
+              <div className="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-lg border border-outline-variant bg-white shadow-lg">
+                <div className="border-b border-outline-variant px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-outline">
+                    Thesis Sections
+                  </p>
+                </div>
+
+                <div className="max-h-80 overflow-y-auto p-1">
+                  {sections.length === 0 ? (
+                    <p className="px-3 py-4 text-xs text-outline">
+                      No sections detected in this PDF.
+                    </p>
+                  ) : (
+                    sections.map((item) => {
+                      const isActive = activeSectionId === item.id;
+
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            onSectionSelect(item);
+                            setSectionsOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between gap-3 rounded-md py-2 pr-3 text-left text-xs transition-colors hover:bg-surface-container-low ${
+                            isActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-on-surface-variant"
+                          }`}
+                          style={{
+                            paddingLeft: `${12 + item.level * 16}px`,
+                          }}
+                        >
+                          <span
+                            className={
+                              item.level === 0 ? "font-semibold" : "font-normal"
+                            }
+                          >
+                            {item.title}
+                          </span>
+
+                          <span className="shrink-0 text-[11px] text-outline">
+                            {item.page}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <span className="inline-flex items-center justify-center rounded-md border border-outline-variant bg-surface px-2 py-1 font-medium text-on-surface">
+            {visiblePage} / {numPages}
           </span>
-          <button
-            type="button"
-            onClick={() => onPageChange(Math.min(numPages, currentPage + 1))}
-            disabled={currentPage >= numPages}
-            className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-low disabled:opacity-40"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <span className="text-on-surface-variant">pages</span>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Annotate hint */}
           {canAnnotate && (
             <span className="flex items-center gap-1.5 text-xs text-outline">
               <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -289,11 +738,10 @@ export function PDFHighlightViewer({
             </span>
           )}
 
-          {/* Zoom */}
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}
+              onClick={() => setScale((s) => Math.max(0.7, s - 0.1))}
               className="rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
             >
               − Zoom
@@ -303,7 +751,7 @@ export function PDFHighlightViewer({
             </span>
             <button
               type="button"
-              onClick={() => setScale((s) => Math.min(3, s + 0.2))}
+              onClick={() => setScale((s) => Math.min(2.5, s + 0.1))}
               className="rounded-md px-2 py-1 text-xs font-medium text-on-surface-variant transition-colors hover:bg-surface-container-low"
             >
               + Zoom
@@ -312,12 +760,11 @@ export function PDFHighlightViewer({
         </div>
       </div>
 
-      {/* ── PDF + overlays ── */}
       <div
-        className="relative flex flex-1 justify-center overflow-auto px-6 py-6"
-        onMouseUp={handleMouseUp}
+        ref={viewerScrollRef}
+        className="relative flex flex-1 overflow-auto px-6 py-6"
+        onScroll={updateVisiblePage}
       >
-        {/* Annotation popup */}
         {pending && (
           <AnnotationPopup
             x={pending.popupX}
@@ -328,16 +775,12 @@ export function PDFHighlightViewer({
           />
         )}
 
-        {/* PDF page wrapper — highlights are positioned relative to this */}
-        <div ref={pageRef} className="relative">
+        <div className="mx-auto flex w-full max-w-[900px] flex-col items-center gap-6">
           <Document
             file={fileUrl}
+            options={PDF_OPTIONS}
             onLoadSuccess={onDocumentLoadSuccess}
-            loading={
-              <div className="flex h-64 items-center justify-center">
-                <Spinner className="h-8 w-8 text-primary" />
-              </div>
-            }
+            loading={<LoadingIndicator />}
             error={
               <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
                 <p className="text-sm font-medium text-red-600">
@@ -349,30 +792,65 @@ export function PDFHighlightViewer({
               </div>
             }
           >
-            <Page
-              pageNumber={currentPage}
-              scale={scale}
-              className="shadow-lg"
-              renderAnnotationLayer
-              renderTextLayer
-            />
-          </Document>
+            {pageSizes.length === numPages &&
+              seedSize &&
+              pageSizes.map((exactSize, index) => {
+                const size = exactSize ?? seedSize;
+                const pageNumber = index + 1;
+                const contentWidth = size.width * scale;
+                const contentHeight = size.height * scale;
+                const inWindow = renderWindow.has(pageNumber);
+                const placeholder = (
+                  <div
+                    style={{ width: contentWidth, height: contentHeight }}
+                    className="flex items-center justify-center rounded bg-surface-container-low text-xs font-medium text-outline"
+                  >
+                    {pageNumber}
+                  </div>
+                );
 
-          {/* Highlight overlays sit on top of the page */}
-          <HighlightOverlay
-            annotations={annotations}
-            pageNumber={currentPage}
-            scale={scale}
-          />
+                return (
+                  <div
+                    key={pageNumber}
+                    data-page-number={pageNumber}
+                    onMouseUp={handleMouseUp}
+                    style={{
+                      width: contentWidth + PAGE_FRAME_PX,
+                      height: contentHeight + PAGE_FRAME_PX,
+                    }}
+                    className="relative mb-6 last:mb-0 overflow-hidden rounded-md border border-slate-200 bg-white p-3 shadow-sm"
+                  >
+                    {inWindow ? (
+                      <>
+                        <Page
+                          pageNumber={pageNumber}
+                          scale={scale}
+                          className="shadow-none"
+                          renderAnnotationLayer
+                          renderTextLayer
+                          loading={placeholder}
+                        />
+                        <HighlightOverlay
+                          annotations={annotations}
+                          pageNumber={pageNumber}
+                          scale={scale}
+                        />
+                      </>
+                    ) : (
+                      placeholder
+                    )}
+                  </div>
+                );
+              })}
+          </Document>
         </div>
       </div>
 
-      {/* Creating overlay */}
       {isCreating && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/50">
           <Spinner className="h-6 w-6 text-primary" />
         </div>
       )}
     </div>
-  );
-}
+);
+});

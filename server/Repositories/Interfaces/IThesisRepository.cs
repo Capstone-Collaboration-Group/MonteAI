@@ -1,15 +1,50 @@
 ﻿using server.Models.DTOs.Thesis;
 using server.Models.Entities;
 
+// server/Repositories/Interfaces/IThesisRepository.cs
+//
+// Data access contract for the Azure SQL Theses table.
+
 namespace server.Repositories.Interfaces
 {
     public interface IThesisRepository
     {
-        Task<IEnumerable<Thesis>> GetFirst20ThesisAsync();
+        /// <param name="program">Optional academic-program filter (ICS / IBE /
+        /// ITE). Matched case-insensitively against the research group leader's
+        /// institute via keyword; null / unknown returns unfiltered.</param>
+        Task<IEnumerable<Thesis>> GetFirst20ThesisAsync(
+            string? program = null,
+            string? studentId = null);
 
         Task<Thesis?> GetThesisByIdAsync(Guid id);
 
+        /// <summary>
+        /// The thesis owned by a research group (a group may own at most one —
+        /// enforced in SubmitAsync). Loads the same graph as
+        /// GetThesisByIdAsync so Authors / Institute / ScheduledAt map correctly.
+        /// </summary>
+        Task<Thesis?> GetByGroupIdAsync(Guid groupId);
+
+        /// <summary>
+        /// Exact-match (LIKE) search over thesis titles and abstracts — the
+        /// keyword half of the agent's hybrid retrieval. Used by the
+        /// keyword_search tool for acronyms and exact terms that dense
+        /// embeddings tend to miss.
+        /// </summary>
+        Task<IReadOnlyList<Thesis>> SearchByKeywordAsync(string term, int limit, CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<Thesis>> SearchCatalogAsync(
+            string term,
+            int limit,
+            string? studentId,
+            CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<Thesis>> GetThesesByIdsAsync(
+            IReadOnlyCollection<Guid> thesisIds,
+            string? studentId,
+            CancellationToken cancellationToken = default);
+
         Task<Thesis> SubmitAsync(Thesis thesis);
+
+        Task<bool> ExistsByGroupIdAsync(Guid groupId);
 
         Task<bool> UpdateDetailsAsync(Guid id, Thesis thesis);
 

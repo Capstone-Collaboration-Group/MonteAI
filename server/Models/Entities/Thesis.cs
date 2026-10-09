@@ -15,10 +15,13 @@ namespace server.Models.Entities
 
         public ICollection<Submission> Submissions { get; set; } = [];
 
+        // Since the abstract will be stored in the Firestore, this column stores
+        // the Firestore document ID that holds the per-version abstract texts
+        // (collection: thesis_abstracts, one doc per thesis). Legacy rows still
+        // hold the raw abstract text — readers treat non-GUID values as raw text.
         [Required]
         public string? Abstract { get; set; }
 
-        [Required]
         public string FilePath { get; set; } = string.Empty;
 
         [Required]

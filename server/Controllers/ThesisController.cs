@@ -26,13 +26,108 @@ namespace server.Controllers
             _blobService = blobService;
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetFirst20Thesis()
+        private const long MaxUploadBytes = 25 * 1024 * 1024;
+
+        [HttpGet("search")]
+        public async Task<IActionResult> Search(
+            [FromQuery(Name = "q")] string? query,
+            [FromQuery] string? mode,
+            CancellationToken cancellationToken)
         {
-            var result = await _service.GetFirst20ThesisAsync();
+            if (string.IsNullOrWhiteSpace(query))
+                return BadRequest(new { Message = "A search query is required." });
+            if (query.Length > 200)
+                return BadRequest(new { Message = "Search queries must be 200 characters or fewer." });
+            if (!string.IsNullOrWhiteSpace(mode) &&
+                !string.Equals(mode, "exact", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(mode, "semantic", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { Message = "Search mode must be 'exact' or 'semantic'." });
+
+            var studentId = User.IsInRole("Student")
+                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null;
+            if (User.IsInRole("Student") && string.IsNullOrEmpty(studentId))
+                return Unauthorized();
+
+            var results = await _service.SearchAsync(
+                query.Trim(),
+                string.Equals(mode, "semantic", StringComparison.OrdinalIgnoreCase),
+                studentId,
+                cancellationToken);
+            return Ok(results);
+        }
+
+        // Server-side gate for every thesis upload (initial submission + revisions).
+        // The UI already restricts the file picker to PDFs, but the API must not
+        // trust the client. Returns null when the file is acceptable, otherwise a
+        // message to send back as 400 — always BEFORE anything hits blob storage.
+        private static async Task<string?> ValidatePdfAsync(IFormFile file)
+        {
+            if (file.Length == 0)
+                return "File is empty.";
+
+            if (file.Length > MaxUploadBytes)
+                return "File must be 25 MB or smaller.";
+
+            if (!string.Equals(Path.GetExtension(file.FileName), ".pdf", StringComparison.OrdinalIgnoreCase))
+                return "Only PDF files are allowed.";
+
+            if (!string.Equals(file.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+                return "Only PDF files are allowed.";
+
+            // Magic bytes: a real PDF starts with "%PDF-". Extension and MIME type
+            // are both client-controlled; the header is the only reliable signal.
+            await using var stream = file.OpenReadStream();
+            if (stream.CanSeek) stream.Position = 0;
+
+            var header = new byte[5];
+            var totalRead = 0;
+            while (totalRead < header.Length)
+            {
+                var read = await stream.ReadAsync(header.AsMemory(totalRead, header.Length - totalRead));
+                if (read == 0) break;
+                totalRead += read;
+            }
+            if (stream.CanSeek) stream.Position = 0;
+
+            var isPdf = totalRead == header.Length
+                && header[0] == (byte)'%'
+                && header[1] == (byte)'P'
+                && header[2] == (byte)'D'
+                && header[3] == (byte)'F'
+                && header[4] == (byte)'-';
+
+            return isPdf ? null : "File does not appear to be a valid PDF.";
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetFirst20Thesis([FromQuery] string? program)
+        {
+            var studentId = User.IsInRole("Student")
+                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null;
+            if (User.IsInRole("Student") && string.IsNullOrEmpty(studentId))
+                return Unauthorized();
+
+            var result = await _service.GetFirst20ThesisAsync(program, studentId);
 
             return Ok(result);
         }
+        // The signed-in student's own group thesis — powers the /submit page.
+        // 404 means "no thesis submitted yet" (client renders its empty state).
+        // Literal "my" takes precedence over the {id} route below.
+        [HttpGet("my")]
+        [Authorize(Roles = "Student,Admin")]
+        public async Task<IActionResult> GetMyThesis()
+        {
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(uid)) return Unauthorized();
+
+            var result = await _service.GetMyThesisAsync(uid);
+            if (result is null) return NotFound(new { Message = "No thesis submitted yet." });
+            return Ok(result);
+        }
+
         [HttpGet("{id}")]
         public async Task<IActionResult> GetThesisById(Guid id)
         {
@@ -42,49 +137,117 @@ namespace server.Controllers
         }
 
         [HttpPost("submit")]
+        [Authorize(Roles = "Student,Admin")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> SubmitThesis([FromForm] SubmitThesisDto dto)
         {
             if (dto.File == null)
                 return BadRequest("File is required");
 
+            var pdfError = await ValidatePdfAsync(dto.File);
+            if (pdfError != null)
+                return BadRequest(pdfError);
+
+            var uploaderId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(uploaderId))
+                return Unauthorized();
+
+            var isAdmin = User.IsInRole("Admin");
+
+            // Admins may archive legacy (hard-copy) theses on behalf of the repository —
+            // attribute the upload to the acting account instead of trusting the client.
+            if (isAdmin)
+                dto.UploadedById = uploaderId;
+
             await using var stream = dto.File.OpenReadStream();
 
             var blobUrl = await _blobService.UploadAsync(
                     stream,
                     dto.File.FileName,
-                    dto.File.ContentType
+                    dto.File.ContentType,
+                    dto.Title // blob name is derived from the thesis title
                 );
 
             dto.FilePath = blobUrl;
-            var result = await _service.SubmitAsync(dto);
 
-            
+            try
+            {
+                var result = await _service.SubmitAsync(dto, uploaderId, isAdmin);
 
-            _logger.LogInformation("Fetched Data: {result}", result);
+                _logger.LogInformation("Thesis submitted successfully: {ThesisId}", result.Id);
 
-            return Ok(result);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Thesis submission rejected: {Reason}", ex.Message);
+
+                // The blob was uploaded before validation — take it back or every
+                // rejected attempt (year gate, duplicate group…) leaks a PDF.
+                await TryDeleteUploadedBlobAsync(blobUrl);
+
+                return Conflict(new
+                {
+                    Message = ex.Message
+                });
+            }
+            catch
+            {
+                await TryDeleteUploadedBlobAsync(blobUrl);
+                throw;
+            }
         }
 
-        // Need to implement the pinecone ingestion of thesis after approval.
+        // Best-effort rollback for uploads whose submit/revision never landed in SQL.
+        private async Task TryDeleteUploadedBlobAsync(string blobUrl)
+        {
+            try
+            {
+                await _blobService.DeleteAsync(blobUrl);
+                _logger.LogInformation("Rolled back orphaned upload: {BlobUrl}", blobUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to roll back orphaned upload {BlobUrl}", blobUrl);
+            }
+        }
+
+        // Desktop-driven ingestion: the Electron pipeline extracts + chunks the
+        // abstract, then this endpoint embeds and upserts it (see ThesisService).
         [HttpPost("ingest")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> IngestThesis([FromBody] IngestThesisDto dto)
         {
             var result = await _service.IngestAsync(dto);
-            _logger.LogInformation("Haaaa");
+            _logger.LogInformation("Thesis {ThesisId} ingestion finished with status {Status}", dto.ThesisId, result.Status);
             return Ok(new { result, Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
         }
         [HttpPut("update/details/{id}")]
+        [Authorize(Roles = "Student,Admin")]
         public async Task<IActionResult> UpdateThesisDetails([FromBody] UpdateThesisDto dto, Guid id)
         {
-            var result = await _service.UpdateDetailsAsync(id, dto);
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(uid)) return Unauthorized();
 
-            if (result is false) return StatusCode(500, "An error occurred while updating.");
+            try
+            {
+                var result = await _service.UpdateDetailsAsync(id, dto, uid, User.IsInRole("Admin"));
+                if (result is false) return StatusCode(500, "An error occurred while updating.");
 
-            _logger.LogInformation("Thesis Details with Id: {id} updated successfully", id);
-            return Ok(new { Message = "Thesis Details Updated Successfully" });
+                _logger.LogInformation("Thesis Details with Id: {id} updated successfully", id);
+                return Ok(new { Message = "Thesis Details Updated Successfully" });
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (KeyNotFoundException) { return NotFound(new { Message = "Thesis not found." }); }
+            catch (InvalidOperationException ex)
+            {
+                // Rejected before anything persisted (e.g. abstract store down).
+                _logger.LogWarning(ex, "Thesis details update rejected for {ThesisId}", id);
+                return BadRequest(new { Message = ex.Message });
+            }
         }
         [HttpPatch("update/status/{id}")]
+        [Authorize(Policy = "Reviewer")]
         public async Task<IActionResult> UpdateThesisStatus([FromBody] UpdateThesisStatusDto dto, Guid id)
         {
             var result = await _service.UpdateStatusAsync(id, dto);
@@ -96,6 +259,7 @@ namespace server.Controllers
         }
 
         [HttpDelete("delete/{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteThesis(Guid id)
         {
             var result = await _service.DeleteAsync(id);
@@ -152,7 +316,7 @@ namespace server.Controllers
         }
 
         [HttpGet("versions/{versionId}/download-url")]
-        public async Task<IActionResult> GetVersionDownloadUrl(Guid versionId) 
+        public async Task<IActionResult> GetVersionDownloadUrl(Guid versionId)
         {
             var version = await _service.GetByVersionIdAsync(versionId);
             if (version == null) return NotFound();
@@ -173,40 +337,111 @@ namespace server.Controllers
         }
 
         [HttpPost("{thesisId}/versions")]
+        [Authorize(Roles = "Student")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> CreateThesisVersion(Guid thesisId, [FromForm] CreateThesisVersionDto dto)
         {
             if (dto.File == null)
                 return BadRequest("File is required.");
 
+            var pdfError = await ValidatePdfAsync(dto.File);
+            if (pdfError != null)
+                return BadRequest(pdfError);
+
             var uploadedById = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(uploadedById))
                 return Unauthorized();
-            await using var stream = dto.File.OpenReadStream();
-            var blobUrl = await _blobService.UploadAsync(
-                stream,
-                dto.File.FileName,
-                dto.File.ContentType
-            );
 
-            dto.ThesisId = thesisId;
-            dto.FilePath = blobUrl; 
+            string? blobUrl = null;
+            try
+            {
+                await using var stream = dto.File.OpenReadStream();
 
-            var result = await _service.CreateThesisVersion(dto, uploadedById);
-            if (!result) return StatusCode(500, "Failed to create thesis version.");
+                var thesisTitle = (await _service.GetByIdAsync(thesisId))?.Title;
+                blobUrl = await _blobService.UploadAsync(
+                    stream,
+                    dto.File.FileName,
+                    dto.File.ContentType,
+                    thesisTitle // keep revision blobs named after the thesis title
+                );
 
-            _logger.LogInformation("Thesis version created for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
-            return Ok(new { Message = "Thesis version created successfully." });
+                dto.ThesisId = thesisId;
+                dto.FilePath = blobUrl;
+
+                var result = await _service.CreateThesisVersion(dto, uploadedById);
+                if (!result) return StatusCode(500, "Failed to create thesis version.");
+
+                _logger.LogInformation("Thesis version created for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
+                return Ok(new { Message = "Thesis version created successfully." });
+            }
+
+            catch (UnauthorizedAccessException ex)
+            {
+                if (blobUrl != null) await TryDeleteUploadedBlobAsync(blobUrl);
+                _logger.LogWarning(ex, "Unauthorized thesis revision attempt for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);
+                return Forbid();
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Rejected after upload (year gate, missing thesis…) — roll the blob back.
+                if (blobUrl != null) await TryDeleteUploadedBlobAsync(blobUrl);
+
+                _logger.LogWarning(
+            ex,
+            "Thesis revision rejected for ThesisId: {ThesisId}",
+            thesisId
+        );
+
+                return BadRequest(new
+                {
+                    Message = ex.Message
+                });
+            }
+            catch
+            {
+                if (blobUrl != null) await TryDeleteUploadedBlobAsync(blobUrl);
+                throw;
+            }
         }
 
-        [HttpDelete("versions/{versionId}")]
-        public async Task<IActionResult> DeleteThesisVersion(Guid versionId)
+        [HttpDelete("versions/{thesisId}")]
+        public async Task<IActionResult> DeleteThesisVersion(Guid thesisId)
         {
-            var result = await _service.DeleteThesisVersion(versionId);
-            if (!result) return StatusCode(500, "Failed to delete thesis version.");
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(uid)) return Unauthorized();
 
-            _logger.LogInformation("Thesis version {VersionId} deleted successfully", versionId);
-            return Ok(new { Message = $"Thesis version {versionId} deleted successfully." });
+            try
+            {
+                var result = await _service.DeleteThesisVersion(thesisId, uid, User.IsInRole("Admin"));
+                if (!result) return StatusCode(500, "Failed to delete thesis versions.");
+
+                _logger.LogInformation("Older versions of thesis {ThesisId} deleted by {Uid}", thesisId, uid);
+                return Ok(new { Message = "Older versions deleted successfully." });
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (KeyNotFoundException) { return NotFound(new { Message = "Thesis not found." }); }
+        }
+
+        // Deletes a SINGLE version — latest-only (3→2→1). Deleting the final
+        // remaining version cascades into deleting the whole thesis.
+        [HttpDelete("{thesisId}/versions/{versionId}")]
+        [Authorize(Roles = "Student,Admin")]
+        public async Task<IActionResult> DeleteThesisVersionById(Guid thesisId, Guid versionId)
+        {
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(uid)) return Unauthorized();
+
+            try
+            {
+                var result = await _service.DeleteThesisVersionById(thesisId, versionId, uid, User.IsInRole("Admin"));
+                if (!result) return StatusCode(500, "Failed to delete the thesis version.");
+
+                _logger.LogInformation("Version {VersionId} of thesis {ThesisId} deleted by {Uid}", versionId, thesisId, uid);
+                return Ok(new { Message = "Thesis version deleted successfully." });
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (KeyNotFoundException ex) { return NotFound(new { Message = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Message = ex.Message }); }
         }
 
     }

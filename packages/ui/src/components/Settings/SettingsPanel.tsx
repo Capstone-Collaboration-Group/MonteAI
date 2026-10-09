@@ -1,23 +1,24 @@
 import { useState } from "react";
 import {
   Bell,
-  Bot,
   CircleUserRound,
-  FlaskConical,
   Lock,
   Palette,
 } from "lucide-react";
 
+import type { UserService } from "@monteai/api";
 import { PageHeader } from "../common";
 import { AccountSettings } from "./AccountSettings";
-import { ResearchSettings } from "./ResearchSettings";
-import { AIPreferences } from "./AIPreferences";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { SecuritySettings } from "./SecuritySettings";
 
 type SettingsSection =
-  "account" | "research" | "ai" | "appearance" | "notifications" | "security";
+  "account" | "appearance" | "notifications" | "security";
+
+interface SettingsPanelProps {
+  userService: UserService;
+}
 
 const settingsItems: {
   id: SettingsSection;
@@ -32,21 +33,9 @@ const settingsItems: {
     icon: CircleUserRound,
   },
   {
-    id: "research",
-    label: "Research Settings",
-    description: "Research preferences",
-    icon: FlaskConical,
-  },
-  {
-    id: "ai",
-    label: "AI Preferences",
-    description: "Customize AI responses",
-    icon: Bot,
-  },
-  {
     id: "appearance",
     label: "Appearance",
-    description: "Theme and display",
+    description: "Display preferences",
     icon: Palette,
   },
   {
@@ -63,20 +52,14 @@ const settingsItems: {
   },
 ];
 
-export function SettingsPanel() {
+export function SettingsPanel({ userService }: SettingsPanelProps) {
   const [activeSection, setActiveSection] =
     useState<SettingsSection>("account");
 
   const renderSettings = () => {
     switch (activeSection) {
       case "account":
-        return <AccountSettings />;
-
-      case "research":
-        return <ResearchSettings />;
-
-      case "ai":
-        return <AIPreferences />;
+        return <AccountSettings userService={userService} />;
 
       case "appearance":
         return <AppearanceSettings />;
@@ -88,7 +71,7 @@ export function SettingsPanel() {
         return <SecuritySettings />;
 
       default:
-        return <AccountSettings />;
+        return <AccountSettings userService={userService} />;
     }
   };
 

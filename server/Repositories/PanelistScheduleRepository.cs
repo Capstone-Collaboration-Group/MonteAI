@@ -32,6 +32,22 @@ namespace server.Repositories
             var existing = await _db.PanelistSchedules.FindAsync(panelistSchedule.ScheduleId, panelistSchedule.PanelistId);
             if (existing != null) return false;
 
+            var target = await _db.Schedules.FindAsync(panelistSchedule.ScheduleId);
+            if (target == null) return false;
+
+            // Same rule as schedule create/update: no overlapping slot for this
+            // panelist, and only one room for them across the whole day.
+            var hasConflict = await _db.PanelistSchedules
+                .Include(ps => ps.Schedule)
+                .AnyAsync(ps =>
+                    ps.PanelistId == panelistSchedule.PanelistId &&
+                    ps.ScheduleId != panelistSchedule.ScheduleId &&
+                    ps.Schedule!.Date == target.Date &&
+                    (ps.Schedule.RoomVenue != target.RoomVenue ||
+                     (ps.Schedule.StartTime < target.EndingTime &&
+                      ps.Schedule.EndingTime > target.StartTime)));
+            if (hasConflict) return false;
+
             await _db.PanelistSchedules.AddAsync(panelistSchedule);
             await _db.SaveChangesAsync();
             return true;

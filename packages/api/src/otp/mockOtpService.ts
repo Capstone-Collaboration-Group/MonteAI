@@ -36,8 +36,6 @@ async function issue(email: string): Promise<boolean> {
     attempts: 0,
   };
   store.set(key, entry);
-  // Dev-only visibility: there is no real mailer in mock mode.
-  console.log(`[mockOtpService] OTP for ${key}: ${entry.code}`);
   return true;
 }
 

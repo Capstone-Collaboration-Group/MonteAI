@@ -11,7 +11,7 @@ function Sidebar({ collapsed = false, className = "", children, ...props }: Side
     <SidebarContext.Provider value={{ collapsed }}>
       <aside
         data-collapsed={collapsed}
-        className={`flex h-full flex-col border-r border-border bg-background transition-all duration-200 ${
+        className={`flex h-full flex-col border-r border-outline-variant/70 bg-surface transition-all duration-200 ${
           collapsed ? "w-16" : "w-64"
         } ${className}`}
         {...props}
@@ -55,7 +55,7 @@ function SidebarItem({ icon, label, active = false, className = "", ...props }: 
       title={collapsed ? label : undefined}
       className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
         active
-            ? "bg-primary-container text-surface-container font-medium"
+            ? "bg-primary text-on-primary shadow-sm ring-1 ring-primary/20"
             : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
       } ${collapsed ? "justify-center" : ""} ${className}`}
       {...props}
@@ -69,7 +69,7 @@ function SidebarItem({ icon, label, active = false, className = "", ...props }: 
 // ---------- Footer (user profile, settings, etc) ----------
 function SidebarFooter({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`border-t border-border p-2 ${className}`} {...props}>
+    <div className={`border-t border-outline-variant/60 p-2 ${className}`} {...props}>
       {children}
     </div>
   );

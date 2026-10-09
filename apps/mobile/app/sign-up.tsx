@@ -1,16 +1,31 @@
 import { Stack, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useCallback } from 'react';
 
 import SignUpFlow from '@/components/SignUpFlow';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
 
 /**
  * Sign-up route — Figma "Sign Up Step by Step" (node 492:26).
- * Reached from the auth entry's Sign Up button. Completing the flow
- * (including email verification) continues into the app; the real
- * Firebase + `/auth/register` wiring lands with the auth integration.
+ * Two-phase registration: create the Firebase account + send the default
+ * Firebase verification link, and only after the link is opened register
+ * the student profile via /auth/register (the profile also carries the
+ * student-number → email mapping future logins depend on).
+ * Errors surface inside SignUpFlow via describeAuthError.
  */
 export default function SignUpRoute() {
   const router = useRouter();
+  const {
+    beginRegistration,
+    completeRegistration,
+    checkVerification,
+    resendVerification,
+    cancelRegistration,
+  } = useAuthSession();
+
+  const handleComplete = useCallback(async () => {
+    await completeRegistration();
+    router.replace('/(tabs)/home');
+  }, [completeRegistration, router]);
 
   return (
     <>
@@ -24,7 +39,11 @@ export default function SignUpRoute() {
           if (router.canGoBack()) router.back();
           else router.replace('/auth-entry');
         }}
-        onComplete={() => router.replace('/(tabs)/home')}
+        onBeginRegistration={beginRegistration}
+        onCompleteRegistration={handleComplete}
+        onCheckVerification={checkVerification}
+        onResendVerification={resendVerification}
+        onCancelRegistration={cancelRegistration}
       />
     </>
   );

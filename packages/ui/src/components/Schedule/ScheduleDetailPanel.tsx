@@ -16,6 +16,15 @@ interface ScheduleDetailPanelProps {
   onDelete?: (schedule: ScheduleResponseDto) => void;
 }
 
+/** "Juan D. Cruz Jr." → "JC" (falls back cleanly for raw ids). */
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const first = parts[0][0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "";
+  return `${first}${last}`.toUpperCase() || "?";
+}
+
 export function ScheduleDetailPanel({
   schedule,
   onClose,
@@ -36,7 +45,7 @@ export function ScheduleDetailPanel({
   return (
     <>
       <aside
-        className={`w-80 bg-white border-l border-outline-variant flex flex-col h-full transform transition-transform duration-300 ${
+        className={`w-lg bg-white border-l border-outline-variant flex flex-col h-full transform transition-transform duration-300 ${
           schedule ? "translate-x-0" : "translate-x-full"
         } fixed top-0 right-0 z-50 shadow-2xl`}
       >
@@ -82,9 +91,10 @@ export function ScheduleDetailPanel({
                     </p>
                   </div>
                   <div>
-                    <p className="text-label-sm font-label-sm text-outline">Group Leader ID</p>
+                    <p className="text-label-sm font-label-sm text-outline">Group Leader</p>
                     <p className="text-body-sm font-body-sm font-bold truncate">
-                      {schedule.researchGroup.leaderId}
+                      {schedule.researchGroup.leaderName ||
+                        schedule.researchGroup.leaderId}
                     </p>
                   </div>
                 </div>
@@ -133,19 +143,25 @@ export function ScheduleDetailPanel({
               </p>
               <div className="space-y-3">
                 {schedule.panelists.length > 0 ? (
-                  schedule.panelists.map((panelist) => (
-                    <div
-                      key={panelist.panelistId}
-                      className="flex items-center justify-between p-2 hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-secondary-fixed text-xs flex items-center justify-center font-bold text-on-secondary">
-                          {panelist.panelistId.charAt(0).toUpperCase()}
+                  schedule.panelists.map((panelist) => {
+                    const displayName =
+                      panelist.panelistName || panelist.panelistId;
+                    return (
+                      <div
+                        key={panelist.panelistId}
+                        className="flex items-center justify-between p-2 hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-secondary-fixed text-xs flex items-center justify-center font-bold text-on-secondary">
+                            {getInitials(displayName)}
+                          </div>
+                          <span className="text-body-sm font-body-sm">
+                            {displayName}
+                          </span>
                         </div>
-                        <span className="text-body-sm font-body-sm">{panelist.panelistId}</span>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-body-sm text-on-surface-variant">No panelists assigned</p>
                 )}

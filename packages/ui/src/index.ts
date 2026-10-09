@@ -9,6 +9,7 @@ export * from "./components/Faculty";
 export * from "./components/Sidebar";
 export * from "./components/Schedule";
 export * from "./components/Settings";
+export * from "./components/Backup";
 
 export * from "./pages";
 export * from "./components/common";
@@ -21,3 +22,4 @@ export * from "./components/announcements/AnnouncementsPanel";
 export * from "./components/announcements/PostAnnouncementPanel";
 
 export * from "./components/auth";
+export * from "./components/ResearchGroup";

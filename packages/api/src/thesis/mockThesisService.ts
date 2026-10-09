@@ -1,24 +1,33 @@
 // packages/api/src/mockThesisService.ts
 import type { ThesisService } from "./types";
 import type {
+    SubmitThesisDto,
     ThesisResponseDto,
     UpdateThesisDto,
-    SubmitThesisDto,
     IngestThesisDto,
     IngestThesisResponseDto,
     CreateAnnotationDto,
     ResolveAnnotationDto,
     ThesisVersion,
     AnnotationResponseDto,
+    ThesisProgram,
 } from "@monteai/types";
+import { instituteMatchesProgram } from "@monteai/types";
+import { MOCK_THESIS_PDF_DATA_URL } from "./mockThesisPdf";
 
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
-const TEST_PDF = "https://arxiv.org/pdf/1708.08021";
+
+// A small thesis-shaped PDF with real bookmarks, embedded offline so the
+// table-of-contents dropdown works without network access.
+const TEST_PDF = MOCK_THESIS_PDF_DATA_URL;
+
+// A larger remote PDF with its own outline, useful for exercising lazy
+// rendering / performance in dev.
+const REMOTE_TEST_PDF = "https://arxiv.org/pdf/1708.08021";
 
 
-console.log("mockThesisService loaded — Initialized with seed data");
 
 // ── Theses ────────────────────────────────────────────────────────────────────
 
@@ -55,12 +64,32 @@ function buildTheses(): ThesisResponseDto[] {
             indexedAt: "",
             rejectedAt: "",
             updatedAt: "2026-06-06T13:00:00.000Z",
-            filePath: TEST_PDF,
+            filePath: REMOTE_TEST_PDF,
             uploadedById: "LiyoID",
             abstract: "Abstract Ngani",
-            institute: "Institute of Computing Studies",
+            institute: "Institute of Business and Entrepreneurship",
             pineconeStatus: "None",
             groupId: '123123',
+            scheduledAt: '',
+            scheduledVenue: '',
+        },
+        {
+            id: "t3",
+            title: "Modular Refrigeration Monitoring System for School Canteens",
+            status: "Pending",
+            authors: ["Mika Reyes", "Paolo Santos"],
+            submittedAt: "2026-06-02T09:00:00.000Z",
+            reviewedAt: "",
+            approvedAt: "",
+            indexedAt: "",
+            rejectedAt: "",
+            updatedAt: "2026-06-02T09:00:00.000Z",
+            filePath: TEST_PDF,
+            uploadedById: "MikaID",
+            abstract: "Abstract Pa rin",
+            institute: "Institute of Teacher Education",
+            pineconeStatus: "None",
+            groupId: '',
             scheduledAt: '',
             scheduledVenue: '',
         },
@@ -102,7 +131,7 @@ function buildVersions(): Map<string, ThesisVersion[]> {
             id: "v1-t2",
             thesisId: "t2",
             versionNumber: 1,
-            filePath: TEST_PDF,
+            filePath: REMOTE_TEST_PDF,
             uploadedById: "LiyoID",
             uploadedAt: "2023-06-10T00:00:00.000Z",
             changeNote: "Initial submission",
@@ -156,23 +185,72 @@ export const mockThesisService: ThesisService = {
         return thesesMap.get(thesisId) ?? null;
     },
 
-    async getTheses() {
-        await delay(300);
-        return Array.from(thesesMap.values());
+    // The mock can't resolve the caller's group — closest analog is the most
+    // recently submitted thesis (what a fresh student demo expects to see).
+    async getMyThesis() {
+        await delay(150);
+        const all = Array.from(thesesMap.values());
+        return all.length ? all[all.length - 1] : null;
     },
 
-    async submitThesis(dto: SubmitThesisDto) {
+    async getTheses(program?: ThesisProgram) {
         await delay(300);
+        const all = Array.from(thesesMap.values());
+        // Mirrors the server's ?program= filter so mock and live behave alike.
+        return program
+            ? all.filter((t) => instituteMatchesProgram(t.institute, program))
+            : all;
+    },
+
+    async searchTheses(query, mode) {
+        await delay(mode === "exact" ? 250 : 400);
+        const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        const all = Array.from(thesesMap.values());
+        const scored = all
+            .map((thesis) => {
+                const title = thesis.title?.toLowerCase() ?? "";
+                const authors = thesis.authors.join(" ").toLowerCase();
+                const abstract = thesis.abstract?.toLowerCase() ?? "";
+                const matches = terms.filter((term) =>
+                    `${title} ${authors} ${abstract}`.includes(term),
+                ).length;
+                const titleMatches = terms.filter((term) => title.includes(term)).length;
+                return { thesis, matches, titleMatches, title };
+            })
+            .filter((item) => mode === "semantic" ? item.matches > 0 : item.matches === terms.length)
+            .sort((a, b) =>
+                mode === "semantic"
+                    ? b.matches - a.matches || b.titleMatches - a.titleMatches
+                    : Number(b.title === query.toLowerCase()) - Number(a.title === query.toLowerCase())
+                        || b.titleMatches - a.titleMatches,
+            )
+            .slice(0, 10);
+        return scored.map(({ thesis }) => thesis);
+    },
+
+    async submitThesis(dto: SubmitThesisDto, file: File) {
+        await delay(300);
+
         const id = crypto.randomUUID();
+
+        // Mirrors the live server: admin archival uploads (those carrying
+        // authors + publication year) are auto-indexed in one step, while
+        // student submissions stay Pending for the approve flow.
+        const autoIndexed = (dto.authors?.length ?? 0) > 0 && !!dto.publicationYear;
+
         const newThesis = {
             id,
-            ...dto,
-            status: "Pending",
-            authors: [],
+            title: dto.title,
+            abstract: dto.abstract,
+            filePath: file.name,
+            uploadedById: dto.uploadedById,
+            status: autoIndexed ? "Indexed" : "Pending",
+            authors: dto.authors ?? [],
+            publicationYear: dto.publicationYear,
             institute: "",
-            pineconeStatus: "None",
+            pineconeStatus: autoIndexed ? "Indexed" : "None",
             approvedAt: "",
-            indexedAt: "",
+            indexedAt: autoIndexed ? new Date().toISOString() : "",
             rejectedAt: "",
             reviewedAt: "",
             updatedAt: new Date().toISOString(),
@@ -210,7 +288,7 @@ export const mockThesisService: ThesisService = {
     async getDownloadUrl(thesisId) {
         await delay(300);
         const existing = thesesMap.get(thesisId);
-        if (!existing) return null;
+        if (!existing || !existing.filePath) return null;
         return { url: existing.filePath };
     },
 
@@ -227,12 +305,77 @@ export const mockThesisService: ThesisService = {
         return thesesMap.delete(thesisId);
     },
 
+    async createThesisVersion(
+        thesisId: string,
+        file: File,
+        changeNote?: string,
+        abstractText?: string,
+    ): Promise<boolean> {
+        await delay(300);
+        const versions = versionsMap.get(thesisId) ?? [];
+        const nextNumber = versions.length
+            ? Math.max(...versions.map((v) => v.versionNumber)) + 1
+            : 1;
+
+        versionsMap.set(thesisId, [
+            ...versions,
+            {
+                id: crypto.randomUUID(),
+                thesisId,
+                versionNumber: nextNumber,
+                filePath: file.name,
+                uploadedById: "mock-uploader",
+                uploadedAt: new Date().toISOString(),
+                changeNote: changeNote ?? "",
+            },
+        ]);
+
+        // The mock stores the latest abstract directly on the row — mirrors the
+        // server resolving the newest version's entry from Firestore.
+        if (abstractText) {
+            const thesis = thesesMap.get(thesisId);
+            if (thesis) thesesMap.set(thesisId, { ...thesis, abstract: abstractText });
+        }
+
+        return true;
+    },
+
+    // Latest-only delete (3→2→1); deleting the final version removes the whole
+    // thesis + its annotations — same cascade as the server.
+    async deleteThesisVersion(thesisId: string, versionId: string): Promise<boolean> {
+        await delay(300);
+        const versions = versionsMap.get(thesisId);
+        if (!versions) return false;
+
+        const sorted = [...versions].sort((a, b) => a.versionNumber - b.versionNumber);
+        const target = sorted.find((v) => v.id === versionId);
+        if (!target) return false;
+
+        if (sorted[sorted.length - 1].id !== versionId) {
+            throw new Error("Only the latest thesis version can be deleted.");
+        }
+
+        const dropAnnotations = (predicate: (key: string) => boolean) => {
+            for (const key of [...annotationsMap.keys()]) {
+                if (predicate(key)) annotationsMap.delete(key);
+            }
+        };
+
+        if (sorted.length === 1) {
+            thesesMap.delete(thesisId);
+            versionsMap.delete(thesisId);
+            dropAnnotations((key) => key.startsWith(`${thesisId}::`));
+            return true;
+        }
+
+        versionsMap.set(thesisId, versions.filter((v) => v.id !== versionId));
+        dropAnnotations((key) => key === `${thesisId}::${versionId}`);
+        return true;
+    },
+
     // Versions
     async getVersions(thesisId) {
         await delay(150);
-        console.log("[mock] getVersions called with:", thesisId);
-        console.log("[mock] versionsMap keys:", Array.from(versionsMap.keys()));
-        console.log("[mock] result:", versionsMap.get(thesisId));
         return versionsMap.get(thesisId) ?? [];
     },
 
@@ -240,7 +383,7 @@ export const mockThesisService: ThesisService = {
         await delay(150);
         for (const versions of versionsMap.values()) {
             const version = versions.find((v) => v.id === versionId);
-            if (version) return { url: version.filePath };
+            if (version?.filePath) return { url: version.filePath };
         }
         return null;
     },

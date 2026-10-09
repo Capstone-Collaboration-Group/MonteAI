@@ -78,6 +78,41 @@ namespace server.Models.DTOs.User
         public string? Role { get; set; }
 
         public bool? IsActive { get; set; }
+
+        // ── Profile fields (role-specific; null = leave unchanged) ──
+        [MaxLength(50)]
+        public string? StudentNumber { get; set; }
+
+        [MaxLength(100)]
+        public string? Institute { get; set; }
+
+        [MaxLength(100)]
+        public string? Program { get; set; }
+
+        public int? YearLevel { get; set; }
+
+        [MaxLength(50)]
+        public string? Position { get; set; }
+
+        [MaxLength(100)]
+        public string? ProgramHandled { get; set; }
+    }
+
+    // ── Student-number login (mobile) ──────────────────────────────────
+    // Mobile logs students in with their student number; this resolves the
+    // number to the Firebase email so the client can run the standard
+    // email/password sign-in flow.
+    public class ResolveLoginRequestDto
+    {
+        [Required]
+        [MaxLength(50)]
+        public string StudentNumber { get; set; } = null!;
+    }
+
+    public class ResolveLoginResponseDto
+    {
+        public string StudentNumber { get; set; } = null!;
+        public string Email { get; set; } = null!;
     }
     public class UserResponseDto
     {
@@ -91,5 +126,13 @@ namespace server.Models.DTOs.User
         public bool? IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        // ── Role-specific profile fields (null when not applicable) ──
+        public string? StudentNumber { get; set; }
+        public string? Institute { get; set; }
+        public string? Program { get; set; }
+        public int? YearLevel { get; set; }
+        public string? Position { get; set; }
+        public string? ProgramHandled { get; set; }
     }
 }

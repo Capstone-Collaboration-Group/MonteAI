@@ -11,22 +11,188 @@ namespace server.Repositories
     {
         private readonly AppDbContext _db;
 
+        // Academic-program codes → substrings matched (case-insensitively,
+        // via LOWER(...).Contains) against the research group leader's
+        // Institute. Stored institute values are full names and vary slightly
+        // across sources ("Institute of Computing Studies", "Institute of
+        // Teacher Education", …), so matching is keyword-based — the same
+        // strategy the frontends use for institute chip colors. Bare
+        // "education" is intentionally NOT an ITE keyword: it would collide
+        // with "Institute of Business Education".
+        private static readonly IReadOnlyDictionary<string, string[]> ProgramKeywords =
+            new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ICS"] = ["computing", "computer", "ics"],
+                ["IBE"] = ["business", "entrepreneurship", "ibe"],
+                ["ITE"] = ["teaching", "teacher", "technology", "ite"],
+            };
+
         public ThesisRepository(AppDbContext db)
         {
             _db = db;
         }
 
-        public async Task<IEnumerable<Thesis>> GetFirst20ThesisAsync()
+        public async Task<IEnumerable<Thesis>> GetFirst20ThesisAsync(
+            string? program = null,
+            string? studentId = null)
         {
-            return await _db.Theses
+            var query = _db.Theses
                 .Include(t => t.ResearchGroup)
-                    .ThenInclude(rg => rg.Schedules)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students) // member names → ThesisResponseDto.Authors
+                .AsNoTracking()
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(studentId))
+            {
+                query = query.Where(t =>
+                    t.Status == "Indexed" ||
+                    t.PineconeStatus == "Indexed" ||
+                    (t.ResearchGroup != null &&
+                     t.ResearchGroup.Students.Any(student => student.Id == studentId)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(program) &&
+                ProgramKeywords.TryGetValue(program.Trim(), out var keywords))
+            {
+                // Null guards above are not visible inside the lambda for the
+                // compiler; '!' is erased before the expression tree is built,
+                // so EF translation is unaffected.
+                query = query.Where(t =>
+                    t.ResearchGroup != null &&
+                    t.ResearchGroup.Leader != null &&
+                    t.ResearchGroup.Leader.Institute != null &&
+                    keywords.Any(k => t.ResearchGroup!.Leader!.Institute!.ToLower().Contains(k)));
+            }
+
+            return await query
                 .OrderBy(t => t.SubmittedAt)
-                .Take(20)
+                .Take(5)
                 .ToListAsync();
         }
         public async Task<Thesis?> GetThesisByIdAsync(Guid id)
-            => await _db.Theses.FindAsync(id);
+            // FindAsync would return the row without its navigations, so
+            // ThesisResponseDto.Institute / ScheduledAt / Authors would all come
+            // back empty on GET /thesis/{id}. Load the graph the response needs.
+            => await _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+        public async Task<Thesis?> GetByGroupIdAsync(Guid groupId)
+            // Same loaded graph as GetThesisByIdAsync — powers GET /thesis/my.
+            => await _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.GroupId == groupId);
+
+        /// <summary>
+        /// Exact-match (LIKE) search over titles and abstracts. LIKE
+        /// wildcards inside the term are escaped so user input is matched
+        /// literally. The result set is intentionally small (agent tool use).
+        /// </summary>
+        public async Task<IReadOnlyList<Thesis>> SearchByKeywordAsync(string term, int limit, CancellationToken cancellationToken = default)
+        {
+            var escaped = term
+                .Replace("[", "[[]")
+                .Replace("%", "[%]")
+                .Replace("_", "[_]");
+            var pattern = $"%{escaped}%";
+
+            return await _db.Theses
+                .Where(t => EF.Functions.Like(t.Title!, pattern) || EF.Functions.Like(t.Abstract!, pattern))
+                .OrderByDescending(t => t.SubmittedAt)
+                .Take(Math.Clamp(limit, 1, 10))
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Thesis>> SearchCatalogAsync(
+            string term,
+            int limit,
+            string? studentId,
+            CancellationToken cancellationToken = default)
+        {
+            var normalizedTerm = term.Trim().ToLower();
+            var terms = normalizedTerm.Split(' ', StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
+            var query = _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(studentId))
+            {
+                query = query.Where(t =>
+                    t.Status == "Indexed" ||
+                    t.PineconeStatus == "Indexed" ||
+                    (t.ResearchGroup != null &&
+                     t.ResearchGroup.Students.Any(student => student.Id == studentId)));
+            }
+
+            query = query.Where(t => terms.Any(keyword =>
+                (t.Title ?? "").ToLower().Contains(keyword) ||
+                (t.Abstract ?? "").ToLower().Contains(keyword) ||
+                (t.ResearchGroup != null && t.ResearchGroup.Students.Any(student =>
+                    ((student.FirstName ?? "") + " " + (student.LastName ?? ""))
+                        .ToLower().Contains(keyword)))));
+
+            return await query
+                .OrderByDescending(t => (t.Title ?? "").ToLower() == normalizedTerm)
+                .ThenByDescending(t => (t.Title ?? "").ToLower().StartsWith(normalizedTerm))
+                .ThenByDescending(t => (t.Title ?? "").ToLower().Contains(normalizedTerm))
+                .ThenByDescending(t => t.ResearchGroup != null && t.ResearchGroup.Students.Any(student =>
+                    ((student.FirstName ?? "") + " " + (student.LastName ?? ""))
+                        .ToLower().Contains(normalizedTerm)))
+                .ThenByDescending(t => t.SubmittedAt)
+                .Take(Math.Clamp(limit, 1, 10))
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Thesis>> GetThesesByIdsAsync(
+            IReadOnlyCollection<Guid> thesisIds,
+            string? studentId,
+            CancellationToken cancellationToken = default)
+        {
+            if (thesisIds.Count == 0) return [];
+
+            var query = _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .Where(t => thesisIds.Contains(t.Id));
+
+            if (!string.IsNullOrWhiteSpace(studentId))
+            {
+                query = query.Where(t =>
+                    t.Status == "Indexed" ||
+                    t.PineconeStatus == "Indexed" ||
+                    (t.ResearchGroup != null &&
+                     t.ResearchGroup.Students.Any(student => student.Id == studentId)));
+            }
+
+            return await query.ToListAsync(cancellationToken);
+        }
 
         public async Task<Thesis> SubmitAsync(Thesis submitThesis)
         {
@@ -41,6 +207,12 @@ namespace server.Repositories
             return submitThesis;
 
 
+        }
+
+        public async Task<bool> ExistsByGroupIdAsync(Guid groupId)
+        {
+            return await _db.Theses
+            .AnyAsync(t => t.GroupId == groupId);
         }
 
         public async Task<bool> UpdateDetailsAsync(Guid id, Thesis updatedThesis)
@@ -86,6 +258,10 @@ namespace server.Repositories
                     break;
                 case "Indexed":
                     existing.IndexedAt = DateTime.UtcNow;
+                    // Vectors are what "Indexed" means — keep the dedicated
+                    // flag in sync (admin auto-index and desktop ingest both
+                    // land here through UpdateStatusAsync).
+                    existing.PineconeStatus = "Indexed";
                     break;
             }
 

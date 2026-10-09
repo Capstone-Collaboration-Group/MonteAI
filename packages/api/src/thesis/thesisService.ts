@@ -1,14 +1,15 @@
 import { type AxiosInstance } from "axios";
 import type {
-    ThesisResponseDto,
     SubmitThesisDto,
+    ThesisResponseDto,
     UpdateThesisDto,
     IngestThesisDto,
     IngestThesisResponseDto,
     AnnotationResponseDto,
     CreateAnnotationDto,
     ResolveAnnotationDto,
-    ThesisVersion
+    ThesisVersion,
+    ThesisProgram
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils"
 
@@ -29,18 +30,59 @@ export class LiveThesisService implements ThesisService {
             return handle404(err, null);
         }
     }
-    // async getTheses
-    async getTheses(): Promise<ThesisResponseDto[] | []> {
+    // The signed-in user's own group thesis — 404 means "not submitted yet".
+    async getMyThesis(): Promise<ThesisResponseDto | null> {
         try {
-            const { data } = await this.client.get<ThesisResponseDto[]>(`/thesis`);
+            const { data } = await this.client.get<ThesisResponseDto>(`/thesis/my`);
+            return data;
+        } catch (err) {
+            return handle404(err, null);
+        }
+    }
+    // async getTheses
+    async getTheses(program?: ThesisProgram): Promise<ThesisResponseDto[] | []> {
+        try {
+            const { data } = await this.client.get<ThesisResponseDto[]>(`/thesis`, {
+                params: program ? { program } : undefined,
+            });
             return data;
         } catch (err) {
             return handle404(err, []);
         }
     }
+    async searchTheses(query: string, mode: "exact" | "semantic"): Promise<ThesisResponseDto[]> {
+        const { data } = await this.client.get<ThesisResponseDto[]>(`/thesis/search`, {
+            params: { q: query, mode },
+        });
+        return data;
+    }
     // async submitThesis
-    async submitThesis(dto: SubmitThesisDto): Promise<ThesisResponseDto> {
-        const { data } = await this.client.post<ThesisResponseDto>(`/thesis/submit`, dto);
+    async submitThesis(dto: SubmitThesisDto, file: File): Promise<ThesisResponseDto> {
+        const formData = new FormData();
+
+        formData.append("File", file);
+        formData.append("Title", dto.title);
+        formData.append("Abstract", dto.abstract);
+        formData.append("FilePath", dto.filePath ?? "");
+        formData.append("UploadedById", dto.uploadedById);
+
+        // Admin archival metadata — one author per line so names containing
+        // commas survive the round trip (the server splits on \n).
+        if (dto.authors?.length) {
+            formData.append("Authors", dto.authors.join("\n"));
+        }
+        if (dto.publicationYear) {
+            formData.append("PublicationYear", dto.publicationYear);
+        }
+
+        const { data } = await this.client.post<ThesisResponseDto>(`/thesis/submit`, formData, {
+            // The client defaults to application/json, which would make axios
+            // serialize the FormData as JSON instead of multipart. null removes
+            // the header so the browser/RN layer sets the boundary itself.
+            headers: { "Content-Type": null },
+            // A ≤25 MB upload can easily exceed the client's default timeout.
+            timeout: 120000,
+        });
         return data;
     }
     // async ingestThesis(No Embedding currently implemented)
@@ -147,6 +189,51 @@ export class LiveThesisService implements ThesisService {
             return data;
         } catch (err) {
             return handle404(err, null);
+        }
+    }
+
+    async createThesisVersion(
+        thesisId: string,
+        file: File,
+        changeNote?: string,
+        abstractText?: string,
+    ): Promise<boolean> {
+        const formData = new FormData();
+
+        formData.append("File", file);
+
+        if (changeNote) {
+        formData.append("ChangeNote", changeNote);
+        }
+
+        if (abstractText) {
+        formData.append("Abstract", abstractText);
+        }
+
+        formData.append("ThesisId", thesisId);
+
+        try {
+        await this.client.post(
+            `/thesis/${thesisId}/versions`,
+            formData
+        );
+
+        return true;
+        } catch (err) {
+        return handle404(err, false);
+    }
+}
+
+    // Deletes a single version (latest-only). Non-404 failures (400 latest-only
+    // rule, 403 not-leader) rethrow so callers can surface the server message.
+    async deleteThesisVersion(thesisId: string, versionId: string): Promise<boolean> {
+        try {
+            const { data } = await this.client.delete<{ message?: string }>(
+                `/thesis/${thesisId}/versions/${versionId}`
+            );
+            return data != null;
+        } catch (err) {
+            return handle404(err, false);
         }
     }
 

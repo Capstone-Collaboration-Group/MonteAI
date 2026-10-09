@@ -15,3 +15,162 @@
     color: var(--text);
   }
 }
+
+/* ─── Landing Page Animations ─── */
+
+/* Scroll-reveal: elements start hidden, slide up on intersection */
+.reveal-section,
+.hero-section {
+  opacity: 0;
+  transform: translateY(32px);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-section.animate-in,
+.hero-section.animate-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Staggered children inside animated sections */
+.hero-section .hero-badge {
+  transition-delay: 0.1s;
+}
+.hero-section .hero-title {
+  transition-delay: 0.2s;
+}
+.hero-section .hero-subtitle {
+  transition-delay: 0.35s;
+}
+.hero-section .hero-actions {
+  transition-delay: 0.5s;
+}
+.hero-section .hero-meta {
+  transition-delay: 0.6s;
+}
+
+.hero-section .hero-badge,
+.hero-section .hero-title,
+.hero-section .hero-subtitle,
+.hero-section .hero-actions,
+.hero-section .hero-meta {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hero-section.animate-in .hero-badge,
+.hero-section.animate-in .hero-title,
+.hero-section.animate-in .hero-subtitle,
+.hero-section.animate-in .hero-actions,
+.hero-section.animate-in .hero-meta {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Floating orbs for hero background */
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  animation: float 8s ease-in-out infinite;
+}
+.hero-orb--1 {
+  width: 400px;
+  height: 400px;
+  background: var(--primary);
+  top: -100px;
+  right: -80px;
+  animation-delay: 0s;
+}
+.hero-orb--2 {
+  width: 300px;
+  height: 300px;
+  background: var(--secondary);
+  bottom: -60px;
+  left: -60px;
+  animation-delay: -4s;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(15px, -20px) scale(1.05);
+  }
+  66% {
+    transform: translate(-10px, 10px) scale(0.95);
+  }
+}
+
+/* Chat message slide-in */
+.chat-msg-user,
+.chat-msg-ai {
+  opacity: 0;
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s ease;
+}
+.chat-msg-user {
+  transform: translateX(24px);
+}
+.chat-msg-ai {
+  transform: translateX(-24px);
+}
+
+.reveal-section.animate-in .chat-msg-user {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0.2s;
+}
+.reveal-section.animate-in .chat-msg-ai {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0.45s;
+}
+
+/* Floating promotional cards & glow animations */
+@keyframes float-gentle-1 {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@keyframes float-gentle-2 {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+.animate-float-1 {
+  animation: float-gentle-1 5s ease-in-out infinite;
+}
+.animate-float-2 {
+  animation: float-gentle-2 6.5s ease-in-out infinite 1s;
+}
+.animate-pulse-glow {
+  animation: pulse-glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

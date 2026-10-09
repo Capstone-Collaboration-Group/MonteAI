@@ -13,7 +13,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-console.log("mockScheduleService loaded — v2 with 20 records (Conflict-Free Seed)");
 
 function getMonday(date: Date): Date {
   const day = date.getDay(); // 0 = Sun ... 6 = Sat
@@ -117,7 +116,7 @@ function buildSeed(): ScheduleResponseDto[] {
    const panelists: PanelistScheduleResponseDto[] =
   i % 3 === 0
     ? [
-        { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Adviser" as PanelistType, createdAt: new Date().toISOString() },
+        { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Faculty" as PanelistType, createdAt: new Date().toISOString() },
         { scheduleId, panelistId: panelistPool[randomInt(0, panelistPool.length - 1)], panelistType: "Faculty" as PanelistType, createdAt: new Date().toISOString() },
       ]
     : [];
@@ -138,6 +137,7 @@ function buildSeed(): ScheduleResponseDto[] {
         createdAt: "2023-01-01",
         updatedAt: "2023-01-01",
         institute: institutes[instituteIndex],
+        members: [],
       },
       panelists,
     });

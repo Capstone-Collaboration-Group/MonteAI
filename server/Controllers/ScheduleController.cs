@@ -1,7 +1,9 @@
 ﻿
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using server.Models.DTOs.Schedule;
+using server.Models.Exceptions;
 using server.Services.Interfaces;
 
 namespace server.Controllers
@@ -33,17 +35,28 @@ namespace server.Controllers
             return Ok(result);
         }
         [HttpPost("create")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> CreateSchedule([FromBody] CreateScheduleDto dto)
         {
-            var result = await _service.CreateAsync(dto);
-            if(result)
+            try
             {
-                _logger.LogInformation("Schedule Created Successfully");
-                return Ok(new { Message = "Schedule Created Successfully", result });
+                var result = await _service.CreateAsync(dto);
+                if(result)
+                {
+                    _logger.LogInformation("Schedule Created Successfully");
+                    return Ok(new { Message = "Schedule Created Successfully", result });
+                }
+
+                return BadRequest(new { Message = "That timeslot is taken, or one of the panelists is already booked that day.", result });
             }
-            return BadRequest(new { Message = "Bad Request or There is a Schedule for that timeslot... Try again later... ", result });
+            catch (ScheduleAlreadyExistsException ex)
+            {
+                _logger.LogWarning(ex, "Rejected duplicate schedule for research group {GroupId}", ex.GroupId);
+                return Conflict(new { Message = ex.Message });
+            }
         }
         [HttpPatch("update/{id}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> UpdateSchedule([FromBody] UpdateScheduleDto dto, Guid id)
         {
             var result = await _service.UpdateAsync(dto, id);
@@ -52,9 +65,10 @@ namespace server.Controllers
                 _logger.LogInformation("Performed Schedule Update on Id: {id}", id);
                 return Ok(new { Message = "Schedule Update Successful " });
             }
-            return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot" });
+            return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot or one of the panelists is already booked that day" });
         }
         [HttpPatch("update-times/{id}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> UpdateScheduleTimes([FromBody] UpdateScheduleTimesDto dto, Guid id)
         {
             var result = await _service.UpdateTimesAsync(id, dto);
@@ -63,9 +77,10 @@ namespace server.Controllers
                 _logger.LogInformation("Performed Schedule Time Update on Id: {id}", id);
                 return Ok(new { Message = "Schedule Time Update Successful " });
             }
-            return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot" });
+            return BadRequest(new { Message = "Bad Request... A schedule has already occupied that timeslot or one of the panelists is already booked that day" });
         }
         [HttpDelete("delete/{id}")]
+        [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> DeleteSchedule(Guid id)
         {
             var result = await _service.DeleteAsync( id);

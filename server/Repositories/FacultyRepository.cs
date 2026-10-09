@@ -31,18 +31,22 @@ namespace server.Repositories
             return true;
         }
 
-        // UpdateFacultyAsync
+        // UpdateFacultyAsync — partial update: only non-null fields are written
         public async Task<bool> UpdateFacultyAsync(Faculty faculty, string id)
         {
             var result = await _db.Faculties.FindAsync(id);
             if (result == null) return false;
+            // Eww ampangit, needs refactor
+            if (faculty.FirstName != null) result.FirstName = faculty.FirstName;
+            if (faculty.MiddleInitial != null) result.MiddleInitial = faculty.MiddleInitial;
+            if (faculty.LastName != null) result.LastName = faculty.LastName;
+            if (faculty.Email != null) result.Email = faculty.Email;
+            if (faculty.Suffix != null) result.Suffix = faculty.Suffix;
+            if (faculty.Role != null) result.Role = faculty.Role;
+            if (faculty.Institute != null) result.Institute = faculty.Institute;
+            if (faculty.IsActive != null) result.IsActive = faculty.IsActive;
+            result.UpdatedAt = faculty.UpdatedAt;
 
-            result.FirstName = faculty.FirstName;
-            result.MiddleInitial = faculty.MiddleInitial;
-            result.LastName = faculty.LastName;
-            result.Email = faculty.Email;
-            result.Role = faculty.Role;
-            result.IsActive = faculty.IsActive;
             await _db.SaveChangesAsync();
 
             return true;

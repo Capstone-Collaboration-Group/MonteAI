@@ -10,4 +10,4 @@ export const queryClient = new QueryClient({
   },
 });
 
-export { QueryClientProvider } from "@tanstack/react-query";
+export { QueryClientProvider, useQueryClient } from "@tanstack/react-query";

@@ -3,18 +3,26 @@ import {
   NavLink,
   useNavigate
 } from "react-router-dom";
-import { LayoutDashboard,
-    Users,
-    Info,
-    FileText,
-    Calendar,
-    LogOut,
-    Settings as SettingsIcon,
-     Megaphone,
-     View} from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  Calendar,
+  LogOut,
+  Settings as SettingsIcon,
+  HardDriveDownload,
+  Info,
+  Megaphone,
+  Menu,
+} from "lucide-react";
 import { auth } from "../lib/firebaseServices";
 import { queryClient } from "@monteai/hooks";
-export default function AppSidebar() {
+interface AppSidebarProps {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}
+
+export default function AppSidebar({ collapsed, onToggleCollapsed }: AppSidebarProps) {
 
   const navigate = useNavigate();
   const handleLogout = async () => {
@@ -27,23 +35,39 @@ export default function AppSidebar() {
     }
   };
   return (
-    <Sidebar>
+    <Sidebar collapsed={collapsed}>
       <Sidebar.Header className="gap-2.5">
-        <img
-          src="/cdm-logo.png"
-          alt="Colegio de Montalban"
-          className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
-        />
-        <div>
+        {!collapsed && (
+          <>
+            <img
+              src="/cdm-logo.png"
+              alt="Colegio de Montalban"
+              className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
+            />
+            <div className="min-w-0 flex-1">
           <p className="text-[15px] font-medium leading-tight">MonteSkolar</p>
           <p className="text-[11px] leading-tight text-on-surface-variant">
             Admin console
           </p>
-        </div>
+            </div>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "Expand navigation" : "Collapse navigation"}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high ${
+            collapsed ? "mx-auto" : "ml-auto"
+          }`}
+        >
+          <Menu className="h-5 w-5" />
+        </button>
       </Sidebar.Header>
 
       <Sidebar.Nav>
-        <NavLink to="/">
+        <NavLink to="/" end>
           {({ isActive }) => (
             <Sidebar.Item
               icon={<LayoutDashboard className="h-4 w-4" />}
@@ -88,6 +112,15 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
+        <NavLink to="/research-groups">
+          {({ isActive }) => (
+            <Sidebar.Item
+              icon={<Users className="h-4 w-4" />}
+              label="Research Groups"
+              active={isActive}
+            />
+          )}
+        </NavLink>
         <NavLink to="/schedule">
           {({ isActive }) => (
             <Sidebar.Item
@@ -97,10 +130,19 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
-       
+
       </Sidebar.Nav>
 
-      <Sidebar.Footer>
+      <Sidebar.Footer className="mt-auto space-y-1">
+        <NavLink to="/backup">
+          {({ isActive }) => (
+            <Sidebar.Item
+              icon={<HardDriveDownload className="h-4 w-4" />}
+              label="Backup"
+              active={isActive}
+            />
+          )}
+        </NavLink>
         <NavLink to="/settings">
           {({ isActive }) => (
             <Sidebar.Item
@@ -110,8 +152,6 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
-      </Sidebar.Footer>
-      <Sidebar.Footer className="border-none">
         <NavLink to="/about">
           {({ isActive }) => (
             <Sidebar.Item
@@ -121,8 +161,6 @@ export default function AppSidebar() {
             />
           )}
         </NavLink>
-      </Sidebar.Footer>
-      <Sidebar.Footer className="border-none">
         <NavLink to="/logout">
           {({ isActive }) => (
             <Sidebar.Item

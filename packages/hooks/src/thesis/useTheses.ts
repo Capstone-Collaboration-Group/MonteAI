@@ -34,8 +34,8 @@ export function useTheses(thesisService: ThesisService) {
 export function useSubmitThesis(thesisService: ThesisService) { 
     const queryClient = useQueryClient();
     return useMutation( { 
-        mutationFn: (dto: SubmitThesisDto) => thesisService.submitThesis(dto),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: thesesKeys.all }),
+        mutationFn: ({dto, file}: { dto: SubmitThesisDto; file: File }) => thesisService.submitThesis(dto, file),
+        onSuccess: ()  => queryClient.invalidateQueries({ queryKey: thesesKeys.all }),
     });
 }
 export function useUpdateThesis(thesisService: ThesisService) { 
@@ -47,7 +47,19 @@ export function useUpdateThesis(thesisService: ThesisService) {
         });
 }
 
-// I'll add update thesis status and delete here soon
+// Full-CRUD delete (Admin-only server endpoint). Errors rethrow (403/409/500)
+// so callers can surface them; on success the thesis is gone entirely, so the
+// list and its detail entry are both invalidated.
+export function useDeleteThesis(thesisService: ThesisService) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id }: { id: string }) => thesisService.deleteThesis(id),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: thesesKeys.all });
+            queryClient.invalidateQueries({ queryKey: thesesKeys.detail(variables.id) });
+        },
+    });
+}
 
 
 export function useIngestThesis(thesisService: ThesisService) { 
@@ -79,6 +91,22 @@ export function useThesisVersions(thesisService: ThesisService, thesisId: string
         versions: query.data ?? [],
         latestVersion: query.data?.[query.data.length - 1] ?? null,
     };
+}
+
+// Deletes ONE version (latest-only). Errors rethrow (server 400/403 messages)
+// so callers can surface them; on success the thesis itself may be gone
+// (last-version cascade), so both list and detail are invalidated.
+export function useDeleteThesisVersion(thesisService: ThesisService) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ thesisId, versionId }: { thesisId: string; versionId: string }) =>
+            thesisService.deleteThesisVersion(thesisId, versionId),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: thesesKeys.all });
+            queryClient.invalidateQueries({ queryKey: thesesKeys.detail(variables.thesisId) });
+            queryClient.invalidateQueries({ queryKey: thesesKeys.versions(variables.thesisId) });
+        },
+    });
 }
 
 export function useAnnotations(
@@ -190,13 +218,28 @@ export function useThesis(thesisService: ThesisService, thesisId: string) {
     };
 }
 
+// The signed-in student's own group thesis (GET /thesis/my) — data is null
+// when the server answers 404 ("not submitted yet"). Pass enabled=false for
+// non-student profiles so no request is made.
+export function useMyThesis(thesisService: ThesisService, enabled = true) {
+    const query = useQuery({
+        queryKey: [...thesesKeys.all, "my"],
+        queryFn: () => thesisService.getMyThesis(),
+        enabled,
+    });
+
+    return {
+        ...query,
+        thesis: query.data ?? null,
+    };
+}
+
 
 // useTheses.ts
 export function useVersionFileUrl(thesisService: ThesisService, versionId: string) {
     const query = useQuery({
         queryKey: ["thesis-version-url", versionId],
         queryFn: () => {
-            console.log("[useVersionFileUrl] fetching for", versionId);
             return thesisService.getVersionFile(versionId);
         },
         enabled: !!versionId,

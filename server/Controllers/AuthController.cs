@@ -8,8 +8,9 @@ namespace server.Controllers
 {
     [ApiController]
     [Route("api/v1/[controller]")]
+    [Authorize]
     public class AuthController : ControllerBase
-    {
+    { 
         private readonly ILogger<AuthController> _logger;
         private readonly IStudentService _studentService;
         private readonly IFacultyService _facultyService;
@@ -36,12 +37,22 @@ namespace server.Controllers
         {
             if (string.IsNullOrEmpty(dto.Id))
                 return BadRequest(new { Message = "Firebase UID is required." });
+
+            // Role-specific email domains: students use @student.pnm.edu.ph,
+            // faculty use @pnm.edu.ph (the student domain does not satisfy
+            // EndsWith("@pnm.edu.ph") because of the extra "student." label).
+            var email = dto.Email?.Trim() ?? string.Empty;
+            if (dto.Role == "Student" &&
+                !email.EndsWith("@student.pnm.edu.ph", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { Message = "Students must register with an @student.pnm.edu.ph email address." });
+            if (dto.Role == "Faculty" &&
+                !email.EndsWith("@pnm.edu.ph", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { Message = "Faculty must register with a @pnm.edu.ph email address." });
+
             var result = dto.Role switch
             {
                 "Student" => await _studentService.RegisterAsync(dto, dto.Id),
                 "Faculty" => await RegisterFacultyAsync(dto),
-                "ProgramHead" => await RegisterProgramHeadAsync(dto),
-                "Admin" => await RegisterAdminAsync(dto),
                 _ => null
             };
             if (result == null)
@@ -49,11 +60,57 @@ namespace server.Controllers
             _logger.LogInformation("User registered: {Id} as {Role}", dto.Id, dto.Role);
             return CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, result);
         }
+        [HttpPost("register/admin-or-programhead")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateAdminOrProgramHead([FromBody] RegisterUserDto dto)
+        {
+            if(string.IsNullOrEmpty(dto.Id))
+                return BadRequest(new { Message = "Firebase UID is required"});
+            var email = dto.Email?.Trim() ?? string.Empty;
+
+            if(!email.EndsWith("@pnm.edu.ph", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { Message = "Admin or ProgramHead must be created with a @pnm.edu.ph associated email address."});
+            
+            var result = dto.Role switch
+            {
+                "Admin" => await RegisterAdminAsync(dto),
+                "ProgramHead" => await RegisterProgramHeadAsync(dto),
+                _ => null
+            };
+
+            if(result == null)
+                return BadRequest(new { Message = $"Unknown Role {dto.Role}"});
+            _logger.LogInformation("User registered: {Id} as {Role}", dto.Id, dto.Role);
+            return CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, result);
+
+        }
 
         [HttpPost("login")]
         public async Task<IActionResult> LoginAsync()
         {
             return Ok("Logged in Successfully!");
+        }
+
+        //  Student-number login (mobile) 
+        // Intentionally anonymous + generic errors to avoid student-number enumeration.
+        [HttpPost("resolve-login")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResolveStudentLogin([FromBody] ResolveLoginRequestDto dto)
+        {
+            var studentNumber = dto.StudentNumber.Trim();
+            if (string.IsNullOrEmpty(studentNumber))
+                return Unauthorized(new { Message = "Invalid student number or password." });
+
+            var email = await _studentService.GetEmailByStudentNumberAsync(studentNumber);
+
+            _logger.LogInformation("Email is {email}", email);
+            if (string.IsNullOrEmpty(email))
+            {
+                _logger.LogWarning("Failed login resolution for student number");
+                return Unauthorized(new { Message = "Invalid student number or password." });
+            }
+
+            return Ok(new ResolveLoginResponseDto { StudentNumber = studentNumber, Email = email });
         }
 
         [HttpGet("me")]
@@ -67,7 +124,7 @@ namespace server.Controllers
 
             // TPC = no shared table to query by UID alone, so check each
             // role's service until one matches.
-            var student = await _studentService.GetByIdAsync(uid);
+            var student = await _studentService.GetProfileByIdAsync(uid);
             if (student != null) return Ok(student);
 
             var faculty = await _facultyService.GetByIdAsync(uid);

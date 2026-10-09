@@ -10,7 +10,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-console.log("mockAdminService loaded — Initialized with seed data");
 
 function buildSeed(): AdminResponseDto[] {
   return [

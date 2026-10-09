@@ -9,6 +9,6 @@ export function createStudentService(
 ): StudentService  {
     return useMock ? mockStudentService : new LiveStudentService(client)
 }
-export type { StudentService } from "./types";
+export type { StudentService, StudentDirectoryParams } from "./types";
 export { mockStudentService } from "./mockStudentService";
 export { LiveStudentService } from "./studentService";

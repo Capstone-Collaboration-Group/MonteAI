@@ -6,6 +6,7 @@ namespace server.Repositories.Interfaces
     {
         Task CreateAsync(Student student);
         Task<Student?> GetByIdAsync(string id);
+        Task<Student?> GetByStudentNumberAsync(string studentNumber);
 
         Task<IEnumerable<Student>> GetAllAsync();
 

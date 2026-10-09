@@ -27,6 +27,8 @@ interface LoginScreenProps {
   onForgotPress?: () => void;
   loading?: boolean;
   error?: string | null;
+  /** Extra link rendered under the error (e.g. resend verification email). */
+  errorAction?: { label: string; onPress: () => void } | null;
 }
 
 /**
@@ -41,6 +43,7 @@ export default function LoginScreen({
   onForgotPress,
   loading = false,
   error = null,
+  errorAction = null,
 }: LoginScreenProps) {
   const [studentNumber, setStudentNumber] = useState('');
   const [password, setPassword] = useState('');
@@ -218,6 +221,19 @@ export default function LoginScreen({
 
             {error ? <Text style={[styles.errorText, styles.formError]}>{error}</Text> : null}
 
+            {error && errorAction ? (
+              <Pressable
+                onPress={errorAction.onPress}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={errorAction.label}
+                style={styles.errorAction}>
+                <Text style={[styles.errorText, { color: primary, fontWeight: '700' }]}>
+                  {errorAction.label}
+                </Text>
+              </Pressable>
+            ) : null}
+
             <Pressable
               onPress={handleLogin}
               disabled={loading}
@@ -372,6 +388,10 @@ const styles = StyleSheet.create({
   },
   formError: {
     textAlign: 'center',
+    marginBottom: 12,
+  },
+  errorAction: {
+    alignItems: 'center',
     marginBottom: 12,
   },
   optionsRow: {

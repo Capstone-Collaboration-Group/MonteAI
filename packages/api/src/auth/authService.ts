@@ -4,7 +4,7 @@ import { signOut, type Auth} from "firebase/auth";
 import type {
   LoginDto,
   LoginResponseDto,
-  RegisterFormDto,
+  RegisterUserRequest,
   VerifyOTPDto,
   ForgotPasswordDto,
   ResetPasswordDto,
@@ -12,7 +12,7 @@ import type {
 
 export interface AuthService {
   login(dto: LoginDto): Promise<LoginResponseDto>;
-  register(dto: RegisterFormDto): Promise<boolean>;
+  register(dto: RegisterUserRequest): Promise<boolean>;
   verifyOtp(dto: VerifyOTPDto): Promise<boolean>;
   resendOtp(email: string): Promise<boolean>;
   forgotPassword(dto: ForgotPasswordDto): Promise<boolean>;

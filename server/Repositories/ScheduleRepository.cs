@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using server.Data;
 using server.Models.Entities;
+using server.Models.Exceptions;
 using server.Repositories.Interfaces;
 
 namespace server.Repositories
@@ -24,20 +25,64 @@ namespace server.Repositories
         public async Task<Schedule?> GetScheduleByIdAsync(Guid id)
             => await _db.Schedules
                 .Include(s => s.Panelists)
+                .Include(s => s.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
                 .FirstOrDefaultAsync(s => s.ScheduleId == id);
 
         public async Task<Schedule?> GetScheduleByGroupIdAsync(Guid groupId)
             => await _db.Schedules
                 .Where(s => s.GroupId == groupId)
                 .FirstOrDefaultAsync();
+
+        // A panelist may never be booked into an overlapping time slot, and on a
+        // given day must stay in a single room (no room-hopping between defenses).
+        // Same-room, non-overlapping defenses on the same day remain allowed.
+        private async Task<bool> HasPanelistConflictAsync(Schedule schedule, Guid? excludeScheduleId)
+        {
+            var panelistIds = schedule.Panelists
+                .Select(p => p.PanelistId)
+                .Distinct()
+                .ToList();
+            if (panelistIds.Count == 0) return false;
+
+            return await _db.PanelistSchedules
+                .Include(ps => ps.Schedule)
+                .AnyAsync(ps =>
+                    panelistIds.Contains(ps.PanelistId) &&
+                    (excludeScheduleId == null || ps.ScheduleId != excludeScheduleId) &&
+                    ps.Schedule!.Date == schedule.Date &&
+                    (ps.Schedule.RoomVenue != schedule.RoomVenue ||
+                     (ps.Schedule.StartTime < schedule.EndingTime &&
+                      ps.Schedule.EndingTime > schedule.StartTime)));
+        }
+
         public async Task<bool> CreateScheduleAsync(Schedule schedule)
         {
+            if (schedule.GroupId is Guid groupId &&
+                await _db.Schedules.AnyAsync(s => s.GroupId == groupId))
+                throw new ScheduleAlreadyExistsException(groupId);
+
             var hasConflict = await _db.Schedules
                 .AnyAsync(s => s.Date == schedule.Date &&
                        s.RoomVenue == schedule.RoomVenue &&
                        s.StartTime < schedule.EndingTime &&
                        s.EndingTime > schedule.StartTime);
             if (hasConflict) return false;
+
+            if (await HasPanelistConflictAsync(schedule, excludeScheduleId: null)) return false;
+
+            if (schedule.GroupId is Guid scheduledGroupId)
+            {
+                var thesis = await _db.Theses
+                    .FirstOrDefaultAsync(t => t.GroupId == scheduledGroupId);
+                
+                if (thesis != null) 
+                {
+                    thesis.UpdatedAt = DateTime.UtcNow;
+                    thesis.Status = "Scheduled";
+                }
+                    
+            }
 
             await _db.Schedules.AddAsync(schedule);
             await _db.SaveChangesAsync();
@@ -55,7 +100,9 @@ namespace server.Repositories
                               s.StartTime < schedule.EndingTime &&
                               s.EndingTime > schedule.StartTime);
             if (hasConflict) return false;
-            
+
+            if (await HasPanelistConflictAsync(schedule, schedule.ScheduleId)) return false;
+
             await _db.SaveChangesAsync();
             return true;
         }

@@ -69,3 +69,21 @@ export function useDeleteResearchGroup(researchGroupService: ResearchGroupServic
     },
   });
 }
+
+export function useAddResearchGroupMember(researchGroupService: ResearchGroupService) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ researchGroupId, studentId }: { researchGroupId: string; studentId: string }) =>
+      researchGroupService.addMember(researchGroupId, studentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: researchGroupKeys.all }),
+  });
+}
+
+export function useRemoveResearchGroupMember(researchGroupService: ResearchGroupService) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ researchGroupId, studentId }: { researchGroupId: string; studentId: string }) =>
+      researchGroupService.removeMember(researchGroupId, studentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: researchGroupKeys.all }),
+  });
+}

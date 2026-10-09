@@ -12,10 +12,11 @@ export const facultyKeys = {
 };
 
 // Get all faculties
-export function useFaculties(facultyService: FacultyService) {
+export function useFaculties(facultyService?: FacultyService) {
   return useQuery({
     queryKey: facultyKeys.all,
-    queryFn: () => facultyService.getFaculties(),
+    queryFn: () => facultyService!.getFaculties(),
+    enabled: !!facultyService,
     select: (data) => (Array.isArray(data) ? data : []),
   });
 }

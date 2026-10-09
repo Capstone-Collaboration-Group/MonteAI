@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import SubmitThesis from "./pages/SubmitThesis";
 import Login from "./pages/Login";
 import Announcements from "./pages/Announcements";
+import ResearchGroups from "./pages/ResearchGroups";
 import ThesisViewer from "./pages/ThesisViewer";
 import Theses from "./pages/ThesesPage";
 import { profileService } from "./lib/authService";
@@ -34,22 +35,20 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
-
           
-           <Route element={<AppLayout />}>
+          {/* Authenticated — sidebar layout, gated by Firebase auth state */}
+          <Route element={<ProtectedRoute profileService={profileService}/>}>
+              <Route element={<AppLayout />}>
               <Route path="/home" element={<Home />} />
-              <Route path="/chat" element={<Chat />} />
+              <Route path="/chat/:sessionId?" element={<Chat />} />
               <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
               <Route path="/submit" element={<SubmitThesis />} />
               <Route path="/schedule" element={<Schedule />} />
               <Route path="/theses" element={<Theses />} />
               <Route path="/announcements" element={<Announcements />} />
+              <Route path="/research-groups" element={<ResearchGroups />} />
               <Route path="/settings" element={<SettingsPage />} />
           </Route>
-
-          {/* Authenticated — sidebar layout, gated by Firebase auth state */}
-          <Route element={<ProtectedRoute profileService={profileService}/>}>
-
          
           </Route>
 

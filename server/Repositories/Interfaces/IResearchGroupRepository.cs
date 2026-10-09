@@ -13,5 +13,7 @@ namespace server.Repositories.Interfaces
         Task<bool> UpdateResearchGroupAsync(ResearchGroup researchGrup);
 
         Task<bool> DeleteResearchGroupAsync(Guid id);
+        Task<bool> AddMemberAsync(Guid groupId, string studentId);
+        Task<bool> RemoveMemberAsync(Guid groupId, string studentId);
     }
 }

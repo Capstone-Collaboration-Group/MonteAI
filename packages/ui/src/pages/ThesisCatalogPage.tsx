@@ -5,6 +5,8 @@ import type { ThesisService } from "@monteai/api";
 import { toThesisSummary } from "@monteai/types";
 import type { ThesisActionType } from "@monteai/types";
 import { ThesisCatalog, ThesisCatalogSkeleton } from "../components/Thesis";
+import type { CatalogNotice } from "../components/Thesis";
+import { ErrorState } from "../components/common";
 
 
 interface ThesisCatalogPageProps {
@@ -14,7 +16,13 @@ interface ThesisCatalogPageProps {
   onThesisAction?: (thesisId: string, action: ThesisActionType) => void;
   /** Which moderation actions this viewer is allowed to take. Omit/empty for read-only roles (Student). */
   allowedActions?: ThesisActionType[];
+  /** RBAC: render the upload CTA only for roles allowed to upload (Admin). */
+  canUpload?: boolean;
+  onUploadThesis?: () => void;
   onFilterClick?: () => void;
+  /** Optional banner above the catalog (edit/delete results, load failures). */
+  notice?: CatalogNotice | null;
+  onDismissNotice?: () => void;
 }
 
 export function ThesisCatalogPage({
@@ -23,43 +31,59 @@ export function ThesisCatalogPage({
   onSelectThesis,
   onThesisAction,
   allowedActions = [],
+  canUpload = false,
+  onUploadThesis,
+  notice = null,
+  onDismissNotice,
   // onFilterClick, remove this comment if there will be future Filter features from the ThesisCatalog Component.
 }: ThesisCatalogPageProps) {
-  const { theses: rawTheses, isLoading } = useTheses(thesisService);
+  const { theses: rawTheses, isLoading, isError, refetch } = useTheses(thesisService);
 
   const theses = useMemo(() => rawTheses.map(toThesisSummary), [rawTheses]);
   const featuredThesis = theses[0];
 
   const counts = useMemo(() => {
     const active = theses.filter((t) => t.status === "pending" || t.status === "revision").length;
-    const archived = theses.filter((t) => t.status === "approved" || t.status === "rejected").length;
+    // "indexed" counts as archived: admin uploads land Indexed immediately
+    // (no review step), so leaving it out would hide them from both buckets.
+    const archived = theses.filter(
+      (t) => t.status === "approved" || t.status === "rejected" || t.status === "indexed",
+    ).length;
     return { active, archived };
   }, [theses]);
 
-  const healthStats = useMemo(() => {
-    const total = theses.length;
-    const approved = theses.filter((t) => t.status === "approved").length;
-    return {
-      approvalRate: total > 0 ? Math.round((approved / total) * 100) : 0,
-      yearLabel: new Date().getFullYear().toString(),
-    };
-  }, [theses]);
-
-  if (isLoading || !featuredThesis) {
+  if (isLoading) {
     return <ThesisCatalogSkeleton />;
+  }
+
+  if (isError) {
+    return (
+      <div className="h-full overflow-y-auto bg-surface-container-low p-8">
+        <ErrorState
+          title="Thesis catalog unavailable"
+          message="We couldn't load the thesis catalog. Check your connection and try again."
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
   }
 
   return (
     <ThesisCatalog
-      featuredThesis={featuredThesis}
+      featuredThesis={featuredThesis ?? null}
       theses={theses}
-      healthStats={healthStats}
+      thesisData={rawTheses}
       counts={counts}
       isLoading={isLoading}
       onViewDetails={onViewDetails}
       onSelectThesis={onSelectThesis}
       onThesisAction={allowedActions.length ? onThesisAction : undefined}
       allowedActions={allowedActions}
+      canUpload={canUpload}
+      onUploadThesis={onUploadThesis}
+      notice={notice}
+      onDismissNotice={onDismissNotice}
+      searchTheses={(query, mode) => thesisService.searchTheses(query, mode)}
       // onFilterClick={onFilterClick}
     />
   );

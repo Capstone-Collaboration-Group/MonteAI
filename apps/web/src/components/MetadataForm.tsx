@@ -12,15 +12,17 @@ export type ThesisMetadata = {
 interface MetadataFormProps {
   onNext: (data: ThesisMetadata) => void;
   initialData?: ThesisMetadata;
+  program: string;
+  institute: string;
+  members: string;
 }
 
-export function MetadataForm({ onNext, initialData }: MetadataFormProps) {
+export function MetadataForm({ onNext, initialData, program: groupProgram, institute: groupInstitute, members: groupMMembers }: MetadataFormProps) {
   const [title, setTitle] = useState(initialData?.title || "");
   const [abstractText, setAbstractText] = useState(initialData?.abstract || "");
-  const [program, setProgram] = useState(initialData?.program || "");
-  const [institute, setInstitute] = useState(initialData?.institute || "");
-  const [members, setMembers] = useState(initialData?.members || "");
-
+  const program = groupProgram;
+  const institute = groupInstitute;
+  const members = groupMMembers;
     const isFormValid =
     title.trim() &&
     abstractText.trim() &&
@@ -84,19 +86,18 @@ export function MetadataForm({ onNext, initialData }: MetadataFormProps) {
             </label>
             <Input
               value={program}
-              onChange={(event) => setProgram(event.target.value)}
-              placeholder="Enter your program"
+              readOnly
               className="mt-1 bg-surface-container-low"
             />
           </div>
+
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-outline">
               Institute
             </label>
             <Input
               value={institute}
-              onChange={(event) => setInstitute(event.target.value)}
-              placeholder="Enter your institute"
+              readOnly
               className="mt-1 bg-surface-container-low"
             />
           </div>
@@ -108,8 +109,7 @@ export function MetadataForm({ onNext, initialData }: MetadataFormProps) {
           </label>
           <Input
             value={members}
-            onChange={(event) => setMembers(event.target.value)}
-            placeholder="Enter your group members (use commas to separate each member)"
+            readOnly
             className="mt-1 bg-surface-container-low"
           />
         </div>

@@ -447,14 +447,15 @@ export function ScheduleCalendar({
   return (
     <PageLayout direction="row" className="w-full !bg-surface overflow-hidden">
       <main className="flex-1 flex flex-col h-full">
-        <header className="flex items-center justify-between px-6 h-16 border-b border-outline-variant bg-surface relative z-50">           <div className="flex items-center gap-4">
-            <h2 className="text-headline-sm font-headline-sm text-on-surface">Defense Schedule</h2>
-            <div className="flex border border-outline-variant rounded-lg overflow-hidden">
+        <header className="relative z-50 flex shrink-0 flex-col gap-3 border-b border-outline-variant bg-surface px-3 py-3 sm:px-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
+            <h2 className="text-lg font-headline-sm text-on-surface sm:text-headline-sm">Defense Schedule</h2>
+            <div className="flex shrink-0 overflow-hidden rounded-lg border border-outline-variant">
               {(["day", "week", "month"] as ViewType[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-4 py-1.5 font-label-md text-label-md capitalize transition-colors ${view === v
+                  className={`px-2.5 py-1.5 text-xs font-label-md capitalize transition-colors sm:px-4 sm:text-label-md ${view === v
                       ? "bg-primary text-white"
                       : "bg-surface-container-high text-on-surface hover:bg-surface-container"
                     }`}
@@ -464,7 +465,7 @@ export function ScheduleCalendar({
               ))}
             </div>
 
-            <div className="w-40 relative z-50">
+            <div className="relative z-50 w-full sm:w-40">
               <Select
                 options={roomOptions}
                 value={effectiveRoom}
@@ -473,8 +474,8 @@ export function ScheduleCalendar({
               />
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-body-md font-body-md text-on-surface-variant">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:gap-4 md:justify-end">
+            <span className="min-w-0 flex-1 text-xs text-on-surface-variant sm:text-body-md md:flex-none">
               {headerDateText}
             </span>
 
@@ -506,7 +507,7 @@ export function ScheduleCalendar({
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+        <div className="relative min-h-0 flex-1 overflow-auto custom-scrollbar">
           {isLoading ? (
             <p className="p-6 text-sm text-on-surface-variant">Loading schedule…</p>
           ) : view === "day" ? (
@@ -579,7 +580,7 @@ export function ScheduleCalendar({
               </div>
             </>
           ) : view === "month" ? (
-            <div className="p-4">
+            <div className="min-w-[700px] p-4">
               <div className="flex items-center justify-center gap-3 py-3">
                 <button
                   onClick={() => shiftMonth(-1)}

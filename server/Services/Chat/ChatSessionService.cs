@@ -50,6 +50,16 @@ namespace server.Services.Chat
             return dto;
         }
 
+        /// <summary>
+        /// Lightweight ownership lookup — fetches only the session document
+        /// (no messages) so ChatController can authorize a send cheaply.
+        /// </summary>
+        public async Task<string?> GetOwnerUserIdAsync(Guid id)
+        {
+            var session = await _chatSessionRepo.GetChatSessionByIdAsync(id);
+            return session?.UserId;
+        }
+
         // CreateAsync
         public async Task<ChatSessionResponseDto> CreateAsync(CreateChatSessionDto createChatSessionDto)
         {
@@ -72,6 +82,15 @@ namespace server.Services.Chat
             var result = await _chatSessionRepo.UpdateChatSessionAsync(chatSession);
 
             return result;
+        }
+
+        public async Task<bool> TouchAsync(Guid id)
+        {
+            var session = await _chatSessionRepo.GetChatSessionByIdAsync(id);
+            if (session == null) return false;
+
+            session.LastChatDate = DateTime.UtcNow;
+            return await _chatSessionRepo.UpdateChatSessionAsync(session);
         }
 
         public async Task<bool> DeleteAsync(Guid id)

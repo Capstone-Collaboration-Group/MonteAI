@@ -1,6 +1,7 @@
 ﻿using System.ClientModel;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Azure.AI.OpenAI;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
@@ -112,18 +113,29 @@ try
 
     builder.Services.AddAuthorization(options =>
     {
-        options.DefaultPolicy = new AuthorizationPolicyBuilder()
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .RequireClaim(ClaimTypes.Role)
             .Build();
 
+        options.AddPolicy("Reviewer", policy => 
+            policy.RequireRole("Faculty", "Admin", "ProgramHead"));
+
+        options.AddPolicy("Proceedings", policy =>
+            policy.RequireRole("Student", "Faculty", "Admin", "ProgramHead"));
+
         options.AddPolicy("FirebaseAuthenticated", policy =>
             policy.RequireAuthenticatedUser());
     });
+    builder.Services.AddHttpContextAccessor();
      
     builder.Services.Configure<PineconeConfig>(
             builder.Configuration.GetSection(PineconeConfig.SectionName)
             );
+
+    // Agent behaviour + cost caps (see MonteAiAgentConfig for every knob).
+    builder.Services.Configure<MonteAiAgentConfig>(
+        builder.Configuration.GetSection(MonteAiAgentConfig.SectionName));
     // Add services to the container.
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(
@@ -145,6 +157,27 @@ try
             opt.Window = TimeSpan.FromMinutes(1);
             opt.QueueLimit = 0;
         });
+
+        // Chat generates paid LLM calls per message — cap the blast radius of
+        // a spamming client (or a runaway frontend loop).
+        options.AddFixedWindowLimiter("ChatLimit", opt =>
+        {
+            opt.PermitLimit = 30;
+            opt.Window = TimeSpan.FromMinutes(1);
+            opt.QueueLimit = 0;
+        });
+
+        options.AddPolicy("ProceedingsLimit", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     });
 
@@ -171,7 +204,9 @@ try
 
     builder.Services.AddSingleton<IBlobService, BlobService>();
 
-    builder.Services.AddScoped<IPineconeService, PineconeService>();
+    // Note: IPineconeService, IAgentToolbox, and IMonteAiAgentService are
+    // auto-registered by the Scrutor scan above (namespace server.Services.*
+    // with matching interfaces).
     builder.Services.AddControllers()
         .AddJsonOptions(o =>
         {
@@ -240,7 +275,7 @@ try
         app.MapGet("/", context => {
             context.Response.Redirect("/swagger");
             return Task.CompletedTask;
-        });
+        }).AllowAnonymous();
     }
 
     app.UseRouting();
@@ -277,7 +312,7 @@ try
         if (header != secret) return Results.Unauthorized();
 
         return Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow });
-    }).RequireRateLimiting("HealthCheckLimit");
+    }).AllowAnonymous().RequireRateLimiting("HealthCheckLimit");
 
 
     app.Run();

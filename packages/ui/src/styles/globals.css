@@ -31,6 +31,42 @@ body {
   font-family: var(--font-sans);
 }
 
+* {
+  scrollbar-color: var(--outline-variant) var(--surface-container-low);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--surface-container-low);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid var(--surface-container-low);
+  border-radius: 999px;
+  background: var(--outline-variant);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-container);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--primary);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--surface-container-low);
+}
+
 .dark {
   --primary: #7dd8b0;
   --primary-container: #005139;
@@ -89,13 +125,19 @@ body {
   width: 100%;
 }
 
+@media (max-width: 767px) {
+  .schedule-grid {
+    min-width: 700px;
+  }
+}
+
 .time-row {
   height: 60px; 
 }
 
 @font-face { 
   font-family: 'DM Sans';
-  src: url('./DM_Sans/DMSans-VariableFont_opsz\,wght.ttf') format('truetype');
+  src: url("./DM_Sans/DMSans-VariableFont_opsz,wght.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -103,7 +145,7 @@ body {
 
 @font-face { 
   font-family: 'DM Sans';
-  src: url('./DM_Sans/DMSans-Italic-VariableFont_opsz\,wght.ttf') format('truetype');
+  src: url("./DM_Sans/DMSans-Italic-VariableFont_opsz,wght.ttf") format("truetype");
   font-weight: 100 900;
   font-style: italic;
   font-display: swap;
@@ -111,14 +153,14 @@ body {
 
 @font-face { 
   font-family: 'DM Serif Display';
-  src: url('./DM_Serif_Display//DMSerifDisplay-Regular.ttf') format('truetype');
+  src: url("./DM_Serif_Display/DMSerifDisplay-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face { 
   font-family: 'DM Serif Display';
-  src: url('./DM_Serif_Display//DMSerifDisplay-Italic.ttf') format('truetype');
+  src: url("./DM_Serif_Display/DMSerifDisplay-Italic.ttf") format("truetype");
   font-weight: 400;
   font-style: italic;
   font-display: swap;

@@ -1,7 +1,13 @@
 import type { HTMLAttributes } from "react";
 
-type ThesisLifecycleStatus =
-  "Pending" | "UnderReview" | "Approved" | "Indexed" | "Rejected";
+export type ThesisLifecycleStatus =
+  | "Pending"
+  | "UnderReview"
+  | "Approved"
+  | "Scheduled"
+  | "Revision"
+  | "Indexed"
+  | "Rejected";
 
 const statusStyles: Record<
   ThesisLifecycleStatus,
@@ -17,6 +23,12 @@ const statusStyles: Record<
     bg: "bg-emerald-100",
     text: "text-emerald-800",
     label: "Approved",
+  },
+  Scheduled: { bg: "bg-blue-100", text: "text-blue-800", label: "Scheduled" },
+  Revision: {
+    bg: "bg-orange-100",
+    text: "text-orange-800",
+    label: "For Revision",
   },
   Indexed: { bg: "bg-blue-100", text: "text-blue-800", label: "Indexed" },
   Rejected: { bg: "bg-red-100", text: "text-red-800", label: "Rejected" },

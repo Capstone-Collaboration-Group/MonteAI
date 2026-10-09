@@ -30,6 +30,19 @@
     }
   }
 
+  function toLocalDate(iso?: string): string {
+    if (!iso) return "";
+
+    const parsed = new Date(iso);
+
+    if (Number.isNaN(parsed.getTime())) return "";
+
+    const month = `${parsed.getMonth() + 1}`.padStart(2, "0");
+    const day = `${parsed.getDate()}`.padStart(2, "0");
+
+    return `${parsed.getFullYear()}-${month}-${day}`;
+  }
+
   function mapAnnouncement(
   announcement: AnnouncementResponseDto
 ): AnnouncementDetail {
@@ -42,17 +55,14 @@
     institute: announcement.institute,
     authorId: announcement.author?.id ?? "",
     postedBy: announcement.author?.fullName ?? "Unknown",
-    date: announcement.createdAt
-      ? announcement.createdAt.slice(0, 10)
-      : "",
+    date: toLocalDate(announcement.createdAt),
     priority,
     priorityClass: getPriorityClass(priority),
     body: announcement.content,
+    attachmentUrls: announcement.attachmentUrls ?? [],
     lastEdited: announcement.lastModified
-      ? announcement.lastModified.slice(0, 10)
-      : announcement.createdAt
-        ? announcement.createdAt.slice(0, 10)
-        : "",
+      ? toLocalDate(announcement.lastModified)
+      : toLocalDate(announcement.createdAt),
   };
 }
 
@@ -114,8 +124,7 @@
           content: formValues.body,
           category: formValues.category,
           priority: formValues.priority,
-          attachmentUrls: [],
-          lastModified: new Date().toISOString(),
+          attachmentUrls: formValues.attachmentUrls,
         }
       );
     } else {
@@ -124,7 +133,7 @@
         content: formValues.body,
         category: formValues.category,
         priority: formValues.priority,
-        attachmentUrls: [],
+        attachmentUrls: formValues.attachmentUrls,
       });
     }
 
@@ -184,10 +193,10 @@
                 editingAnnouncement
                   ? {
                       subject: editingAnnouncement.subject,
-                      date: editingAnnouncement.date,
                       category: editingAnnouncement.category,
                       priority: editingAnnouncement.priority,
                       body: editingAnnouncement.body,
+                      attachmentUrls: editingAnnouncement.attachmentUrls ?? [],
                     }
                   : null
               }
@@ -363,10 +372,10 @@ if (isError) {
               editingAnnouncement
                 ? {
                     subject: editingAnnouncement.subject,
-                    date: editingAnnouncement.date,
                     category: editingAnnouncement.category,
                     priority: editingAnnouncement.priority,
                     body: editingAnnouncement.body,
+                    attachmentUrls: editingAnnouncement.attachmentUrls ?? [],
                   }
                 : null
             }

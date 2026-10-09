@@ -3,6 +3,9 @@ export * from "./StatusBadge";
 export * from "./SubmissionHealthCard";
 export * from "./ThesisListView";
 export * from "./ThesisCatalog";
+export * from "./ThesisUploadModal";
+export * from "./ThesisEditModal";
+export * from "./ThesisDeleteDialog";
 
 export * from "./ThesisPDFViewerLayout";
 export * from "./ThesisStatusTime";

@@ -34,20 +34,23 @@ namespace server.Repositories
 
         }
 
-        // UpdateProgramHeadAsync
+        // UpdateProgramHeadAsync — partial update: only non-null fields are written
         public async Task<bool> UpdateProgramHeadAsync(ProgramHead programHead, string id)
         {
             var result = await _db.ProgramHeads.FindAsync(id);
             if (result == null) return false;
+            // Eww ampangit, needs refactor
+            if (programHead.Email != null) result.Email = programHead.Email;
+            if (programHead.FirstName != null) result.FirstName = programHead.FirstName;
+            if (programHead.MiddleInitial != null) result.MiddleInitial = programHead.MiddleInitial;
+            if (programHead.LastName != null) result.LastName = programHead.LastName;
+            if (programHead.Suffix != null) result.Suffix = programHead.Suffix;
+            if (programHead.Role != null) result.Role = programHead.Role;
+            if (programHead.Institute != null) result.Institute = programHead.Institute;
+            if (programHead.ProgramHandled != null) result.ProgramHandled = programHead.ProgramHandled;
+            if (programHead.IsActive != null) result.IsActive = programHead.IsActive;
+            result.UpdatedAt = programHead.UpdatedAt;
 
-            result.Email = programHead.Email;
-            result.FirstName = programHead.FirstName;
-            result.MiddleInitial = programHead.MiddleInitial;
-            result.LastName = programHead.LastName;
-            result.Suffix = programHead.Suffix;
-            result.Institute = programHead.Institute;
-            result.ProgramHandled = programHead.ProgramHandled;
-            result.IsActive = programHead.IsActive;
             await _db.SaveChangesAsync();
 
             return true;

@@ -23,8 +23,10 @@ namespace server.Repositories
                 .Collection("chat_sessions")
                 .Document(sessionId.ToString())
                 .Collection("messages")
+                .OrderByDescending("timestamp")
                 .GetSnapshotAsync();
-            return snapshot.Documents
+            
+                return snapshot.Documents
                 .Select(d => d.ConvertTo<ChatMessage>())
                 .ToList();
         }

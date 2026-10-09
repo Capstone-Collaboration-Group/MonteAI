@@ -17,3 +17,4 @@ export * from "./src/auth";
 export * from "./src/announcement";
 export * from "./src/student";
 export * from "./src/review";
+export * from "./src/user";

@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using server.Models.DTOs.PanelistSchedule;
 using server.Models.DTOs.Schedule;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
@@ -10,11 +11,57 @@ namespace server.Services.Schedules
     {
         private readonly IScheduleRepository _repo;
         private readonly IMapper _mapper;
+        private readonly IFacultyRepository _facultyRepo;
+        private readonly IProgramHeadRepository _programHeadRepo;
+        private readonly IAdminRepository _adminRepo;
 
-        public ScheduleService(IScheduleRepository repo, IMapper mapper)
+        public ScheduleService(
+            IScheduleRepository repo,
+            IMapper mapper,
+            IFacultyRepository facultyRepo,
+            IProgramHeadRepository programHeadRepo,
+            IAdminRepository adminRepo)
         {
             _repo = repo;
             _mapper = mapper;
+            _facultyRepo = facultyRepo;
+            _programHeadRepo = programHeadRepo;
+            _adminRepo = adminRepo;
+        }
+
+        // PanelistId points at one of three role tables — resolve every id to a
+        // readable "First M. Last Suffix" once per request and stamp it on the DTOs.
+        private async Task<Dictionary<string, string>> BuildPanelistNamesAsync()
+        {
+            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var faculty in await _facultyRepo.GetAllFacultyAsync())
+                names[faculty.Id] = FormatName(faculty);
+            foreach (var programHead in await _programHeadRepo.GetAllProgramHeadsAsync())
+                names[programHead.Id] = FormatName(programHead);
+            foreach (var admin in await _adminRepo.GetAllAdminsAsync())
+                names[admin.Id] = FormatName(admin);
+
+            return names;
+        }
+
+        private static string FormatName(server.Models.Entities.User user)
+            => string.Join(" ", new[]
+            {
+                user.FirstName,
+                user.MiddleInitial is null ? null : $"{user.MiddleInitial}.",
+                user.LastName,
+                user.Suffix
+            }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+        private static void ApplyPanelistNames(
+            IEnumerable<ScheduleResponseDto> schedules,
+            IReadOnlyDictionary<string, string> names)
+        {
+            foreach (var schedule in schedules)
+                foreach (var panelist in schedule.Panelists)
+                    if (names.TryGetValue(panelist.PanelistId, out var name))
+                        panelist.PanelistName = name;
         }
 
         public async Task<IEnumerable<ScheduleResponseDto>> GetAllAsync()
@@ -22,6 +69,8 @@ namespace server.Services.Schedules
             var result = await _repo.GetAllSchedulesAsync();
 
             var responseDto = _mapper.Map<IEnumerable<ScheduleResponseDto>>(result);
+
+            ApplyPanelistNames(responseDto, await BuildPanelistNamesAsync());
 
             return responseDto;
         }
@@ -31,6 +80,9 @@ namespace server.Services.Schedules
             var result = await _repo.GetScheduleByIdAsync(id);
             var responseDto = _mapper.Map<ScheduleResponseDto>(result);
 
+            if (responseDto != null)
+                ApplyPanelistNames([responseDto], await BuildPanelistNamesAsync());
+
             return responseDto;
 
         }
@@ -39,6 +91,9 @@ namespace server.Services.Schedules
             var result = await _repo.GetScheduleByGroupIdAsync(groupId);
 
             var responseDto = _mapper.Map<ScheduleResponseDto>(result);
+
+            if (responseDto != null)
+                ApplyPanelistNames([responseDto], await BuildPanelistNamesAsync());
 
             return responseDto;
         }

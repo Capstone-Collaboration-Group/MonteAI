@@ -1,27 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useDrawerChats } from '@/hooks/useDrawerChats';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
-import { studentService } from '@/lib/studentService';
-import type { StudentResponseDto } from '@monteai/types';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
+import { userService } from '@/lib/userService';
+import type { UserProfileDto } from '@monteai/types';
 
 const MENU = [
-  { icon: 'person-outline', label: 'Edit Profile' },
-  { icon: 'lock-outline', label: 'Change Password' },
-  { icon: 'notifications-none', label: 'Notifications' },
-  { icon: 'help-outline', label: 'Help & Support' },
-  { icon: 'info-outline', label: 'About' },
+  { icon: 'person-outline', label: 'Edit Profile', route: '/settings/profile' as const },
+  { icon: 'lock-outline', label: 'Change Password', route: '/settings/security' as const },
+  { icon: 'notifications-none', label: 'Notifications', route: '/settings/notifications' as const },
+  { icon: 'help-outline', label: 'Help & Support', route: '/settings/help' as const },
+  { icon: 'info-outline', label: 'About', route: '/settings/about' as const },
 ];
 
-function initials(first?: string, last?: string): string {
-  return `${(first?.[0] ?? '').toUpperCase()}${(last?.[0] ?? '').toUpperCase()}` || '??';
+function initials(name?: string): string {
+  return name?.trim().charAt(0).toUpperCase() || '??';
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const { session, signOut } = useAuthSession();
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'onSurface');
   const body = useThemeColor({}, 'onSurfaceVariant');
@@ -29,41 +35,53 @@ export default function ProfileScreen() {
   const outline = useThemeColor({}, 'outlineVariant');
   const primary = useThemeColor({}, 'primary');
 
-  const [student, setStudent] = useState<StudentResponseDto | null>(null);
+  const [profile, setProfile] = useState<UserProfileDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const { recentChats, loading: chatsLoading } = useDrawerChats();
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const me = await userService.getMe();
+      setProfile(me);
+    } catch {
+      // stays null
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        const students = await studentService.getStudents();
-        if (active && students.length > 0) {
-          setStudent(students[0]); // first student as current user
-        }
-      } catch {
-        // stays null
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
+    loadProfile().finally(() => {
+      if (active) setLoading(false);
+    });
     return () => { active = false; };
-  }, []);
+  }, [loadProfile]);
 
-  const fullName = student
-    ? `${student.firstName} ${student.middleInitial ? student.middleInitial + '. ' : ''}${student.lastName}${student.suffix ? ' ' + student.suffix : ''}`
-    : 'Jane Doe';
-  const email = student?.email ?? 'jane.doe@student.pnm.edu.ph';
-  const role = student?.program ?? 'Academic Researcher';
-  const ini = student ? initials(student.firstName, student.lastName) : 'JD';
+  const { refreshControl } = usePullToRefresh(loadProfile);
+
+  const fullName = profile
+    ? `${profile.firstName} ${profile.middleInitial ? profile.middleInitial + '. ' : ''}${profile.lastName}${profile.suffix ? ' ' + profile.suffix : ''}`
+    : session?.email.split('@')[0] ?? 'Jane Doe';
+  const email = profile?.email ?? session?.email ?? 'jane.doe@student.pnm.edu.ph';
+  const role = profile?.program ?? profile?.position ?? profile?.role ?? 'Academic Researcher';
+  const ini = initials(profile?.firstName ?? session?.email);
 
   return (
-    <DrawerProvider>
+    <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
-        <AppHeader title="MonteSkolar" onLeftPress={openDrawer} rightIcons={[{ icon: 'settings' }]} />
+        <AppHeader
+  title="MonteSkolar"
+  onLeftPress={openDrawer}
+  rightIcons={[
+    {
+      icon: 'settings',
+      onPress: () => router.push('/settings'),
+    },
+  ]}
+/>
       </SafeAreaView>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         {/* Avatar */}
         <View style={s.avatarSection}>
           {loading ? (
@@ -83,17 +101,17 @@ export default function ProfileScreen() {
         {/* Stats */}
         <View style={[s.stats, { backgroundColor: surface, borderColor: outline }]}>
           <View style={s.stat}>
-            <Text style={[s.statNum, { color: primary }]}>{student?.researchGroup ? 1 : 0}</Text>
+            <Text style={[s.statNum, { color: primary }]}>{profile?.researchGroup ? 1 : 0}</Text>
             <Text style={[s.statLabel, { color: body }]}>Groups</Text>
           </View>
           <View style={[s.statDivider, { backgroundColor: outline }]} />
           <View style={s.stat}>
-            <Text style={[s.statNum, { color: primary }]}>{student?.yearLevel ?? '-'}</Text>
+            <Text style={[s.statNum, { color: primary }]}>{profile?.yearLevel ?? '-'}</Text>
             <Text style={[s.statLabel, { color: body }]}>Year Level</Text>
           </View>
           <View style={[s.statDivider, { backgroundColor: outline }]} />
           <View style={s.stat}>
-            <Text style={[s.statNum, { color: primary }]}>{student?.position ?? '-'}</Text>
+            <Text style={[s.statNum, { color: primary }]}>{profile?.position ?? '-'}</Text>
             <Text style={[s.statLabel, { color: body }]}>Position</Text>
           </View>
         </View>
@@ -103,7 +121,10 @@ export default function ProfileScreen() {
           {MENU.map((m, i) => (
             <React.Fragment key={m.label}>
               {i > 0 ? <View style={[s.divider, { backgroundColor: outline }]} /> : null}
-              <Pressable style={s.menuRow} accessibilityRole="button">
+              <Pressable
+                style={s.menuRow}
+                accessibilityRole="button"
+                onPress={() => router.push(m.route)}>
                 <MaterialIcons name={m.icon as any} size={22} color={body} />
                 <Text style={[s.menuLabel, { color: heading }]}>{m.label}</Text>
                 <MaterialIcons name="chevron-right" size={20} color={body} />
@@ -113,12 +134,20 @@ export default function ProfileScreen() {
         </View>
 
         {/* Logout */}
-        <Pressable style={[s.logoutBtn, { borderColor: '#dc2626' }]}>
+        <Pressable
+          style={[s.logoutBtn, { borderColor: '#dc2626' }]}
+          accessibilityRole="button"
+          onPress={() => {
+            void (async () => {
+              await signOut();
+              router.replace('/auth-entry');
+            })();
+          }}>
           <MaterialIcons name="logout" size={20} color="#dc2626" />
           <Text style={s.logoutText}>Log Out</Text>
         </Pressable>
 
-        <Text style={[s.version, { color: body }]}>MonteScholar v1.0.0</Text>
+        <Text style={[s.version, { color: body }]}>MonteSkolar v1.0.0</Text>
       </ScrollView>
     </View>
       )}
@@ -132,12 +161,12 @@ const s = StyleSheet.create({
   avatarSection: { alignItems: 'center', gap: Spacing.sm },
   avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: FontSize.xxl, fontWeight: '700' },
-  name: { fontSize: FontSize.xxl, fontWeight: '700' },
+  name: { fontSize: FontSize.xl, fontWeight: '700' },
   role: { fontSize: FontSize.md },
   email: { fontSize: FontSize.sm },
   stats: { flexDirection: 'row', borderWidth: 1, borderRadius: Radius.md, padding: Spacing.lg, width: '100%' },
   stat: { flex: 1, alignItems: 'center', gap: Spacing.xs },
-  statNum: { fontSize: FontSize.xl, fontWeight: '700' },
+  statNum: { fontSize: FontSize.lg, fontWeight: '700' },
   statLabel: { fontSize: FontSize.xs },
   statDivider: { width: StyleSheet.hairlineWidth },
   menu: { borderWidth: 1, borderRadius: Radius.md, width: '100%', overflow: 'hidden' },

@@ -11,7 +11,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-console.log("mockAnnouncementService loaded — Initialized with seed data");
 
 function buildSeed(): AnnouncementResponseDto[] {
   return [
@@ -102,8 +101,7 @@ export const mockAnnouncementService: AnnouncementService = {
       institute: "All",
       priority: dto.priority,
       attachmentUrls: dto.attachmentUrls,
-      createdAt: dto.createdAt ?? now,
-      lastModified: dto.lastModified ?? now,
+      createdAt: now,
       author: {
         id: "admin-1",
         fullName: "Juan Dela Cruz",
