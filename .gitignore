@@ -536,3 +536,8 @@ monteai-firebase-credential.json
 .ignore
 
 opencode.jsonc
+
+# android credentials
+credentials.json
+.pass.txt
+monteai-release.keystore
