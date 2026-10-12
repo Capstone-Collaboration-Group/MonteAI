@@ -235,9 +235,15 @@ export const mockChatService: ChatService = {
       },
     ];
 
-    // Simulate the real event order: sources first, then token-by-token deltas.
-    await delay(200);
+    // Simulate the real event order: status frames while the agent "plans",
+    // then sources, then more status, then token-by-token deltas.
+    handlers.onStatus?.("Understanding your question…");
+    await delay(250);
+    handlers.onStatus?.("Searching the repository…");
+    await delay(350);
     handlers.onSources?.(sources);
+    handlers.onStatus?.("Writing your answer…");
+    await delay(200);
 
     const fullText =
       `Here is a summary of the sources relevant to "${dto.content.slice(0, 80)}" ` +

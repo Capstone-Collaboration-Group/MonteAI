@@ -33,6 +33,32 @@ cd MonteAI/apps
 pnpm install
 ```
 
+#### TOTP two-factor authentication
+
+Apply the server migration before using authenticator enrollment:
+
+```powershell
+dotnet ef database update --project server/server.csproj
+```
+
+Configure `Auth:JwtSigningKey` in server user-secrets or the deployment secret
+store. It must be a base64-encoded key containing at least 32 random bytes.
+For example, generate a value locally with:
+
+```powershell
+[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+
+The API creates an ephemeral signing key only in Development and Testing;
+Production requires the configured key. Configure a persistent `DataProtection:KeysPath`
+that is shared by API instances and protected at rest so enrolled TOTP secrets
+remain decryptable across restarts and deployments. Do not commit signing keys
+or Data Protection key-ring files.
+
+Users can enroll, disable, or regenerate recovery codes from account Security
+settings in the web, desktop, or mobile app. Enrollment returns one-time
+recovery codes; users should save them before leaving the setup screen.
+
 #### Run apps client
 
 **Web** 

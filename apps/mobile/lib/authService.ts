@@ -24,6 +24,7 @@ import {
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { firebaseAuth } from './firebase';
+import { getMfaAccessToken, refreshMfaAccessToken } from './mfaSession';
 
 /** Error code used for "signed in but the email link wasn't opened yet". */
 export const EMAIL_NOT_VERIFIED_CODE = 'auth/email-not-verified';
@@ -53,11 +54,15 @@ interface ResolveLoginResponse {
 
 /** Bearer token for authenticated API calls (cached ~1h by the SDK). */
 export async function getAuthToken(): Promise<string | undefined> {
+  const mfaToken = await getMfaAccessToken();
+  if (mfaToken) return mfaToken;
   return firebaseAuth.currentUser?.getIdToken();
 }
 
 /** Force-refreshed token — used by the API client's 401 retry path. */
 export async function refreshAuthToken(): Promise<string | undefined> {
+  const mfaToken = await refreshMfaAccessToken();
+  if (mfaToken) return mfaToken;
   return firebaseAuth.currentUser?.getIdToken(true);
 }
 

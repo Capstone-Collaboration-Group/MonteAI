@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using FirebaseAdmin.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
+using server.Services.Interfaces;
 
 namespace server.Middleware;
 
@@ -11,10 +11,13 @@ public class FirebaseAuthOptions : AuthenticationSchemeOptions { }
 public class FirebaseAuthMiddleware : AuthenticationHandler<FirebaseAuthOptions>
 {
     public const string SchemeName = "Firebase";
+    public const string AuthMethodClaim = "auth_method";
+    public const string AuthMethodSession = "session";
+    public const string AuthMethodFirebase = "firebase";
 
     public FirebaseAuthMiddleware(
         IOptionsMonitor<FirebaseAuthOptions> options,
-        ILoggerFactory logger, 
+        ILoggerFactory logger,
         UrlEncoder encoder)
         : base(options, logger, encoder) { }
 
@@ -27,42 +30,52 @@ public class FirebaseAuthMiddleware : AuthenticationHandler<FirebaseAuthOptions>
         if (!headerValue.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             return AuthenticateResult.NoResult();
 
-        var idToken = headerValue["Bearer ".Length..].Trim();
+        var token = headerValue["Bearer ".Length..].Trim();
 
-        if(string.IsNullOrEmpty(idToken))
+        if (string.IsNullOrEmpty(token))
             return AuthenticateResult.Fail("Missing Token");
 
-        try
+        // Path 1: our backend-issued session JWT (MFA users post-verification).
+        // Pending (mfa_pending) and refresh tokens fail ValidateAccessToken
+        // (typ mismatch) and fall through to the Firebase path, which rejects
+        // them — so they are never accepted as session credentials.
+        var sessionTokens = Context.RequestServices.GetRequiredService<ISessionTokenService>();
+        var session = sessionTokens.ValidateAccessToken(token);
+        if (session != null)
         {
-            var decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(idToken, checkRevoked: true);
-
             var claims = new List<Claim>
             {
-                new(ClaimTypes.NameIdentifier, decodedToken.Uid),
-                new("user_id", decodedToken.Uid),
+                new(ClaimTypes.NameIdentifier, session.Uid),
+                new("user_id", session.Uid),
+                new(AuthMethodClaim, AuthMethodSession),
             };
-
-            if (decodedToken.Claims.TryGetValue("email", out var email) && email is not null)
-            {
-                claims.Add(new Claim(ClaimTypes.Email, email.ToString()!));
-            }
-
-            if(decodedToken.Claims.TryGetValue("email_verified", out var emailVerified)
-                && bool.TryParse(emailVerified?.ToString(), out var isVerified) && isVerified)
-            {
-                claims.Add(new Claim("email_verified", "true"));
-            }
+            if (!string.IsNullOrEmpty(session.Role))
+                claims.Add(new Claim(ClaimTypes.Role, session.Role));
+            if (!string.IsNullOrEmpty(session.Email))
+                claims.Add(new Claim(ClaimTypes.Email, session.Email));
 
             var identity = new ClaimsIdentity(claims, Scheme.Name);
-            var principal = new ClaimsPrincipal(identity);
-            var ticket = new AuthenticationTicket(principal, Scheme.Name);
+            return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name));
+        }
 
-            return AuthenticateResult.Success(ticket);
-        }
-        catch (FirebaseAuthException ex)
-        {
-            Logger.LogWarning(ex, "Firebase token verification failed");
+        // Path 2: raw Firebase ID token (users without TOTP — unchanged behavior).
+        var verifier = Context.RequestServices.GetRequiredService<IFirebaseTokenVerifier>();
+        var firebase = await verifier.VerifyAsync(token);
+        if (firebase == null)
             return AuthenticateResult.Fail("Invalid Firebase token.");
-        }
+
+        var firebaseClaims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, firebase.Uid),
+            new("user_id", firebase.Uid),
+            new(AuthMethodClaim, AuthMethodFirebase),
+        };
+        if (!string.IsNullOrEmpty(firebase.Email))
+            firebaseClaims.Add(new Claim(ClaimTypes.Email, firebase.Email));
+        if (firebase.EmailVerified)
+            firebaseClaims.Add(new Claim("email_verified", "true"));
+
+        var firebaseIdentity = new ClaimsIdentity(firebaseClaims, Scheme.Name);
+        return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(firebaseIdentity), Scheme.Name));
     }
 }

@@ -1,5 +1,6 @@
 import { Toaster, NotFound } from "@monteai/ui";
 import { AuthProvider, QueryClientProvider, queryClient } from "@monteai/hooks";
+import { MfaSessionProvider } from "./components/MfaSessionProvider";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import AppLayout from "./components/layouts/AppLayout";
 import LandingPage from "./pages/LandingPage";
@@ -27,6 +28,7 @@ function NotFoundPage() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider auth={auth}>
+      <MfaSessionProvider>
       <Toaster />
       <BrowserRouter>
         <Routes>
@@ -55,6 +57,7 @@ const App = () => (
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
+      </MfaSessionProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

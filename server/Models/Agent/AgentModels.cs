@@ -42,11 +42,19 @@ namespace server.Models.Agent
 
     /// <summary>
     /// Events emitted by the streaming agent. Order per request:
-    /// one <see cref="SourcesDiscovered"/> (may be empty), N <see cref="AnswerDelta"/>,
-    /// one <see cref="Completed"/>.
+    /// N <see cref="Status"/> (planning/tools progress), one
+    /// <see cref="SourcesDiscovered"/> (may be empty), another
+    /// <see cref="Status"/>, N <see cref="AnswerDelta"/>, one <see cref="Completed"/>.
     /// </summary>
     public abstract record AgentStreamEvent
     {
+        /// <summary>
+        /// Human-readable progress note ("planning", "searching", "writing").
+        /// Streamed while the non-synthesized phases run so the client sees
+        /// activity before the first answer token.
+        /// </summary>
+        public sealed record Status(string Message) : AgentStreamEvent;
+
         /// <summary>Emitted once retrieval is done, before the first answer token — lets the UI show citations while the answer streams.</summary>
         public sealed record SourcesDiscovered(IReadOnlyList<ChatSourceDto> Sources) : AgentStreamEvent;
 

@@ -5,6 +5,7 @@
 //
 // STREAMING DATA FLOW (sendMessageStream):
 //   POST /chat/sessions/{id}/messages/stream (text/event-stream)
+//     event: status   data: { "message": "Searching the repository…" }
 //     event: sources  data: [ { thesisId, title, authors, ... } ]
 //     event: delta    data: { "text": "...fragment..." }
 //     event: done     data: { "message": { persisted assistant message } }
@@ -32,6 +33,11 @@ import { handle404 } from "@monteai/utils";
 /** Shape of the SSE "done" event payload. */
 interface DoneEvent {
   message: ChatMessageResponseDto;
+}
+
+/** Shape of the SSE "status" event payload. */
+interface StatusEvent {
+  message: string;
 }
 
 /** Shape of the SSE "delta" event payload. */
@@ -108,7 +114,9 @@ export class LiveChatService implements ChatService {
         if (!eventName || rawData === null) continue;
 
         try {
-          if (eventName === "sources") {
+          if (eventName === "status") {
+            handlers.onStatus?.((JSON.parse(rawData) as StatusEvent).message);
+          } else if (eventName === "sources") {
             handlers.onSources?.(JSON.parse(rawData) as ChatSourceDto[]);
           } else if (eventName === "delta") {
             handlers.onDelta?.((JSON.parse(rawData) as DeltaEvent).text);

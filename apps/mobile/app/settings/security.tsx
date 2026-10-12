@@ -16,6 +16,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
 import { userService } from '@/lib/userService';
+import MfaSecuritySection from '@/components/MfaSecuritySection';
 
 export default function SecuritySettingsScreen() {
   const router = useRouter();
@@ -139,6 +140,8 @@ export default function SecuritySettingsScreen() {
             </Text>
           </View>
         </View>
+
+        <MfaSecuritySection />
 
         {/* Change Password */}
         <Text

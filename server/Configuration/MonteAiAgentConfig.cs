@@ -50,6 +50,27 @@ namespace server.Configuration
         public int AnswerMaxOutputTokens { get; set; } = 800;
 
         /// <summary>
+        /// When true the final answer is streamed token-by-token (SSE deltas).
+        /// When false it is generated with one normal completion and sent as a
+        /// single delta — use this if the deployment's streaming endpoint
+        /// never returns data. Default: true.
+        /// </summary>
+        public bool StreamSynthesis { get; set; } = true;
+
+        /// <summary>
+        /// Seconds to wait for the FIRST streamed update before abandoning that
+        /// attempt. Healthy requests on this deployment answer in ~2s. Default: 10.
+        /// </summary>
+        public int FirstTokenTimeoutSeconds { get; set; } = 10;
+
+        /// <summary>
+        /// How many fresh streaming requests to try before giving up on
+        /// streaming and using one non-streaming completion. A hung streaming
+        /// request is abandoned after FirstTokenTimeoutSeconds. Default: 2.
+        /// </summary>
+        public int StreamAttempts { get; set; } = 2;
+
+        /// <summary>
         /// Sampling temperature for planner calls (low = deterministic JSON).
         /// Default: 0.0.
         /// </summary>

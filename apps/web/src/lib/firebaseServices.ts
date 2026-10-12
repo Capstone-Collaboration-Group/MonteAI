@@ -1,6 +1,6 @@
 // web/src/lib/firebaseServices.ts
 import { createFirebaseAuth } from "@monteai/api";
-import axios from "axios";
+import { apiClient } from "./apiClient";
 
 export const auth = createFirebaseAuth({
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,15 +11,7 @@ export const auth = createFirebaseAuth({
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 });
 
-export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-});
-
-// Attach Firebase token to every request
-apiClient.interceptors.request.use(async (config) => {
-  const token = await auth.currentUser?.getIdToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Re-exported so the 12 existing service modules keep working unchanged.
+// The Authorization header now prefers the MFA session JWT when one exists
+// (see lib/apiClient.ts), falling back to the Firebase ID token.
+export { apiClient };

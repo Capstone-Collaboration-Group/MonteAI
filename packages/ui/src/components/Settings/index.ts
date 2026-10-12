@@ -3,3 +3,4 @@ export { AccountSettings } from "./AccountSettings";
 export { AppearanceSettings } from "./AppearanceSettings";
 export { NotificationSettings } from "./NotificationSettings";
 export { SecuritySettings } from "./SecuritySettings";
+export type { MfaApi } from "./SecuritySettings";
