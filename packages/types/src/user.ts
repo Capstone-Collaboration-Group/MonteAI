@@ -50,6 +50,7 @@ export interface UserResponseDto {
   suffix?: string;
   role: string;
   isActive?: boolean;
+  totpEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,6 +70,7 @@ export interface UserProfileDto {
   suffix?: string;
   role: string;
   isActive?: boolean;
+  totpEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 

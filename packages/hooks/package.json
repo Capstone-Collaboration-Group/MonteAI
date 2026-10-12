@@ -20,6 +20,9 @@
     "@monteai/types": "workspace:*",
     "firebase": "^12.16.0"
   },
+  "peerDependencies": {
+    "react": "^19.2.7"
+  },
   "devDependencies": {
     "react": "^19.2.7"
   }

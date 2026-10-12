@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using server.Configuration;
+using server.Infrastructure;
 using server.Models.Agent;
 using server.Models.DTOs.ChatMessage;
 using server.Models.DTOs.ChatSession;
@@ -28,10 +29,15 @@ using server.Services.Interfaces;
 //   5. Persist the assistant message WITH its structured sources and return it.
 //
 //   The streaming variant emits Server-Sent Events:
+//     event: status   data: { "message": "Searching the repository…" }
 //     event: sources  data: [ { thesisId, title, authors, ... } ]
 //     event: delta    data: { "text": "...answer fragment..." }
 //     event: done     data: { "message": { persisted assistant message } }
 //     event: error    data: { "message": "..." }   (terminal failure only)
+//
+//   Headers + the first status frame are flushed BEFORE the pre-agent DB
+//   work, so the client gets a response in ~0ms instead of after the whole
+//   plan/tool phase (which used to leave the browser with no bytes at all).
 
 namespace server.Controllers
 {
@@ -152,6 +158,11 @@ namespace server.Controllers
 
                 return Ok(new { Message = "Message successfully stored", userMessage, aiMessage });
             }
+            catch (LlmUnavailableException ex)
+            {
+                _logger.LogWarning("Circuit breaker rejected agent run for session {SessionId}", id);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { Message = ex.Message });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "MonteAI agent failed for session {SessionId}", id);
@@ -178,14 +189,23 @@ namespace server.Controllers
             var ownershipError = await CheckOwnershipAsync(id, writeResponse: true);
             if (ownershipError != null) return; // response already written
 
-            var history = await _chatMessageService.GetHistoryAsync(id, _agentConfig.HistoryMessageCount);
-            var userMessage = await _chatMessageService.CreateAsync(dto, id.ToString());
-            await _chatSessionService.TouchAsync(id);
-
-            // Switch the response into SSE mode.
+            // Switch the response into SSE mode BEFORE the pre-agent DB work
+            // and flush headers + an initial status so the client's first byte
+            // arrives immediately instead of after ~1s of Firestore calls.
             Response.StatusCode = StatusCodes.Status200OK;
             Response.ContentType = "text/event-stream";
             Response.Headers.CacheControl = "no-cache";
+            // App Service / proxies love to buffer responses, which delays SSE
+            // frames until the buffer fills — kill buffering for this stream.
+            HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>()
+                ?.DisableBuffering();
+            await Response.StartAsync();
+            await WriteSseEventAsync("status",
+                JsonSerializer.Serialize(new { message = "Preparing your question…" }, SseJsonOptions));
+
+            var history = await _chatMessageService.GetHistoryAsync(id, _agentConfig.HistoryMessageCount);
+            var userMessage = await _chatMessageService.CreateAsync(dto, id.ToString());
+            await _chatSessionService.TouchAsync(id);
 
             var answerBuffer = new StringBuilder();
             IReadOnlyList<ChatSourceDto> sources = [];
@@ -198,6 +218,10 @@ namespace server.Controllers
                 {
                     switch (evt)
                     {
+                        case AgentStreamEvent.Status statusEvent:
+                            await WriteSseEventAsync("status", JsonSerializer.Serialize(new { message = statusEvent.Message }, SseJsonOptions));
+                            break;
+
                         case AgentStreamEvent.SourcesDiscovered sourcesEvent:
                             sources = sourcesEvent.Sources;
                             await WriteSseEventAsync("sources", JsonSerializer.Serialize(sourcesEvent.Sources, SseJsonOptions));
@@ -218,10 +242,15 @@ namespace server.Controllers
                     }
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
             {
-                // Client disconnected mid-stream. Persist whatever was already
-                // generated so the conversation history is not lost.
+                // Client disconnected mid-stream (only when the REQUEST was
+                // aborted — a TaskCanceledException from an Azure OpenAI
+                // network timeout also derives from OperationCanceledException
+                // and must fall through to the error handler below, otherwise
+                // the client would hang with no "error" event).
+                // Persist whatever was already generated so the conversation
+                // history is not lost.
                 if (answerBuffer.Length > 0)
                 {
                     _logger.LogInformation("Client disconnected mid-stream for session {SessionId} — persisting partial answer", id);
@@ -229,6 +258,22 @@ namespace server.Controllers
                         new CreateChatMessageDto { Content = answerBuffer.ToString(), Role = "assistant" },
                         id.ToString(),
                         sources);
+                }
+            }
+            catch (LlmUnavailableException ex)
+            {
+                // Circuit breaker is open, or synthesis timed out after all
+                // retries — either way the deployment is sick; fail fast with
+                // the friendly message instead of a generic 500.
+                _logger.LogWarning(ex, "LLM unavailable for session {SessionId} — answering with friendly unavailable message", id);
+                if (!Response.HasStarted)
+                {
+                    Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                    await Response.WriteAsJsonAsync(new { Message = ex.Message });
+                }
+                else
+                {
+                    await WriteSseEventAsync("error", JsonSerializer.Serialize(new { message = ex.Message }, SseJsonOptions));
                 }
             }
             catch (Exception ex)

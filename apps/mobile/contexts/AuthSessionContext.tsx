@@ -5,12 +5,16 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { onAuthStateChanged, type User } from 'firebase/auth';
+import type { MfaChallengeResponse, MfaVerifyResponse } from '@monteai/types';
 import { firebaseAuth } from '@/lib/firebase';
+import { anonymousMfaService } from '@/lib/mfaService';
+import { clearMfaTokens, getMfaAccessToken, storeMfaTokens } from '@/lib/mfaSession';
 import {
   EMAIL_NOT_VERIFIED_CODE,
   authError,
@@ -56,7 +60,10 @@ export interface BeginRegistrationResult {
 export interface AuthSessionContextValue {
   session: AuthSession | null;
   restoring: boolean;
-  signInWithStudentNumber: (studentNumber: string, password: string) => Promise<void>;
+  mfaPending: boolean;
+  signInWithStudentNumber: (studentNumber: string, password: string) => Promise<boolean>;
+  verifyMfa: (code: string) => Promise<MfaVerifyResponse>;
+  cancelMfa: () => Promise<void>;
   beginRegistration: (payload: StudentRegistration) => Promise<BeginRegistrationResult>;
   completeRegistration: () => Promise<void>;
   checkVerification: () => Promise<boolean>;
@@ -142,6 +149,9 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const [mockSession, setMockSession] = useState<AuthSession | null>(null);
   const [studentNumberCache, setStudentNumberCache] = useState<string | null>(null);
   const [mockRestoring, setMockRestoring] = useState(true);
+  const [mfaPendingToken, setMfaPendingToken] = useState<string | null>(null);
+  const [mfaChecking, setMfaChecking] = useState(false);
+  const loginMfaCheckInProgress = useRef(false);
 
   // Restore the mock session + cached student number, then subscribe to
   // Firebase auth state (subscription last so the first callback lands
@@ -167,7 +177,37 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       }
       unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
         if (!active) return;
-        setFirebaseUser(user);
+        if (!user) {
+          setFirebaseUser(null);
+          setMfaPendingToken(null);
+          void clearMfaTokens();
+          return;
+        }
+        if (!user.emailVerified || loginMfaCheckInProgress.current || useMock) {
+          setFirebaseUser(user);
+          return;
+        }
+        setMfaChecking(true);
+        void (async () => {
+          try {
+            const sessionToken = await getMfaAccessToken();
+            if (sessionToken) {
+              setFirebaseUser(user);
+              return;
+            }
+            const challenge = await anonymousMfaService.challenge(await user.getIdToken());
+            if (challenge.mfaRequired && !challenge.pendingToken) {
+              throw new Error('Could not start the two-factor sign-in.');
+            }
+            setFirebaseUser(user);
+            setMfaPendingToken(challenge.mfaRequired ? challenge.pendingToken ?? null : null);
+          } catch {
+            setFirebaseUser(null);
+            setMfaPendingToken(null);
+          } finally {
+            setMfaChecking(false);
+          }
+        })();
       });
     })();
     return () => {
@@ -181,15 +221,15 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const session = useMemo<AuthSession | null>(() => {
     // Unverified users are deliberately invisible to the tab gate —
     // they must open the verification link before entering the app.
-    if (firebaseUser && firebaseUser.emailVerified) {
+    if (firebaseUser && firebaseUser.emailVerified && !mfaPendingToken && !mfaChecking) {
       return {
         uid: firebaseUser.uid,
         email: firebaseUser.email ?? '',
         studentNumber: studentNumberCache ?? undefined,
       };
     }
-    return mockSession;
-  }, [firebaseUser, mockSession, studentNumberCache]);
+    return mfaPendingToken || mfaChecking ? null : mockSession;
+  }, [firebaseUser, mfaChecking, mfaPendingToken, mockSession, studentNumberCache]);
 
   const cacheStudentNumber = useCallback(async (studentNumber: string) => {
     setStudentNumberCache(studentNumber);
@@ -197,7 +237,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithStudentNumber = useCallback(
-    async (studentNumber: string, password: string) => {
+    async (studentNumber: string, password: string): Promise<boolean> => {
       if (useMock) {
         const next: AuthSession = {
           email: `${studentNumber}@mock.local`,
@@ -211,21 +251,74 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         } catch {
           // ignore storage failures
         }
-        return;
+        return false;
       }
-      const user = await authServiceSignIn(studentNumber, password);
-      if (!user.emailVerified) {
-        // Blocked login — resend stays available because the Firebase
-        // session is live; `session` stays null so the tab gate holds.
-        throw authError(EMAIL_NOT_VERIFIED_CODE);
+      setMfaChecking(true);
+      loginMfaCheckInProgress.current = true;
+      try {
+        await clearMfaTokens();
+        const user = await authServiceSignIn(studentNumber, password);
+        if (!user.emailVerified) {
+          setFirebaseUser(user);
+          throw authError(EMAIL_NOT_VERIFIED_CODE);
+        }
+        const idToken = await user.getIdToken();
+        let challenge: MfaChallengeResponse;
+        try {
+          challenge = await anonymousMfaService.challenge(idToken);
+        } catch (err) {
+          await authServiceSignOut();
+          setFirebaseUser(null);
+          throw err;
+        }
+        if (challenge.mfaRequired) {
+          if (!challenge.pendingToken) {
+            await authServiceSignOut();
+            setFirebaseUser(null);
+            throw new Error('Could not start the two-factor sign-in. Please try again.');
+          }
+          setFirebaseUser(user);
+          setMfaPendingToken(challenge.pendingToken);
+          await cacheStudentNumber(studentNumber.trim());
+          return true;
+        }
+        setFirebaseUser(user);
+        await cacheStudentNumber(studentNumber.trim());
+        return false;
+      } catch (err) {
+        throw err;
+      } finally {
+        loginMfaCheckInProgress.current = false;
+        setMfaChecking(false);
       }
-      // Set immediately so navigation past the auth gate doesn't wait for
-      // the (redundant) listener callback.
-      setFirebaseUser(user);
-      await cacheStudentNumber(studentNumber.trim());
     },
     [cacheStudentNumber],
   );
+
+  const verifyMfa = useCallback(async (code: string): Promise<MfaVerifyResponse> => {
+    if (!mfaPendingToken) {
+      throw new Error('Your sign-in session expired. Please sign in again.');
+    }
+    const result = await anonymousMfaService.verify({
+      pendingToken: mfaPendingToken,
+      code,
+    });
+    await storeMfaTokens({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      expiresAt: result.expiresAt,
+    });
+    setMfaPendingToken(null);
+    setFirebaseUser(firebaseAuth.currentUser);
+    return result;
+  }, [mfaPendingToken]);
+
+  const cancelMfa = useCallback(async () => {
+    setMfaPendingToken(null);
+    await clearMfaTokens();
+    await authServiceSignOut();
+    setFirebaseUser(null);
+  }, []);
 
   /**
    * Phase 1: create the Firebase account + send the verification link
@@ -354,6 +447,8 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     ]);
     setMockSession(null);
     setStudentNumberCache(null);
+    setMfaPendingToken(null);
+    await clearMfaTokens();
     await authServiceSignOut();
     // The Firebase listener flips to null on its own; set it explicitly so
     // the auth-gate redirect is immediate even if the callback lags.
@@ -364,7 +459,10 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       restoring,
+      mfaPending: mfaPendingToken !== null,
       signInWithStudentNumber,
+      verifyMfa,
+      cancelMfa,
       beginRegistration,
       completeRegistration,
       checkVerification,
@@ -375,7 +473,10 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     [
       session,
       restoring,
+      mfaPendingToken,
       signInWithStudentNumber,
+      verifyMfa,
+      cancelMfa,
       beginRegistration,
       completeRegistration,
       checkVerification,

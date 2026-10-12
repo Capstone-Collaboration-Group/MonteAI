@@ -134,5 +134,8 @@ namespace server.Models.DTOs.User
         public int? YearLevel { get; set; }
         public string? Position { get; set; }
         public string? ProgramHandled { get; set; }
+
+        // TOTP MFA state (safe to expose — never the secret or codes).
+        public bool TotpEnabled { get; set; }
     }
 }

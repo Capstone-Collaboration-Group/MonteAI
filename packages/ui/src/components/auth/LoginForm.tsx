@@ -9,12 +9,30 @@ import { FirebaseError } from "firebase/app";
 import { TextInput } from "./TextInput";
 import { PasswordInput } from "./PasswordInput";
 import { hasPendingRegistrationFor } from "./pendingRegistration";
+import { useMfaPendingChallenge } from "@monteai/hooks";
+
+type MfaChallengeResponse = {
+  mfaRequired: boolean;
+  pendingToken?: string | null;
+};
 
 type LoginFormProps = {
   auth: Auth;
   onSuccess?: () => void;
   /** Called when the verified user still has a registration awaiting completion. */
   onResumeRegistration?: () => void;
+  /**
+   * Optional MFA hook. When provided and the server reports TOTP is
+   * enrolled for the just-signed-in user, the form publishes a pending
+   * challenge (via MfaFlowProvider) and hides itself so the app's
+   * MfaLoginFlowGate can render the code-entry screen. Omit to skip MFA.
+   */
+  mfa?: {
+    /** POST /auth/mfa/challenge — authenticated with the fresh Firebase token. */
+    challenge: (idToken: string) => Promise<MfaChallengeResponse>;
+    /** Revokes the Firebase session when the user cancels the code step. */
+    onCancel?: () => void;
+  };
 };
 
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -24,6 +42,7 @@ export function LoginForm({
   auth,
   onSuccess,
   onResumeRegistration,
+  mfa,
 }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +53,7 @@ export function LoginForm({
   const [resendIn, setResendIn] = useState(0);
   const [checking, setChecking] = useState(false);
   const advancingRef = useRef(false);
+  const { pending, setPending } = useMfaPendingChallenge();
 
   const advance = useCallback(() => {
     if (advancingRef.current) return;
@@ -63,6 +83,28 @@ export function LoginForm({
         password,
       );
       if (credential.user.emailVerified) {
+        if (mfa) {
+          const idToken = await credential.user.getIdToken();
+          let challenge: MfaChallengeResponse;
+          try {
+            challenge = await mfa.challenge(idToken);
+          } catch (err) {
+            await signOut(auth);
+            throw err;
+          }
+          if (challenge.mfaRequired && !challenge.pendingToken) {
+            await signOut(auth);
+            throw new Error("Could not start the two-factor sign-in. Please try again.");
+          }
+          if (challenge.mfaRequired && challenge.pendingToken) {
+            setPending({
+              idToken,
+              pendingToken: challenge.pendingToken,
+              onCancel: mfa.onCancel ?? (() => void signOut(auth)),
+            });
+            return;
+          }
+        }
         advance();
       } else {
         setUnverifiedEmail(credential.user.email ?? email);
@@ -72,7 +114,7 @@ export function LoginForm({
       if (err instanceof FirebaseError) {
         setError("Invalid email or password.");
       } else {
-        setError("Something went wrong. Please try again.");
+        setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       }
     } finally {
       setIsSubmitting(false);
@@ -173,6 +215,13 @@ export function LoginForm({
     const id = window.setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => window.clearTimeout(id);
   }, [unverifiedEmail, resendIn]);
+
+  // While an MFA challenge is pending, the MfaLoginFlowGate renders the
+  // code-entry screen instead of this form. Returning null here keeps the
+  // form's own state (email/password) intact for a retry or cancel.
+  if (pending) {
+    return null;
+  }
 
   if (unverifiedEmail) {
     return (

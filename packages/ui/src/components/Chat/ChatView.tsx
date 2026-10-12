@@ -18,6 +18,10 @@ export interface ChatViewProps {
   isSending: boolean;
   /** Id of the assistant message currently streaming (renders the typing cursor); null when idle. */
   streamingMessageId?: string | null;
+  /** Progress note from the agent ("Searching the repository…") shown while waiting for/through the stream. */
+  streamStatus?: string | null;
+  /** Terminal send failure shown as a banner above the input bar. */
+  error?: string | null;
   onInputChange: (value: string) => void;
   onSend: () => void;
 }
@@ -27,6 +31,8 @@ export function ChatView({
   input,
   isSending,
   streamingMessageId,
+  streamStatus,
+  error,
   onInputChange,
   onSend,
 }: ChatViewProps) {
@@ -75,9 +81,21 @@ export function ChatView({
 
           {isSending && !isStreamingAssistant && <ChatMessageSkeleton />}
 
+          {isSending && streamStatus && (
+            <p className="animate-pulse text-center text-xs text-on-surface-variant">
+              {streamStatus}
+            </p>
+          )}
+
           <div ref={bottomRef} />
         </div>
       </div>
+
+      {error && (
+        <div className="border-t border-outline-variant bg-surface-container-low px-3 py-2 text-center text-xs text-red-600 sm:px-6">
+          {error}
+        </div>
+      )}
 
       {/* ── Input bar ── */}
       <form

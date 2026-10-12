@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import type { UserService } from "@monteai/api";
+import type { MfaApi } from "./SecuritySettings";
 import { PageHeader } from "../common";
 import { AccountSettings } from "./AccountSettings";
 import { AppearanceSettings } from "./AppearanceSettings";
@@ -18,6 +19,7 @@ type SettingsSection =
 
 interface SettingsPanelProps {
   userService: UserService;
+  mfa?: MfaApi;
 }
 
 const settingsItems: {
@@ -52,7 +54,7 @@ const settingsItems: {
   },
 ];
 
-export function SettingsPanel({ userService }: SettingsPanelProps) {
+export function SettingsPanel({ userService, mfa }: SettingsPanelProps) {
   const [activeSection, setActiveSection] =
     useState<SettingsSection>("account");
 
@@ -68,7 +70,7 @@ export function SettingsPanel({ userService }: SettingsPanelProps) {
         return <NotificationSettings />;
 
       case "security":
-        return <SecuritySettings />;
+        return <SecuritySettings mfa={mfa} />;
 
       default:
         return <AccountSettings userService={userService} />;

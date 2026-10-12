@@ -24,6 +24,14 @@ import { ChatPageSkeleton } from "../components/Chat/skeletons";
 
 const FALLBACK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // dev fallback when no user is signed in (mock mode)
 
+/** Prefers the server-provided message (rate limit, breaker, etc.) over a generic fallback. */
+function toUserFacingError(err: unknown): string {
+  if (err instanceof Error && err.message && !err.message.startsWith("Request failed with status code")) {
+    return err.message;
+  }
+  return "MonteAI could not generate a response. Please try again.";
+}
+
 interface ChatPageProps {
   chatService: ChatService;
   /** Existing session to open — messages are fetched lazily on mount. */
@@ -50,6 +58,10 @@ export function ChatPage({
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
   /** Id of the assistant bubble currently being streamed into (drives the typing cursor). */
   const [streamingAssistantId, setStreamingAssistantId] = useState<string | null>(null);
+  /** Latest progress note from the agent ("Searching the repository…"), shown while waiting. */
+  const [streamStatus, setStreamStatus] = useState<string | null>(null);
+  /** Terminal send failure, shown as a banner until the next send. */
+  const [sendError, setSendError] = useState<string | null>(null);
   const hasAutoSent = useRef(false);
 
   // Fetch the selected session's messages. The API returns them latest-first;
@@ -81,6 +93,8 @@ export function ChatPage({
       if (!content.trim() || isSending || isLoadingSession) return;
       setIsSending(true);
       setInput("");
+      setSendError(null);
+      setStreamStatus("Preparing your question…");
 
       try {
         let activeSessionId = sessionId ?? localSessionId;
@@ -125,31 +139,34 @@ export function ChatPage({
               activeSessionId,
               { role: "user", content },
               {
+                onStatus: (status) => setStreamStatus(status),
                 onSources: (sources) =>
                   setMessages((prev) =>
                     prev.map((m) => (m.id === placeholderId ? { ...m, sources } : m))
                   ),
-                onDelta: (text) =>
+                onDelta: (text) => {
+                  setStreamStatus(null);
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === placeholderId ? { ...m, content: m.content + text } : m
                     )
-                  ),
+                  );
+                },
               }
             );
             setMessages((prev) =>
               prev.map((m) => (m.id === placeholderId ? finalMessage : m))
             );
           } catch (err) {
-            console.error("Chat stream failed, falling back to blocking send:", err);
+            // Do NOT fall back to a blocking re-send: the stream endpoint has
+            // already persisted the user message, so a retry would duplicate
+            // it AND block for the full agent run. Surface the error instead.
+            console.error("Chat stream failed:", err);
             setMessages((prev) => prev.filter((m) => m.id !== placeholderId));
-            const assistantMessage = await chatService.sendMessage(activeSessionId, {
-              role: "user",
-              content,
-            });
-            setMessages((prev) => [...prev, assistantMessage]);
+            setSendError(toUserFacingError(err));
           } finally {
             setStreamingAssistantId(null);
+            setStreamStatus(null);
           }
         } else {
           // ── Blocking fallback ──
@@ -163,8 +180,10 @@ export function ChatPage({
         onSessionActivity?.();
       } catch (err) {
         console.error("Chat send failed:", err);
+        setSendError(toUserFacingError(err));
       } finally {
         setIsSending(false);
+        setStreamStatus(null);
       }
     },
     [
@@ -195,6 +214,8 @@ export function ChatPage({
       input={input}
       isSending={isSending}
       streamingMessageId={streamingAssistantId}
+      streamStatus={streamStatus}
+      error={sendError}
       onInputChange={setInput}
       onSend={() => send(input)}
     />

@@ -35,6 +35,7 @@ namespace server.Data
                       .ValueGeneratedNever(); // Firebase UID, we supply it
                 entity.Property(e => e.Position)
                       .HasMaxLength(100);
+                ConfigureTotp(entity);
             });
 
             modelBuilder.Entity<Faculty>(entity =>
@@ -46,6 +47,7 @@ namespace server.Data
                       .ValueGeneratedNever();
                 entity.Property(e => e.Institute)
                       .HasMaxLength(100);
+                ConfigureTotp(entity);
             });
 
             modelBuilder.Entity<ProgramHead>(entity =>
@@ -59,6 +61,7 @@ namespace server.Data
                       .HasMaxLength(100);
                 entity.Property(e => e.ProgramHandled)
                       .HasMaxLength(100);
+                ConfigureTotp(entity);
             });
 
 
@@ -82,6 +85,7 @@ namespace server.Data
                       .HasMaxLength(100);
                 entity.Property(e => e.Section)
                       .HasMaxLength(1);
+                ConfigureTotp(entity);
             });
 
             modelBuilder.Entity<ResearchGroup>(entity =>
@@ -318,7 +322,9 @@ namespace server.Data
                         v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                         v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>()
                         )
-                    .HasColumnType("nvarchar(max)")
+                    // No HasColumnType: string maps to nvarchar(max) on SQL Server
+                    // and TEXT on SQLite. The explicit T-SQL type broke SQLite schema
+                    // generation used by integration tests.
                     .Metadata.SetValueComparer(new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<string>>(
                         (c1, c2) => c1!.SequenceEqual(c2!),
                         c => c.Aggregate(0, (a,v) => HashCode.Combine(a, v.GetHashCode())),
@@ -349,12 +355,47 @@ namespace server.Data
                     .WithMany()
                     .HasForeignKey(e => e.CreatedByProgramHeadId)
                     .OnDelete(DeleteBehavior.Restrict);
-                entity.ToTable(t => t.HasCheckConstraint(
-                    "CK_Announcement_SingleAuthor",
-                    "([CreatedByAdminId] IS NOT NULL AND [CreatedByProgramHeadId] IS NULL) OR " +
-                    "([CreatedByAdminId] IS NULL AND [CreatedByProgramHeadId] IS NOT NULL)"
-                ));
+                // T-SQL bracket quoting in the predicate only parses on SQL Server;
+                // SQLite (used by integration tests) rejects it at schema creation.
+                if (Database.ProviderName == "Microsoft.EntityFrameworkCore.SqlServer")
+                {
+                    entity.ToTable(t => t.HasCheckConstraint(
+                        "CK_Announcement_SingleAuthor",
+                        "([CreatedByAdminId] IS NOT NULL AND [CreatedByProgramHeadId] IS NULL) OR " +
+                        "([CreatedByAdminId] IS NULL AND [CreatedByProgramHeadId] IS NOT NULL)"
+                    ));
+                }
             });
+        }
+
+        // TOTP MFA columns shared by all four role tables (User base).
+        // RecoveryCodeHashes is a JSON array column — same
+        // converter pattern as Announcement.AttachmentUrls above. No explicit
+        // HasColumnType, so SQL Server gets nvarchar(max) and SQLite gets TEXT.
+        private static void ConfigureTotp<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T> entity)
+            where T : User
+        {
+            entity.Property(e => e.TotpEnabled)
+                  .HasDefaultValue(false);
+            entity.Property(e => e.TotpSecretEncrypted)
+                  .HasMaxLength(512);
+            entity.Property(e => e.TotpLastUsedStep)
+                  .HasDefaultValue(0L);
+            entity.Property(e => e.RecoveryCodeHashes)
+                  .HasConversion(
+                      v => v == null
+                          ? null
+                          : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                      v => string.IsNullOrEmpty(v)
+                          ? null
+                          : System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null)
+                  )
+                  .Metadata.SetValueComparer(new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<string>?>(
+                      (c1, c2) => (c1 == null && c2 == null) ||
+                                  (c1 != null && c2 != null && c1.SequenceEqual(c2)),
+                      c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                      c => c == null ? null : c.ToList()
+                  ));
         }
     }
 }

@@ -14,6 +14,7 @@ export * from "./src/submission";
 export * from "./src/thesis";
 export * from "./src/chat";
 export * from "./src/auth";
+export * from "./src/mfa";
 export * from "./src/announcement";
 export * from "./src/student";
 export * from "./src/review";

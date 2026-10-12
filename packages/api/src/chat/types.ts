@@ -11,9 +11,11 @@ import type {
 
 /**
  * Callbacks for the streaming chat endpoint (SSE).
- * Event order per message: onSources (once) -> onDelta (n) -> done.
+ * Event order per message: onStatus* -> onSources (once) -> onStatus -> onDelta* -> done.
  */
 export interface ChatStreamHandlers {
+  /** Fired with a progress note ("Searching the repository…") while the agent plans/retrieves, before and between answer tokens. */
+  onStatus?: (message: string) => void;
   /** Fired when the agent finishes retrieval, before the first answer token. */
   onSources?: (sources: ChatSourceDto[]) => void;
   /** Fired for each fragment of the generated answer. */

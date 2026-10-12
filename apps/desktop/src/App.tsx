@@ -1,5 +1,5 @@
 // apps/desktop/src/App.tsx (or wherever your renderer root component is)
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Toaster, NotFound, SettingsPage, ProtectedRoute, BackupPage } from "@monteai/ui";
 import {
   HashRouter,
@@ -22,6 +22,9 @@ import Register from "./renderer/pages/Register";
 import Login from "./renderer/pages/Login";
 import { profileService, userService } from "./renderer/lib/authServices";
 import { auth } from "./renderer/lib/firebaseServices";
+import { MfaSessionProvider } from "./renderer/components/MfaSessionProvider";
+import { mfaService } from "./renderer/lib/mfaService";
+import type { MfaApi } from "@monteai/ui";
 
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -32,10 +35,21 @@ function NotFoundPage() {
 
 const App = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const mfa = useMemo<MfaApi>(
+    () => ({
+      status: () => mfaService.status(),
+      enroll: () => mfaService.enroll(),
+      confirmEnroll: (code) => mfaService.confirmEnroll({ code }),
+      disable: (code) => mfaService.disable({ code }),
+      regenerateRecoveryCodes: (code) => mfaService.regenerateRecoveryCodes({ code }),
+    }),
+    [],
+  );
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider auth={auth}>
+        <MfaSessionProvider>
         <HashRouter>
           <Toaster />
           <div className="flex h-screen">
@@ -58,7 +72,7 @@ const App = () => {
                   <Route path="/research-groups" element={<ResearchGroups />} />
                   <Route path="/panelist" element={<Panelist />} />
                   <Route path="/schedule" element={<Schedule />} />
-                  <Route path="/settings" element={<SettingsPage userService={userService} />} />
+                  <Route path="/settings" element={<SettingsPage userService={userService} mfa={mfa} />} />
                   <Route path="/backup" element={<BackupPage />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
@@ -69,6 +83,7 @@ const App = () => {
             </main>
           </div>
         </HashRouter>
+        </MfaSessionProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
