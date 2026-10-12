@@ -78,5 +78,15 @@ namespace server.Models.Agent
 
         /// <summary>True when the planner decided no further tool calls are needed.</summary>
         public bool Final { get; init; }
+
+        /// <summary>
+        /// True when the planner knows it will need a SECOND tool after this
+        /// one. When false (the default — the field may be omitted), the loop
+        /// ends after this tool executes and goes straight to synthesis. This
+        /// collapses the old "confirm-planner" call (which in practice just
+        /// repeated {"final": true}) and halves the LLM cost of a normal
+        /// research turn.
+        /// </summary>
+        public bool NeedsMore { get; init; }
     }
 }

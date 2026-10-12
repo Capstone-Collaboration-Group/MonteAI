@@ -17,7 +17,7 @@
 // accumulated responseText is split into complete "event: ...\ndata: ...\n\n"
 // frames as they arrive, so tokens render as they are generated.
 
-import { type AxiosInstance, type AxiosProgressEvent } from "axios";
+import { isAxiosError, type AxiosInstance, type AxiosProgressEvent } from "axios";
 import type {
   ChatSessionResponseDto,
   ChatSessionResponseListDto,
@@ -51,6 +51,24 @@ export class LiveChatService implements ChatService {
     this.client = client;
   }
 
+  /**
+   * Translates an axios failure into an Error carrying a user-friendly,
+   * server-provided message when available (circuit-breaker 503s, validation
+   * 400s) instead of axios's generic "Request failed with status code N".
+   */
+  private static toFriendlyError(err: unknown): Error {
+    if (isAxiosError(err)) {
+      const body = err.response?.data as { message?: unknown } | undefined;
+      if (typeof body?.message === "string" && body.message.length > 0) {
+        return new Error(body.message);
+      }
+      if (err.response?.status === 429) {
+        return new Error("You're sending messages too quickly. Please wait a moment and try again.");
+      }
+    }
+    return err instanceof Error ? err : new Error("Request failed.");
+  }
+
   async getSessions(userId: string): Promise<ChatSessionResponseListDto> {
     try {
       const { data } = await this.client.get<{ message: string; result: ChatSessionResponseListDto }>(
@@ -79,14 +97,18 @@ export class LiveChatService implements ChatService {
    * the server runs a multi-step agent before answering.
    */
   async sendMessage(sessionId: string, dto: CreateChatMessageDto): Promise<ChatMessageResponseDto> {
-    const { data } = await this.client.post<
-      { message: string; userMessage: ChatMessageResponseDto; aiMessage: ChatMessageResponseDto }
-    >(
-      `/chat/sessions/${sessionId}/messages`,
-      dto,
-      { timeout: 120_000 }
-    );
-    return data.aiMessage;
+    try {
+      const { data } = await this.client.post<
+        { message: string; userMessage: ChatMessageResponseDto; aiMessage: ChatMessageResponseDto }
+      >(
+        `/chat/sessions/${sessionId}/messages`,
+        dto,
+        { timeout: 120_000 }
+      );
+      return data.aiMessage;
+    } catch (err) {
+      throw LiveChatService.toFriendlyError(err);
+    }
   }
 
   async sendMessageStream(
@@ -131,26 +153,33 @@ export class LiveChatService implements ChatService {
       }
     };
 
-    const { data } = await this.client.post<string>(
-      `/chat/sessions/${sessionId}/messages/stream`,
-      dto,
-      {
-        // Agent planning runs before the first token — disable axios's
-        // default 10s timeout for this request.
-        timeout: 0,
-        responseType: "text",
-        onDownloadProgress: (progressEvent: AxiosProgressEvent) => {
-          const xhr = (progressEvent.event as ProgressEvent | undefined)?.target as
-            | XMLHttpRequest
-            | undefined
-            | null;
-          // In browsers, the raw XHR exposes everything received so far.
-          if (xhr && typeof xhr.responseText === "string") {
-            consumeBuffer(xhr.responseText);
-          }
-        },
-      }
-    );
+    let data: string;
+    try {
+      const response = await this.client.post<string>(
+        `/chat/sessions/${sessionId}/messages/stream`,
+        dto,
+        {
+          // Agent planning runs before the first token — disable axios's
+          // default 10s timeout for this request.
+          timeout: 0,
+          responseType: "text",
+          onDownloadProgress: (progressEvent: AxiosProgressEvent) => {
+            const xhr = (progressEvent.event as ProgressEvent | undefined)?.target as
+              | XMLHttpRequest
+              | undefined
+              | null;
+            // In browsers, the raw XHR exposes everything received so far.
+            if (xhr && typeof xhr.responseText === "string") {
+              consumeBuffer(xhr.responseText);
+            }
+          },
+        }
+      );
+      data = response.data;
+    } catch (err) {
+      // Pre-stream failures (429 rate limit, 503 breaker, ownership 403/404).
+      throw LiveChatService.toFriendlyError(err);
+    }
 
     // Flush any trailing frame that never hit a progress tick.
     if (typeof data === "string") {

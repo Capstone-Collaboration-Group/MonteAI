@@ -233,14 +233,21 @@ try
             opt.QueueLimit = 0;
         });
 
-        // Chat generates paid LLM calls per message — cap the blast radius of
-        // a spamming client (or a runaway frontend loop).
-        options.AddFixedWindowLimiter("ChatLimit", opt =>
-        {
-            opt.PermitLimit = 30;
-            opt.Window = TimeSpan.FromMinutes(1);
-            opt.QueueLimit = 0;
-        });
+        // Chat generates paid LLM calls per message. Partitioned PER USER (by
+        // Firebase uid) so one spamming tab cannot starve the whole class —
+        // the old global 30/min limit meant a single runaway client 429'd
+        // everyone. QueueLimit=0 = instant 429 (fail fast, no pile-up).
+        options.AddPolicy("ChatLimit", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
 
         options.AddPolicy("ProceedingsLimit", context =>
             RateLimitPartition.GetFixedWindowLimiter(
@@ -280,6 +287,14 @@ try
     builder.Services.AddScoped<IFirebaseTokenVerifier, FirebaseAuthVerifier>();
 
     builder.Services.AddSingleton<IBlobService, BlobService>();
+
+    // Capacity-stack singletons (server.Infrastructure — deliberately OUTSIDE
+    // the Scrutor-scanned namespaces because they hold shared state and must
+    // be singletons, not per-request scoped like the scanned services).
+    // Registered AFTER the scan so these win for their interfaces.
+    builder.Services.AddSingleton<server.Infrastructure.IAgentConcurrencyGate, server.Infrastructure.AgentConcurrencyGate>();
+    builder.Services.AddSingleton<server.Infrastructure.ILlmCircuitBreaker, server.Infrastructure.LlmCircuitBreaker>();
+    builder.Services.AddSingleton<server.Infrastructure.ISemanticAnswerCache, server.Infrastructure.SemanticAnswerCache>();
 
     // Note: IPineconeService, IAgentToolbox, and IMonteAiAgentService are
     // auto-registered by the Scrutor scan above (namespace server.Services.*

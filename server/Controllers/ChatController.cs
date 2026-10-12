@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using server.Configuration;
+using server.Infrastructure;
 using server.Models.Agent;
 using server.Models.DTOs.ChatMessage;
 using server.Models.DTOs.ChatSession;
@@ -157,6 +158,11 @@ namespace server.Controllers
 
                 return Ok(new { Message = "Message successfully stored", userMessage, aiMessage });
             }
+            catch (LlmUnavailableException ex)
+            {
+                _logger.LogWarning("Circuit breaker rejected agent run for session {SessionId}", id);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { Message = ex.Message });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "MonteAI agent failed for session {SessionId}", id);
@@ -189,6 +195,10 @@ namespace server.Controllers
             Response.StatusCode = StatusCodes.Status200OK;
             Response.ContentType = "text/event-stream";
             Response.Headers.CacheControl = "no-cache";
+            // App Service / proxies love to buffer responses, which delays SSE
+            // frames until the buffer fills — kill buffering for this stream.
+            HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>()
+                ?.DisableBuffering();
             await Response.StartAsync();
             await WriteSseEventAsync("status",
                 JsonSerializer.Serialize(new { message = "Preparing your question…" }, SseJsonOptions));
@@ -248,6 +258,22 @@ namespace server.Controllers
                         new CreateChatMessageDto { Content = answerBuffer.ToString(), Role = "assistant" },
                         id.ToString(),
                         sources);
+                }
+            }
+            catch (LlmUnavailableException ex)
+            {
+                // Circuit breaker is open, or synthesis timed out after all
+                // retries — either way the deployment is sick; fail fast with
+                // the friendly message instead of a generic 500.
+                _logger.LogWarning(ex, "LLM unavailable for session {SessionId} — answering with friendly unavailable message", id);
+                if (!Response.HasStarted)
+                {
+                    Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                    await Response.WriteAsJsonAsync(new { Message = ex.Message });
+                }
+                else
+                {
+                    await WriteSseEventAsync("error", JsonSerializer.Serialize(new { message = ex.Message }, SseJsonOptions));
                 }
             }
             catch (Exception ex)

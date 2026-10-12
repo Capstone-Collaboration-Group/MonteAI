@@ -43,9 +43,10 @@ namespace server.Services.AI.Agent
 
             RULES (follow these in order):
             1. Research questions ALWAYS start with semantic_search. Only use keyword_search when the user asks for an exact acronym, standard number, or precise title.
-            2. If a tool returned results, decide if they are enough to answer. If yes, {"final": true}. If not, call another tool.
-            3. You have at most {MAX_STEPS} steps in total.
-            4. Author questions: put the author's full name inside "query". Year questions: pass yearFrom/yearTo as NUMBERS (examples below) — never omit them when the user names a year.
+            2. When you call a tool, include "needsMore": true ONLY if you already know you need a SECOND, different tool after it (e.g. thesis_metadata for a known thesisId). Otherwise "needsMore": false — one good search is usually enough to answer.
+            3. If you asked for more steps and a tool returned results, decide if they are enough to answer. If yes, {"final": true}. If not, call the next tool.
+            4. You have at most {MAX_STEPS} steps in total.
+            5. Author questions: put the author's full name inside "query". Year questions: pass yearFrom/yearTo as NUMBERS (examples below) — never omit them when the user names a year.
 
             Built-in tools (you call these yourself — they search the institutional repository, not the internet):
             {TOOLS}
@@ -65,24 +66,28 @@ namespace server.Services.AI.Agent
         [
             (
                 "What theses use machine learning for student performance?",
-                """{"thought": "Topic question; semantic search is the default", "tool": "semantic_search", "toolArgs": {"query": "machine learning student performance prediction"}}"""
+                """{"thought": "Topic question; semantic search is the default", "tool": "semantic_search", "toolArgs": {"query": "machine learning student performance prediction"}, "needsMore": false}"""
             ),
             (
                 "Find studies authored by Juan Dela Cruz about learning outcomes",
-                """{"thought": "Author lookup; the author name must be inside the semantic query", "tool": "semantic_search", "toolArgs": {"query": "Juan Dela Cruz learning outcomes"}}"""
+                """{"thought": "Author lookup; the author name must be inside the semantic query", "tool": "semantic_search", "toolArgs": {"query": "Juan Dela Cruz learning outcomes"}, "needsMore": false}"""
             ),
             (
                 "Show me theses published between 2019 and 2022 about modular learning",
-                """{"thought": "Year-bounded research question; filter on publication year with numeric args", "tool": "semantic_search", "toolArgs": {"query": "modular learning", "yearFrom": 2019, "yearTo": 2022}}"""
+                """{"thought": "Year-bounded research question; filter on publication year with numeric args", "tool": "semantic_search", "toolArgs": {"query": "modular learning", "yearFrom": 2019, "yearTo": 2022}, "needsMore": false}"""
             ),
             (
                 "Any thesis about ISO 25010?",
-                """{"thought": "Exact standard number; keyword search fits", "tool": "keyword_search", "toolArgs": {"term": "ISO 25010"}}"""
+                """{"thought": "Exact standard number; keyword search fits", "tool": "keyword_search", "toolArgs": {"term": "ISO 25010"}, "needsMore": false}"""
             ),
             (
                 "Can you look for studies about climate change adaptation?",
-                """{"thought": "Explicit study/research lookup request; semantic search is the default", "tool": "semantic_search", "toolArgs": {"query": "climate change adaptation studies"}}"""
-            ), 
+                """{"thought": "Explicit study/research lookup request; semantic search is the default", "tool": "semantic_search", "toolArgs": {"query": "climate change adaptation studies"}, "needsMore": false}"""
+            ),
+            (
+                "Tell me the abstract of the thesis titled Predicting Student Success Using Ensemble Models",
+                """{"thought": "Need to locate the thesis first, then pull its full record — two different tools", "tool": "semantic_search", "toolArgs": {"query": "Predicting Student Success Using Ensemble Models"}, "needsMore": true}"""
+            ),
             (
                 "hi!",
                 """{"thought": "Greeting; no research needed", "final": true}"""
@@ -90,6 +95,10 @@ namespace server.Services.AI.Agent
             (
                 "RESEARCH QUESTION:\nWhat theses use machine learning for student performance?\n\nTOOL RESULTS SO FAR:\n[Result 1]\nsemantic_search retrieved 2 relevant passages:\n- [Source 1] Predicting Student Success Using Ensemble Models | Author(s): Dela Cruz | Year: 2024\n- [Source 2] ML-based Academic Analytics | Author(s): Unknown | Year: 2023\n\nDecide the next action, or finish if the results above are enough to answer.",
                 """{"thought": "Two relevant sources retrieved; enough to answer", "final": true}"""
+            ),
+            (
+                "RESEARCH QUESTION:\nTell me the abstract of the thesis titled Predicting Student Success Using Ensemble Models\n\nTOOL RESULTS SO FAR:\n[Result 1]\nsemantic_search retrieved 1 relevant passage:\n- [Source 1] Predicting Student Success Using Ensemble Models | Author(s): Dela Cruz | Year: 2024 | ThesisId: 3f2b1c90-8a4e-4d6f-9c21-7b1e5d0a9f33\n\nDecide the next action, or finish if the results above are enough to answer.",
+                """{"thought": "Search identified the thesis; pull its full metadata record now", "tool": "thesis_metadata", "toolArgs": {"thesisId": "3f2b1c90-8a4e-4d6f-9c21-7b1e5d0a9f33"}, "needsMore": false}"""
             ),
             (
                 "Write a loop for me in Python",

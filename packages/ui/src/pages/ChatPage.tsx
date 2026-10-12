@@ -24,6 +24,14 @@ import { ChatPageSkeleton } from "../components/Chat/skeletons";
 
 const FALLBACK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // dev fallback when no user is signed in (mock mode)
 
+/** Prefers the server-provided message (rate limit, breaker, etc.) over a generic fallback. */
+function toUserFacingError(err: unknown): string {
+  if (err instanceof Error && err.message && !err.message.startsWith("Request failed with status code")) {
+    return err.message;
+  }
+  return "MonteAI could not generate a response. Please try again.";
+}
+
 interface ChatPageProps {
   chatService: ChatService;
   /** Existing session to open — messages are fetched lazily on mount. */
@@ -155,7 +163,7 @@ export function ChatPage({
             // it AND block for the full agent run. Surface the error instead.
             console.error("Chat stream failed:", err);
             setMessages((prev) => prev.filter((m) => m.id !== placeholderId));
-            setSendError("MonteAI could not generate a response. Please try again.");
+            setSendError(toUserFacingError(err));
           } finally {
             setStreamingAssistantId(null);
             setStreamStatus(null);
@@ -172,7 +180,7 @@ export function ChatPage({
         onSessionActivity?.();
       } catch (err) {
         console.error("Chat send failed:", err);
-        setSendError("MonteAI could not generate a response. Please try again.");
+        setSendError(toUserFacingError(err));
       } finally {
         setIsSending(false);
         setStreamStatus(null);
