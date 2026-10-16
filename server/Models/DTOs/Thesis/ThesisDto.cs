@@ -108,4 +108,35 @@ namespace server.Models.DTOs.Thesis
         public int VectorCount { get ;set;}
         public string Status { get; set;} = string.Empty;
     }
+
+    // ── Full-text async ingestion (POST /thesis/ingest/full) ────────────────
+    // The desktop pipeline extracts EVERY page of the PDF and sends the raw
+    // text here. The server synchronously upserts one metadata vector (so the
+    // thesis is citable immediately), stages the full text to blob storage,
+    // enqueues the body chunking/embedding for a background worker, and
+    // returns 202 Accepted — concurrent approvals never block each other.
+
+    public class IngestFullThesisDto
+    {
+        public Guid ThesisId { get; set; }
+
+        /// <summary>Complete extracted text of the PDF (all pages).</summary>
+        public string FullText { get; set; } = string.Empty;
+
+        /// <summary>Title-page metadata (from PDF pages 1-2).</summary>
+        public string? Title { get; set; }
+        public string? Authors { get; set; }
+        public string? PublicationYear { get; set; }
+    }
+
+    public class IngestFullThesisResponseDto
+    {
+        public Guid ThesisId { get; set; }
+
+        /// <summary>"Queued" = metadata vector upserted, body ingestion pending; "Failed".</summary>
+        public string Status { get; set; } = string.Empty;
+
+        /// <summary>Vectors already upserted synchronously (the metadata vector: 0 or 1).</summary>
+        public int VectorCount { get; set; }
+    }
 }

@@ -85,9 +85,18 @@ namespace server.Configuration
         /// <summary>
         /// Maximum number of deduplicated sources attached to one answer.
         /// Part of the ~1000-token/query budget: each source block costs
-        /// ~120 tokens (see BuildSourcesBlock excerpt cap). Default: 4.
+        /// ~150 tokens (see BuildSourcesBlock excerpt cap). Sized to hold
+        /// MaxPassagesPerThesis passages from two theses. Default: 6.
         /// </summary>
-        public int MaxSources { get; set; } = 4;
+        public int MaxSources { get; set; } = 6;
+
+        /// <summary>
+        /// How many retrieved passages may be attached per thesis. Full-text
+        /// ingestion means several body chunks from one document can be
+        /// relevant to a single question; allowing 2-3 gives the synthesizer
+        /// real document context instead of one winning excerpt. Default: 3.
+        /// </summary>
+        public int MaxPassagesPerThesis { get; set; } = 3;
 
         /// <summary>
         /// Hard cap on the length of a single user query accepted by the

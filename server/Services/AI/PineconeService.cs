@@ -239,6 +239,66 @@ namespace server.Services.AI
 
         // ────────────────────────── INGESTION ──────────────────────────
 
+        /// <inheritdoc />
+        public async Task<int> UpsertMetadataChunkAsync(
+            Guid thesisId,
+            Chunk metadataChunk,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(metadataChunk.Text))
+            {
+                _logger.LogWarning("Cannot upsert metadata vector for thesis {ThesisId}: chunk has no text", thesisId);
+                return 0;
+            }
+
+            try
+            {
+                // Same embedding recipe as body chunks (Title/Authors/Year
+                // header above the text) so author/year questions match the
+                // metadata vector too. The explicit OpenAIEmbedding type
+                // triggers the implicit ClientResult -> model conversion.
+                OpenAIEmbedding embeddingResult = await _embeddingClient.GenerateEmbeddingAsync(
+                    BuildEmbeddingText(metadataChunk), cancellationToken: cancellationToken);
+                var embedding = embeddingResult.ToFloats().ToArray();
+
+                var uploadedAt = DateTime.UtcNow.ToString("o");
+                var metadata = new Metadata
+                {
+                    ["abstract"] = metadataChunk.Text!,
+                    ["thesis_id"] = metadataChunk.ThesisId ?? thesisId.ToString(),
+                    ["chunk_index"] = -1,
+                    ["kind"] = "metadata",
+                    ["uploaded_at"] = uploadedAt,
+                };
+
+                if (!string.IsNullOrEmpty(metadataChunk.Title)) metadata["title"] = metadataChunk.Title;
+                if (!string.IsNullOrEmpty(metadataChunk.Url)) metadata["url"] = metadataChunk.Url;
+                if (!string.IsNullOrEmpty(metadataChunk.Authors)) metadata["authors"] = metadataChunk.Authors;
+                if (!string.IsNullOrEmpty(metadataChunk.PublicationYear)) metadata["publication_year"] = metadataChunk.PublicationYear;
+                if (!string.IsNullOrEmpty(metadataChunk.Journal)) metadata["journal"] = metadataChunk.Journal;
+
+                var index = _pineconeClient.Index(IndexName);
+                // Upserting the same id REPLACES the previous vector — this is
+                // what makes catalog edits refresh metadata without a delete.
+                await index.UpsertAsync(
+                    new UpsertRequest { Vectors = [new Vector
+                    {
+                        Id = $"thesis_{thesisId}_meta",
+                        Values = embedding,
+                        Metadata = metadata,
+                    }] },
+                    cancellationToken: cancellationToken);
+
+                _logger.LogInformation("Metadata vector upserted for thesis {ThesisId} into index {Index}", thesisId, IndexName);
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to upsert metadata vector for thesis {ThesisId}", thesisId);
+                return 0;
+            }
+        }
+
         public async Task<int> UpsertAbstractsAsync(
             Guid thesisId,
             IReadOnlyList<Chunk> chunks,
@@ -363,12 +423,12 @@ namespace server.Services.AI
         public async Task<int> DeleteThesisVectorsAsync(Guid thesisId, CancellationToken cancellationToken = default)
         {
             var index = _pineconeClient.Index(IndexName);
-            var removedByIds = 0;
 
             try
             {
                 // 1. Delete by the thesis_id metadata filter (covers every vector
-                //    ingested by the current pipeline, whatever its ID shape).
+                //    ingested by the current pipeline, whatever its ID shape —
+                //    body chunks AND the metadata vector).
                 await index.DeleteAsync(
                     new DeleteRequest { Filter = new Metadata { ["thesis_id"] = thesisId.ToString() } },
                     cancellationToken: cancellationToken);
@@ -378,11 +438,32 @@ namespace server.Services.AI
                 _logger.LogWarning(ex, "Filter-based delete failed for thesis {ThesisId} — continuing with prefix delete", thesisId);
             }
 
+            // 2. Prefix scan catches legacy vectors without thesis_id metadata.
+            var removedByIds = await DeleteByPrefixAsync(thesisId, cancellationToken);
+            return removedByIds;
+        }
+
+        /// <inheritdoc />
+        public async Task<int> DeleteBodyVectorsAsync(Guid thesisId, CancellationToken cancellationToken = default)
+        {
+            // Prefix-only: thesis_{id}_chunk_* never matches the metadata
+            // vector's id (thesis_{id}_meta), so the already-citable metadata
+            // chunk survives a body re-ingest.
+            return await DeleteByPrefixAsync(thesisId, cancellationToken);
+        }
+
+        /// <summary>
+        /// Lists vector IDs by the deterministic "thesis_{id}_chunk_" prefix
+        /// (paginated, scan-capped) and deletes them in one request. Shared by
+        /// the full-thesis delete and the body-only delete.
+        /// </summary>
+        private async Task<int> DeleteByPrefixAsync(Guid thesisId, CancellationToken cancellationToken)
+        {
+            var index = _pineconeClient.Index(IndexName);
+            var removedByIds = 0;
+
             try
             {
-                // 2. List IDs by the deterministic "thesis_{id}_chunk_" prefix and
-                //    delete them explicitly (also covers legacy vectors that lack
-                //    the thesis_id metadata field).
                 var prefix = $"thesis_{thesisId}_chunk_";
                 var ids = new List<string>();
                 string? paginationToken = null;

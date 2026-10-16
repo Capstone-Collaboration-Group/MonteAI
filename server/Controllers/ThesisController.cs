@@ -222,6 +222,35 @@ namespace server.Controllers
             _logger.LogInformation("Thesis {ThesisId} ingestion finished with status {Status}", dto.ThesisId, result.Status);
             return Ok(new { result, Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
         }
+
+        // Desktop-driven FULL-TEXT ingestion (async): the Electron pipeline
+        // extracts every page + title-page metadata and POSTs the raw text
+        // here. The server upserts the metadata vector synchronously (so the
+        // thesis is citable immediately), stages the text, enqueues the body
+        // chunk/embed job for the background worker, and returns 202 —
+        // concurrent approvals never block each other.
+        [HttpPost("ingest/full")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> IngestFullThesis([FromBody] IngestFullThesisDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto?.FullText))
+                return BadRequest(new { Message = "Full thesis text is required." });
+
+            var result = await _service.IngestFullAsync(dto);
+            if (result.Status == "Failed")
+            {
+                _logger.LogWarning("Thesis {ThesisId} full-text ingestion could not be queued", dto.ThesisId);
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new { Message = "Thesis ingestion could not be queued. Please try again." });
+            }
+
+            _logger.LogInformation("Thesis {ThesisId} full-text ingestion queued (metadata vector live)", dto.ThesisId);
+            return Accepted(new
+            {
+                result,
+                Message = "Thesis metadata indexed; full-text ingestion is running in the background.",
+            });
+        }
         [HttpPut("update/details/{id}")]
         [Authorize(Roles = "Student,Admin")]
         public async Task<IActionResult> UpdateThesisDetails([FromBody] UpdateThesisDto dto, Guid id)

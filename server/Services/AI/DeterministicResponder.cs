@@ -21,6 +21,8 @@
 
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
+using server.Configuration;
 using server.Models.DTOs.ChatMessage;
 using server.Models.Retrieval;
 using server.Services.Interfaces;
@@ -43,6 +45,7 @@ namespace server.Services.AI
     public sealed class DeterministicResponder : IDeterministicResponder
     {
         private readonly IPineconeService _pineconeService;
+        private readonly MonteAiAgentConfig _config;
         private readonly ILogger<DeterministicResponder> _logger;
 
         // "find/list/show/search for/look for (me) (some/any) studies/research/papers/theses about/on/regarding X"
@@ -68,9 +71,13 @@ namespace server.Services.AI
         /// <summary>Publication years in theses predate e-paper workflows; anything before 1990 is treated as a misparse.</summary>
         private const int MinPlausibleYear = 1990;
 
-        public DeterministicResponder(IPineconeService pineconeService, ILogger<DeterministicResponder> logger)
+        public DeterministicResponder(
+            IPineconeService pineconeService,
+            IOptions<MonteAiAgentConfig> config,
+            ILogger<DeterministicResponder> logger)
         {
             _pineconeService = pineconeService;
+            _config = config.Value;
             _logger = logger;
         }
 
@@ -194,21 +201,24 @@ namespace server.Services.AI
         // ────────────────────── shared helpers ──────────────────────
 
         /// <summary>
-        /// One semantic retrieval, deduplicated per thesis (chunk-level
-        /// results often contain several passages from the same document),
-        /// strongest matches first.
+        /// One semantic retrieval, keeping up to MaxPassagesPerThesis chunks
+        /// per thesis (full-text ingestion means several body passages from
+        /// one document can be relevant), strongest matches first.
         /// </summary>
         private async Task<List<ChatSourceDto>> RetrieveDedupedAsync(string query, int topK, CancellationToken ct)
         {
             var chunks = await _pineconeService.RetrieveRelevantChunksAsync(
                 query, new RetrievalOptions { TopK = topK }, ct);
 
-            var seen = new HashSet<string>();
+            var perThesis = new Dictionary<string, int>(StringComparer.Ordinal);
             var sources = new List<ChatSourceDto>();
+            var maxPerThesis = Math.Max(1, _config.MaxPassagesPerThesis);
+
             foreach (var chunk in chunks)
             {
                 var key = chunk.ThesisId ?? chunk.Title ?? chunk.Url ?? Guid.NewGuid().ToString();
-                if (!seen.Add(key)) continue;
+                if (perThesis.GetValueOrDefault(key) >= maxPerThesis) continue;
+                perThesis[key] = perThesis.GetValueOrDefault(key) + 1;
 
                 sources.Add(new ChatSourceDto
                 {
@@ -216,7 +226,7 @@ namespace server.Services.AI
                     Title = chunk.Title,
                     Authors = chunk.Authors,
                     PublicationYear = chunk.PublicationYear,
-                    Snippet = chunk.Text.Length > 400 ? chunk.Text[..400] + "…" : chunk.Text,
+                    Snippet = chunk.Text.Length > 600 ? chunk.Text[..600] + "…" : chunk.Text,
                     Score = double.TryParse(chunk.RelevanceScore, out var score) ? score : null,
                     Url = chunk.Url,
                 });

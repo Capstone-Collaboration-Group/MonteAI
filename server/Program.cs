@@ -305,6 +305,13 @@ try
     builder.Services.AddSingleton<server.Infrastructure.IAgentConcurrencyGate, server.Infrastructure.AgentConcurrencyGate>();
     builder.Services.AddSingleton<server.Infrastructure.ISemanticAnswerCache, server.Infrastructure.SemanticAnswerCache>();
 
+    // Full-text ingestion queue + worker (also outside the Scrutor scan: the
+    // queue is shared state, and the worker is a hosted service). The queue
+    // must be registered BEFORE anything that resolves IThesisService in a
+    // scope the worker creates.
+    builder.Services.AddSingleton<server.Infrastructure.IThesisIngestionQueue, server.Infrastructure.ThesisIngestionQueue>();
+    builder.Services.AddHostedService<server.Infrastructure.ThesisIngestionWorker>();
+
     // LLM backend + pool. ILlmBackend is registered explicitly (not via the
     // Scrutor scan) because the pool is a singleton and must not capture a
     // scoped backend. The scan would otherwise register FoundryAgentBackend

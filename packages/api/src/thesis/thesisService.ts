@@ -5,6 +5,8 @@ import type {
     UpdateThesisDto,
     IngestThesisDto,
     IngestThesisResponseDto,
+    IngestFullThesisDto,
+    IngestFullThesisResponseDto,
     AnnotationResponseDto,
     CreateAnnotationDto,
     ResolveAnnotationDto,
@@ -90,6 +92,18 @@ export class LiveThesisService implements ThesisService {
         const { data } = await this.client.post<IngestThesisResponseDto>(
             `/thesis/ingest`,
             dto,
+        );
+        return data;
+    }
+    // Full-text async ingestion: the server upserts the metadata vector
+    // synchronously and returns 202 Queued; body chunking continues in a
+    // background worker. A full thesis's text can be a few hundred KB, so
+    // give the request the same generous timeout as a PDF upload.
+    async ingestFullThesis(dto: IngestFullThesisDto): Promise<IngestFullThesisResponseDto> {
+        const { data } = await this.client.post<IngestFullThesisResponseDto>(
+            `/thesis/ingest/full`,
+            dto,
+            { timeout: 120000 },
         );
         return data;
     }

@@ -2,6 +2,7 @@ using AutoMapper;
 using Google.Cloud.Firestore;
 using Microsoft.Extensions.Options;
 using server.Configuration;
+using server.Infrastructure;
 using server.Models.DTOs.Thesis;
 using server.Services.Interfaces;
 using ThesisEntity = server.Models.Entities.Thesis;
@@ -9,12 +10,14 @@ using server.Repositories;
 using server.Repositories.Interfaces;
 using server.Models.Retrieval;
 using server.Models.Entities;
+using System.Text;
 
 
 // server/Services/Theses/ThesisService.cs
 //
 // Thesis lifecycle, including the INGESTION hop of the RAG pipeline:
 //
+//   LEGACY / ADMIN PATH (synchronous, abstract-only):
 //   Desktop (Electron)                        Server (this service)
 //   ─────────────────                         ─────────────────────
 //   approve thesis                          -> IngestAsync(chunks):
@@ -26,6 +29,19 @@ using server.Models.Entities;
 //                                               (idempotent re-ingestion, no stale data)
 //                                             4. batch-embed + bulk-upsert to Pinecone
 //                                             5. update SQL status/timestamps
+//
+//   FULL-TEXT ASYNC PATH (desktop student-thesis approvals):
+//   Desktop extracts ALL pages + title-page metadata
+//     -> POST /thesis/ingest/full
+//        IngestFullAsync (sync, fast):
+//          1. stage full text to blob (recovery source)
+//          2. DELETE all vectors (idempotent)
+//          3. upsert ONE metadata vector (thesis_{id}_meta) — citable NOW
+//          4. SQL: Status=Approved, PineconeStatus=Indexing
+//          5. enqueue body job -> 202 Queued
+//        ThesisIngestionWorker (background):
+//          ProcessQueuedIngestionAsync: chunk -> delete BODY vectors only ->
+//          batch-embed + upsert -> Status=Indexed -> delete staging blob
 //
 //   Chat query time never touches this service — see MonteAiAgentService.
 
@@ -44,6 +60,7 @@ namespace server.Services.Theses
         private readonly IStudentRepository _studentRepo;
         private readonly IThesisAbstractService _abstractService;
         private readonly FirestoreDb _firestore;
+        private readonly IThesisIngestionQueue _ingestionQueue;
 
         public ThesisService(
             IThesisRepository repo,
@@ -56,7 +73,8 @@ namespace server.Services.Theses
             IBlobService blobService,
             IThesisAbstractService abstractService,
             FirestoreDb firestore,
-            IOptions<PineconeConfig> pineconeConfig)
+            IOptions<PineconeConfig> pineconeConfig,
+            IThesisIngestionQueue ingestionQueue)
         {
             _thesisRepo = repo;
             _thesisVersionRepo = thesisVersionRepo;
@@ -69,6 +87,7 @@ namespace server.Services.Theses
             _abstractService = abstractService;
             _firestore = firestore;
             _pineconeConfig = pineconeConfig.Value;
+            _ingestionQueue = ingestionQueue;
         }
 
         public async Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync(
@@ -460,6 +479,213 @@ namespace server.Services.Theses
                 };
             }
         }
+
+        // ────────────────── full-text async ingestion (phase 1) ──────────────────
+
+        /// <inheritdoc />
+        public async Task<IngestFullThesisResponseDto> IngestFullAsync(IngestFullThesisDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.FullText) ||
+                dto.FullText.Length > _pineconeConfig.MaxFullTextChars)
+            {
+                _logger.LogWarning(
+                    "Full-text ingestion for thesis {ThesisId} rejected: text {Reason}",
+                    dto.ThesisId,
+                    string.IsNullOrWhiteSpace(dto.FullText) ? "is empty" : $"exceeds {_pineconeConfig.MaxFullTextChars} chars");
+                return new IngestFullThesisResponseDto { ThesisId = dto.ThesisId, Status = "Failed" };
+            }
+
+            var thesis = await _thesisRepo.GetThesisByIdAsync(dto.ThesisId);
+            if (thesis is null)
+            {
+                _logger.LogWarning("Full-text ingestion rejected: thesis {ThesisId} does not exist in SQL", dto.ThesisId);
+                return new IngestFullThesisResponseDto { ThesisId = dto.ThesisId, Status = "Failed" };
+            }
+
+            // SQL is the source of truth for Title/FilePath — client-sent
+            // values only fill what SQL doesn't have (title-page metadata the
+            // desktop extracted may be fresher than a stale catalog row).
+            var title = !string.IsNullOrWhiteSpace(dto.Title) ? dto.Title.Trim() : thesis.Title;
+            var authors = string.IsNullOrWhiteSpace(dto.Authors) ? null : dto.Authors.Trim();
+            var publicationYear = string.IsNullOrWhiteSpace(dto.PublicationYear) ? null : dto.PublicationYear.Trim();
+
+            string? stagingUrl = null;
+            try
+            {
+                // 1. Stage the full text to blob storage. The worker carries the
+                //    text in-memory on the happy path; this blob is the recovery
+                //    source if the process restarts before the job finishes.
+                await using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(dto.FullText)))
+                {
+                    stagingUrl = await _blobService.UploadAsync(
+                        stream, "ingest.txt", "text/plain", thesis.Title);
+                }
+                await _thesisRepo.UpdateIngestStagingUrlAsync(dto.ThesisId, stagingUrl);
+
+                // 2. Idempotent re-ingestion: wipe EVERYTHING from any previous
+                //    ingest (legacy abstract chunks, old body chunks, old meta).
+                await _pineconeService.DeleteThesisVectorsAsync(dto.ThesisId);
+
+                // 3. Metadata vector FIRST (sync, one embedding call) — the
+                //    thesis is citable by title/author/year immediately, even
+                //    while the body is still queued.
+                var abstractText = await _abstractService.GetLatestAsync(dto.ThesisId);
+                var metaChunk = BuildMetadataChunk(thesis, title, authors, publicationYear, abstractText);
+                var metaUpserted = await _pineconeService.UpsertMetadataChunkAsync(dto.ThesisId, metaChunk);
+                if (metaUpserted == 0)
+                {
+                    _logger.LogError("Metadata vector upsert failed for thesis {ThesisId}", dto.ThesisId);
+                    await TryDeleteBlobAsync(stagingUrl);
+                    await _thesisRepo.UpdateIngestStagingUrlAsync(dto.ThesisId, null);
+                    return new IngestFullThesisResponseDto { ThesisId = dto.ThesisId, Status = "Failed" };
+                }
+
+                // 4. Approved + Indexing: moderation is done, vectors are
+                //    pending. Students don't see the thesis yet (visibility
+                //    filter requires Indexed); owner + admin do.
+                await _thesisRepo.UpdateStatusAsync(dto.ThesisId, new ThesisEntity { Status = "Approved" });
+                await _thesisRepo.UpdatePineconeStatusAsync(dto.ThesisId, "Indexing");
+
+                // 5. Hand the body to the background worker and return.
+                _ingestionQueue.Enqueue(new ThesisIngestionJob(
+                    dto.ThesisId, stagingUrl, dto.FullText, title, authors, publicationYear));
+
+                _logger.LogInformation(
+                    "Thesis {ThesisId} full-text ingestion queued (metadata vector live, {Chars} chars staged)",
+                    dto.ThesisId, dto.FullText.Length);
+
+                return new IngestFullThesisResponseDto
+                {
+                    ThesisId = dto.ThesisId,
+                    Status = "Queued",
+                    VectorCount = metaUpserted,
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Full-text ingestion could not be queued for thesis {ThesisId}", dto.ThesisId);
+
+                // Roll the staging blob back so a rejected request never leaks
+                // a text blob; any vectors that landed are cleaned up so a
+                // later retry starts fresh.
+                if (stagingUrl is not null)
+                {
+                    await TryDeleteBlobAsync(stagingUrl);
+                    await _thesisRepo.UpdateIngestStagingUrlAsync(dto.ThesisId, null);
+                }
+                try { await _pineconeService.DeleteThesisVectorsAsync(dto.ThesisId); }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogWarning(cleanupEx, "Vector rollback failed for thesis {ThesisId}", dto.ThesisId);
+                }
+
+                return new IngestFullThesisResponseDto { ThesisId = dto.ThesisId, Status = "Failed" };
+            }
+        }
+
+        /// <summary>
+        /// Metadata vector body: the title-page block (title/authors/year) plus
+        /// the abstract when available. Upserting this BEFORE the body chunks
+        /// exist is what makes an in-flight thesis citable immediately.
+        /// </summary>
+        private static Chunk BuildMetadataChunk(
+            ThesisEntity thesis,
+            string? title,
+            string? authors,
+            string? publicationYear,
+            string? abstractText)
+        {
+            var sb = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(title)) sb.Append("Title: ").AppendLine(title);
+            if (!string.IsNullOrWhiteSpace(authors)) sb.Append("Authors: ").AppendLine(authors);
+            if (!string.IsNullOrWhiteSpace(publicationYear)) sb.Append("Publication year: ").AppendLine(publicationYear);
+            sb.Append("Abstract: ").Append(string.IsNullOrWhiteSpace(abstractText) ? "(abstract not yet available)" : abstractText);
+
+            return new Chunk(
+                Text: sb.ToString(),
+                Title: title ?? thesis.Title,
+                Url: thesis.FilePath,
+                Authors: authors,
+                PublicationYear: publicationYear,
+                Journal: null,
+                RelevanceScore: null,
+                ThesisId: thesis.Id.ToString());
+        }
+
+        // ────────────────── full-text async ingestion (phase 2) ──────────────────
+
+        /// <inheritdoc />
+        public async Task ProcessQueuedIngestionAsync(ThesisIngestionJob job, CancellationToken cancellationToken = default)
+        {
+            var thesis = await _thesisRepo.GetThesisByIdAsync(job.ThesisId)
+                ?? throw new InvalidOperationException($"Thesis {job.ThesisId} no longer exists.");
+
+            // Normal path: text rides in the job. Recovery path (restart):
+            // re-download from the staging blob via a short-lived SAS URL.
+            var fullText = job.FullText;
+            if (string.IsNullOrWhiteSpace(fullText))
+            {
+                if (string.IsNullOrWhiteSpace(job.StagingBlobUrl))
+                    throw new InvalidOperationException($"No staged text available for thesis {job.ThesisId}.");
+
+                var sasUrl = _blobService.GenerateSasUrl(job.StagingBlobUrl, 15);
+                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+                fullText = await http.GetStringAsync(sasUrl, cancellationToken);
+            }
+
+            var texts = AbstractChunker.Chunk(fullText)
+                .Take(Math.Max(1, _pineconeConfig.MaxChunksPerIngest))
+                .ToList();
+            if (texts.Count == 0)
+                throw new InvalidOperationException($"Full text of thesis {job.ThesisId} produced no chunks.");
+
+            // SQL remains the source of truth for URL; title/authors/year come
+            // from the job (page-2 metadata) with SQL as fallback.
+            var title = !string.IsNullOrWhiteSpace(job.Title) ? job.Title : thesis.Title;
+            var chunks = new List<Chunk>(texts.Count);
+            for (var i = 0; i < texts.Count; i++)
+            {
+                chunks.Add(new Chunk(
+                    Text: texts[i],
+                    Title: title,
+                    Url: thesis.FilePath,
+                    Authors: job.Authors,
+                    PublicationYear: job.PublicationYear,
+                    Journal: null,
+                    RelevanceScore: null,
+                    ThesisId: job.ThesisId.ToString()));
+            }
+
+            // Idempotent retry: wipe only BODY vectors — the metadata vector
+            // (already citable) must survive a re-run of this job.
+            await _pineconeService.DeleteBodyVectorsAsync(job.ThesisId, cancellationToken);
+
+            var upserted = await _pineconeService.UpsertAbstractsAsync(job.ThesisId, chunks, cancellationToken);
+            if (upserted == 0)
+                throw new InvalidOperationException($"No body vectors were upserted for thesis {job.ThesisId}.");
+
+            if (upserted < chunks.Count)
+                _logger.LogWarning(
+                    "Thesis {ThesisId} partially ingested — {Upserted}/{Total} body chunks succeeded",
+                    job.ThesisId, upserted, chunks.Count);
+
+            // Body landed: flip the row to Indexed (also sets PineconeStatus
+            // and IndexedAt via the repository switch).
+            await _thesisRepo.UpdateStatusAsync(job.ThesisId, new ThesisEntity { Status = "Indexed" });
+
+            // Staging blob has served its purpose.
+            await _thesisRepo.UpdateIngestStagingUrlAsync(job.ThesisId, null, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(job.StagingBlobUrl))
+            {
+                try { await _blobService.DeleteAsync(job.StagingBlobUrl); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Staging blob cleanup failed for thesis {ThesisId}", job.ThesisId); }
+            }
+
+            _logger.LogInformation(
+                "Thesis {ThesisId} fully ingested — {Count} body vectors + metadata vector live",
+                job.ThesisId, upserted);
+        }
+
         public async Task<string?> GetDownloadUrlAsync(Guid thesisId)
         {
             var thesis= await _thesisRepo.GetThesisByIdAsync(thesisId);
@@ -510,9 +736,13 @@ namespace server.Services.Theses
             return true;
         }
 
-        // Best-effort re-ingest after a catalog edit. Only theses that are
-        // already in the vector store are touched; failures log a warning
-        // instead of failing the save (the edit itself already landed).
+        // Best-effort metadata refresh after a catalog edit. Only theses that
+        // are already in the vector store are touched. Full-text ingestion
+        // means body chunks must NOT be wiped here — a title/abstract edit
+        // doesn't change the PDF, so only the metadata vector is replaced
+        // (upserting the same thesis_{id}_meta id overwrites it in place).
+        // Failures log a warning instead of failing the save (the edit itself
+        // already landed).
         private async Task ReindexEditedThesisAsync(Guid thesisId)
         {
             try
@@ -528,31 +758,24 @@ namespace server.Services.Theses
                 var response = _mapper.Map<ThesisResponseDto>(thesis);
                 await _abstractService.ResolveAbstractsAsync(new[] { response });
 
-                if (string.IsNullOrWhiteSpace(response.Abstract))
+                var metaChunk = BuildMetadataChunk(
+                    thesis,
+                    response.Title,
+                    response.Authors is { Count: > 0 } ? string.Join(", ", response.Authors) : null,
+                    response.PublicationYear,
+                    response.Abstract);
+
+                var upserted = await _pineconeService.UpsertMetadataChunkAsync(thesisId, metaChunk);
+                if (upserted == 0)
                 {
                     _logger.LogWarning(
-                        "Thesis {ThesisId} was edited but its abstract could not be resolved — search results stay stale",
-                        thesisId);
-                    return;
-                }
-
-                var ingestResult = await IngestAsync(new IngestThesisDto
-                {
-                    ThesisId = thesisId,
-                    Chunks = BuildAdminChunks(
-                        thesis, response.Abstract, response.Authors ?? [], response.PublicationYear),
-                });
-
-                if (ingestResult.Status == "Failed")
-                {
-                    _logger.LogWarning(
-                        "Thesis {ThesisId} was edited but re-indexing failed — search results stay stale",
+                        "Thesis {ThesisId} was edited but its metadata vector could not be refreshed — citations stay stale",
                         thesisId);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Re-index after edit failed for thesis {ThesisId}", thesisId);
+                _logger.LogWarning(ex, "Metadata refresh after edit failed for thesis {ThesisId}", thesisId);
             }
         }
 

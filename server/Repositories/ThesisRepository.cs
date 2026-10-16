@@ -269,6 +269,36 @@ namespace server.Repositories
             return true;
         }
 
+        public async Task<bool> UpdatePineconeStatusAsync(Guid id, string pineconeStatus, CancellationToken cancellationToken = default)
+        {
+            var existing = await _db.Theses.FindAsync([id], cancellationToken);
+            if (existing == null) return false;
+
+            existing.PineconeStatus = pineconeStatus;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task<bool> UpdateIngestStagingUrlAsync(Guid id, string? stagingUrl, CancellationToken cancellationToken = default)
+        {
+            var existing = await _db.Theses.FindAsync([id], cancellationToken);
+            if (existing == null) return false;
+
+            existing.IngestStagingUrl = stagingUrl;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task<IReadOnlyList<Thesis>> GetIngestingThesesAsync(CancellationToken cancellationToken = default)
+            => await _db.Theses
+                .AsNoTracking()
+                .Where(t => t.PineconeStatus == "Indexing")
+                .ToListAsync(cancellationToken);
+
         public async Task<bool> DeleteThesisAsync(Guid id)
         {
             var existing = await _db.Theses.FindAsync(id);

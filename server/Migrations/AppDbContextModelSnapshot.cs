@@ -631,6 +631,9 @@ namespace server.Migrations
                     b.Property<DateTime?>("IndexedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("IngestStagingUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("PineconeStatus")
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(20)

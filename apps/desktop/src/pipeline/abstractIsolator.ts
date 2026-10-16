@@ -1,29 +1,14 @@
+// apps/desktop/src/pipeline/abstractIsolator.ts
+//
+// Title-page metadata extraction for the ingestion pipeline. Runs on the
+// combined text of PDF pages 1-2 (the title/approval pages), where the
+// repository's thesis format places the title, authors, and publication year.
+
 interface ExtractedMetadata {
     title:           string;
     authors:         string;
     publicationYear: string;
     url:             string;
-}
-
-interface IsolatedAbstract {
-    abstract: string | null;
-    found:    boolean;
-}
-
-export function isolateAbstract(rawText: string): IsolatedAbstract {
-    const abstractPattern =
-        /\bAbstract\s+([\s\S]*?)(?=\s+(?:Introduction|Keywords|Table of Contents|Chapter\s+1|Acknowledgements|URL:|Record ID:)|$)/i;
-
-    const match = rawText.match(abstractPattern);
-
-    if (!match || !match[1].trim()) {
-        return { abstract: null, found: false };
-    }
-
-    return {
-        abstract: match[1].trim(),
-        found: true,
-    };
 }
 
 export function extractMetadata(rawText: string, blobUrl: string): ExtractedMetadata {

@@ -701,18 +701,32 @@ namespace server.Services.AI
             return trimmed.Length > _config.MaxQueryLength ? trimmed[.._config.MaxQueryLength] : trimmed;
         }
 
-        /// <summary>Merges new sources into the list, deduplicating per thesis and keeping the strongest matches first.</summary>
+        /// <summary>
+        /// Merges new sources into the list, allowing up to
+        /// MaxPassagesPerThesis passages per thesis (full-text ingestion means
+        /// several body chunks from one document can be relevant to a single
+        /// question — the synthesizer needs real document context, not one
+        /// winning excerpt), keeping the strongest matches first.
+        /// </summary>
         private List<ChatSourceDto> MergeSources(List<ChatSourceDto> current, IReadOnlyList<ChatSourceDto> additions)
         {
             var merged = new List<ChatSourceDto>(current);
+            var perThesis = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var existing in merged)
+            {
+                var key = existing.ThesisId ?? existing.Title ?? existing.Url ?? Guid.NewGuid().ToString();
+                perThesis[key] = perThesis.GetValueOrDefault(key) + 1;
+            }
+
+            var maxPerThesis = Math.Max(1, _config.MaxPassagesPerThesis);
             foreach (var source in additions)
             {
                 var key = source.ThesisId ?? source.Title ?? source.Url ?? Guid.NewGuid().ToString();
-                if (merged.Any(existing =>
-                        (existing.ThesisId ?? existing.Title ?? existing.Url) == key))
+                if (perThesis.GetValueOrDefault(key) >= maxPerThesis)
                 {
                     continue;
                 }
+                perThesis[key] = perThesis.GetValueOrDefault(key) + 1;
                 merged.Add(source);
             }
 
@@ -728,9 +742,7 @@ namespace server.Services.AI
             Title = chunk.Title,
             Authors = chunk.Authors,
             PublicationYear = chunk.PublicationYear,
-            // 200-char cap keeps the synth prompt within the token budget
-            // (4 sources max — see MaxSources / BuildSourcesBlock).
-            Snippet = chunk.Text.Length > 200 ? chunk.Text[..200] + "…" : chunk.Text,
+            Snippet = chunk.Text.Length > 600 ? chunk.Text[..600] + "…" : chunk.Text,
             Score = double.TryParse(chunk.RelevanceScore, out var score) ? score : null,
             Url = chunk.Url,
         };

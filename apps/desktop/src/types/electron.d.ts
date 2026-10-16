@@ -1,10 +1,14 @@
 // apps/desktop/src/types/electron.d.ts
-import type { IngestThesisResponseDto } from '@monteai/types';
+import type { IngestFullThesisResponseDto } from '@monteai/types';
 
 declare global {
     interface Window {
         thesisApi: {
-            approveThesis(thesisId: string): Promise<IngestThesisResponseDto>;
+            approveThesis(request: {
+                thesisId: string;
+                baseURL?: string;
+                authToken?: string;
+            }): Promise<IngestFullThesisResponseDto>;
         };
     }
 }

@@ -6,6 +6,8 @@ import type {
     UpdateThesisDto,
     IngestThesisDto,
     IngestThesisResponseDto,
+    IngestFullThesisDto,
+    IngestFullThesisResponseDto,
     CreateAnnotationDto,
     ResolveAnnotationDto,
     ThesisVersion,
@@ -275,6 +277,23 @@ export const mockThesisService: ThesisService = {
             indexedAt: new Date().toISOString(),
         });
         return { thesisId: dto.thesisId, vectorCount: dto.chunks.length, status: "Indexed" } as IngestThesisResponseDto;
+    },
+
+    async ingestFullThesis(dto: IngestFullThesisDto) {
+        await delay(300);
+        const existing = thesesMap.get(dto.thesisId);
+        if (!existing || !dto.fullText.trim()) {
+            return { thesisId: dto.thesisId, vectorCount: 0, status: "Failed" } as IngestFullThesisResponseDto;
+        }
+        // Mirrors the live pipeline: metadata vector lands immediately (the
+        // mock has no background worker, so the row jumps straight to Indexed).
+        thesesMap.set(dto.thesisId, {
+            ...existing,
+            status: "Approved",
+            pineconeStatus: "Indexed",
+            indexedAt: new Date().toISOString(),
+        });
+        return { thesisId: dto.thesisId, vectorCount: 1, status: "Queued" } as IngestFullThesisResponseDto;
     },
 
     async updateThesis(thesisId, dto: UpdateThesisDto) {

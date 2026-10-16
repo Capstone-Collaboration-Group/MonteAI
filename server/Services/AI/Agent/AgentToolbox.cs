@@ -35,8 +35,8 @@ namespace server.Services.AI.Agent
         private readonly IThesisRepository _thesisRepository;
         private readonly ILogger<AgentToolbox> _logger;
 
-        /// <summary>Characters of a source's text included in prompt observations — keeps the context window small.</summary>
-        private const int SnippetLength = 400;
+        /// <summary>Characters of a source's text included in prompt observations — keeps the context window small while giving the synthesizer real body passages (full-text ingestion).</summary>
+        private const int SnippetLength = 600;
 
         /// <summary>Hard cap per tool observation so one call cannot blow up the prompt.</summary>
         private const int MaxObservationLength = 4000;

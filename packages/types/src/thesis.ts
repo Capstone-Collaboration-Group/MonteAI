@@ -142,6 +142,30 @@ export interface IngestThesisResponseDto  {
   status: 'Indexed' | 'Failed';
 }
 
+/**
+ * Full-text async ingestion payload (POST /thesis/ingest/full).
+ * The desktop pipeline extracts EVERY page of the PDF and sends the raw
+ * text; the server upserts the page-2 metadata vector synchronously, then
+ * chunks/embeds the body in a background worker (202 Queued).
+ */
+export interface IngestFullThesisDto {
+  thesisId: string;
+  /** Complete extracted text of the PDF (all pages). */
+  fullText: string;
+  /** Title-page metadata (from PDF pages 1-2). */
+  title?: string;
+  authors?: string;
+  publicationYear?: string;
+}
+
+export interface IngestFullThesisResponseDto {
+  thesisId: string;
+  /** "Queued" = metadata vector upserted, body ingestion pending; "Failed". */
+  status: 'Queued' | 'Failed';
+  /** Vectors already upserted synchronously (the metadata vector: 0 or 1). */
+  vectorCount: number;
+}
+
 export interface ThesisVersion { 
   id: string;
   thesisId: string;

@@ -62,7 +62,38 @@ export default function Theses() {
     : ["approve", "reject", "revision"];
 
   const handleThesisAction = async (thesisId: string, action: ThesisActionType) => {
-    if (action === "approve") { approve({ thesisId }); return; }
+    if (action === "approve") {
+      setNotice(null);
+      approve(
+        { thesisId },
+        {
+          onSuccess: () =>
+            setNotice({
+              variant: "success",
+              message: "Thesis approved — MonteAI is indexing it now (status: Indexed once background ingestion finishes).",
+            }),
+          onError: (err) => {
+            // IPC rejections from the main process have no axios `response`
+            // — their reason lives in `message` (e.g. connect ECONNREFUSED).
+            const ipcMessage =
+              !("response" in (err as object)) && err instanceof Error && err.message
+                ? err.message.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, "")
+                : null;
+            setNotice({
+              variant: "error",
+              message: ipcMessage
+                ? `Failed to approve thesis: ${ipcMessage}`
+                : getActionErrorMessage(
+                    err,
+                    "You are not allowed to approve theses.",
+                    "Failed to approve thesis. Please try again.",
+                  ),
+            });
+          },
+        },
+      );
+      return;
+    }
     if (action === "reject") { reject({ thesisId }); return; }
     if (action === "revision") { revision({ thesisId }); return; }
 

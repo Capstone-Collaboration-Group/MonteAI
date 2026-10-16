@@ -41,10 +41,31 @@ namespace server.Configuration
         public int MaxUpsertBatchSize { get; set; } = 100;
 
         /// <summary>
-        /// Safety cap on chunks accepted per thesis ingestion request, so a
-        /// malformed desktop payload cannot fan out into a huge embedding
-        /// bill. Default: 64.
+        /// Safety cap on chunks accepted per thesis ingestion request. Full-
+        /// text ingestion of a ~100-page thesis produces ~50-80 chunks
+        /// (512 words each), so the old default of 64 would silently truncate
+        /// long documents. Default: 256.
         /// </summary>
-        public int MaxChunksPerIngest { get; set; } = 64;
+        public int MaxChunksPerIngest { get; set; } = 256;
+
+        /// <summary>
+        /// Safety cap on the full-text payload accepted by POST
+        /// /thesis/ingest/full (characters). ~1M chars ≈ 250k words ≈ a
+        /// 600+ page document — far beyond any real thesis. Default: 1_000_000.
+        /// </summary>
+        public int MaxFullTextChars { get; set; } = 1_000_000;
+
+        /// <summary>
+        /// How many thesis body-ingestion jobs the background worker may run
+        /// concurrently. Bounded so a burst of approvals cannot stampede the
+        /// Azure OpenAI embedding deployment's TPM. Default: 2.
+        /// </summary>
+        public int MaxConcurrentIngestions { get; set; } = 2;
+
+        /// <summary>
+        /// Attempts per queued ingestion job (first try + retries) before the
+        /// thesis is marked PineconeStatus=IngestFailed. Default: 3.
+        /// </summary>
+        public int IngestMaxAttempts { get; set; } = 3;
     }
 }
