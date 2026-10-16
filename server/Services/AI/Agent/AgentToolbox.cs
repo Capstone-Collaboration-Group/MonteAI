@@ -49,9 +49,12 @@ namespace server.Services.AI.Agent
         }
 
         /// <summary>
-        /// Tool descriptions injected into the planner system prompt. Follows
-        /// the validated few-shot recipe in AgentPrompts (re-validate prompt
-        /// changes against the live Phi-4-mini deployment before shipping).
+        /// Tool descriptions for the planner. Since the Phi-4-mini retirement
+        /// this manifest is NOT sent per-request — it is rendered ONCE and
+        /// baked into the monteai-agent-planner Foundry agent definition (see
+        /// the AgentPrompts.cs header). Re-bake after changing it here, and
+        /// validate with `dotnet run --project server -- --prompt-check`
+        /// before shipping.
         /// </summary>
         public string GetToolManifest() =>
             """

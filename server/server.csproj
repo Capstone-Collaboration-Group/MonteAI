@@ -22,6 +22,16 @@
 
 	  <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
 
+	  <!-- Foundry agent (gpt-5-nano) client stack. ProjectResponsesClient lives in
+	       Azure.AI.Extensions.OpenAI, NOT Azure.AI.Projects (which only supplies
+	       AIProjectClient + ProjectOpenAIClient). Both are prerelease — the agent
+	       pipeline is the only place allowed to touch preview APIs (OPENAI001 is
+	       suppressed in FoundryAgentBackend.cs). Azure.AI.OpenAI stays above for
+	       the text-embedding-3-small EmbeddingClient. -->
+	  <PackageReference Include="Azure.AI.Projects" Version="2.1.0-beta.4" />
+	  <PackageReference Include="Azure.AI.Extensions.OpenAI" Version="2.1.0-beta.4" />
+	  <PackageReference Include="Azure.Identity" Version="1.21.0" />
+
 	  <PackageReference Include="Azure.Storage.Blobs" Version="12.29.1" />
 
 	  <PackageReference Include="FirebaseAdmin" Version="3.5.0" />
