@@ -26,7 +26,7 @@ namespace server.Configuration
 
         /// <summary>
         /// Maximum number of plan/act iterations per user message. Each
-        /// iteration costs one Phi-4-mini planning call plus any tool calls.
+        /// iteration costs one planner call plus any tool calls.
         /// Default: 3.
         /// </summary>
         public int MaxAgentIterations { get; set; } = 3;
@@ -34,9 +34,10 @@ namespace server.Configuration
         /// <summary>
         /// How many prior chat messages (user + assistant turns) are replayed
         /// into the planner and synthesizer prompts as conversation memory.
-        /// Default: 10.
+        /// Kept small for the ~1000-token/query budget — history is the main
+        /// token cost after the first turn. Default: 3.
         /// </summary>
-        public int HistoryMessageCount { get; set; } = 10;
+        public int HistoryMessageCount { get; set; } = 3;
 
         /// <summary>
         /// Token cap for each planner response (the planner only emits a small
@@ -83,10 +84,10 @@ namespace server.Configuration
 
         /// <summary>
         /// Maximum number of deduplicated sources attached to one answer.
-        /// Protects both the prompt size and the citation panel in the UI.
-        /// Default: 8.
+        /// Part of the ~1000-token/query budget: each source block costs
+        /// ~120 tokens (see BuildSourcesBlock excerpt cap). Default: 4.
         /// </summary>
-        public int MaxSources { get; set; } = 8;
+        public int MaxSources { get; set; } = 4;
 
         /// <summary>
         /// Hard cap on the length of a single user query accepted by the
@@ -99,10 +100,20 @@ namespace server.Configuration
         /// <summary>
         /// How many agent runs (planner + synthesizer LLM calls) may execute
         /// concurrently. Requests beyond this wait in a queue whose position is
-        /// surfaced to the user via SSE status frames. Sized to the free-tier
-        /// Azure OpenAI deployment (~1-2 concurrent calls). Default: 2.
+        /// surfaced to the user via SSE status frames. Sized to the Azure AI
+        /// Foundry gpt-5-nano agent pool (multiple deployments — the real
+        /// per-deployment cap lives in AzureAI:Deployments:MaxConcurrency).
+        /// Default: 30 (research-month burst target).
         /// </summary>
-        public int MaxConcurrentAgentRuns { get; set; } = 2;
+        public int MaxConcurrentAgentRuns { get; set; } = 30;
+
+        /// <summary>
+        /// Hard ceiling on how long one request may sit in the gate queue
+        /// before it is shed with a friendly unavailable message (via
+        /// LlmUnavailableException). Without a deadline a request behind a
+        /// stalled run could wait indefinitely. Default: 45 seconds.
+        /// </summary>
+        public int MaxGateWaitSeconds { get; set; } = 45;
 
         /// <summary>
         /// When true, simple factual lookups ("who authored X", "what year was
@@ -130,15 +141,5 @@ namespace server.Configuration
 
         /// <summary>Maximum entries kept in the semantic cache (oldest evicted first). Default: 500.</summary>
         public int SemanticCacheMaxEntries { get; set; } = 500;
-
-        /// <summary>
-        /// Consecutive LLM failures (timeouts / transport errors) after which
-        /// the circuit opens and new agent runs fail fast for the break window
-        /// instead of each burning ~40s on a sick deployment. Default: 3.
-        /// </summary>
-        public int CircuitBreakerFailureThreshold { get; set; } = 3;
-
-        /// <summary>How long the circuit stays open before one probe request is allowed through. Default: 60 seconds.</summary>
-        public int CircuitBreakerBreakSeconds { get; set; } = 60;
     }
 }

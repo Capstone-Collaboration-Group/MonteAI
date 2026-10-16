@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Azure.AI.OpenAI;
+using Azure.Identity;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
@@ -16,7 +17,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using OpenAI.Chat;
 using OpenAI.Embeddings;
 using Pinecone;
 using Serilog;
@@ -40,14 +40,17 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    
+    // Prompt-validation harness — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --prompt-check              (live gate)
+    //   dotnet run --project server -- --prompt-check --live-offline
+    if (args.Contains("--prompt-check", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.PromptCheckRunner.RunAsync(args));
+    }
+
     Log.Information("Starting MonteAI Server Application...");
 
     var builder = WebApplication.CreateBuilder(args);
-
-    var chatEndpoint = builder.Configuration["AzureAI:Endpoint"];
-    var chatApiKey = builder.Configuration["AzureAI:ApiKey"];
-    var chatDeploymentName = builder.Configuration["AzureAI:DeploymentName"];
 
     var embedEndpoint = builder.Configuration["AzureAIEmbedding:Endpoint"];
     var embedDeploymentName = builder.Configuration["AzureAIEmbedding:EmbeddingDeploymentName"];
@@ -62,45 +65,51 @@ try
     // Pinecone 
     builder.Services.AddSingleton(sp => new PineconeClient(pineconeApiKey));
 
-    // Singletons (not transient): the clients are thread-safe and this reuses
-    // one connection pool instead of building a new AzureOpenAIClient +
-    // HttpClient per request (per-request churn was contributing to stalled
-    // connections). NetworkTimeout/RetryPolicy fail fast on network stalls:
-    // the System.ClientModel defaults (100s per attempt × 3 retries) let one
-    // hung Azure OpenAI call block a chat request for ~7 minutes.
-    //
-    // Two chat clients with DIFFERENT timeouts (same deployment):
-    //   "planner" — emits <= ~250 tokens of JSON, so it fails fast (20s) and
-    //               the agent loop degrades to single-shot RAG on failure.
-    //   "synth"   — the user-visible answer. STREAMING requests are guarded
-    //               separately in MonteAiAgentService (first-update timeout +
-    //               fresh-request retries), so this timeout mainly covers the
-    //               non-streaming fallback: a full answer (<= 800 tokens) takes
-    //               well under 30s when the request is healthy, and a hung one
-    //               should be replaced quickly. Worst case: 2 x 30s = 60s.
-    ChatClient CreateChatClient(TimeSpan networkTimeout)
-    {
-        var options = new AzureOpenAIClientOptions(AzureOpenAIClientOptions.ServiceVersion.V2024_06_01)
-        {
-            NetworkTimeout = networkTimeout,
-            RetryPolicy = new ClientRetryPolicy(maxRetries: 1),
-        };
-        var azureClient = new AzureOpenAIClient(
-            new Uri(chatEndpoint!),
-            new ApiKeyCredential(chatApiKey!),
-            options
-        );
+    // LLM pool (gpt-5-nano Foundry agents). The old single-deployment
+    // ChatClient pair (Phi-4-mini, keyed "planner"/"synth") is gone — the
+    // planner and synthesizer now route through LlmClientPool to whichever
+    // healthy AzureAI:Deployments entry serves the requested role.
+    builder.Services.Configure<server.Configuration.LlmPoolConfig>(
+        builder.Configuration.GetSection(server.Configuration.LlmPoolConfig.SectionName));
 
-        return azureClient.GetChatClient(chatDeploymentName);
+    var llmProjectEndpoint = builder.Configuration["AzureAI:ProjectEndpoint"];
+    if (string.IsNullOrWhiteSpace(llmProjectEndpoint) && !builder.Environment.IsEnvironment("Testing"))
+    {
+        throw new InvalidOperationException("AzureAI:ProjectEndpoint is missing from configuration");
     }
 
-    builder.Services.AddKeyedSingleton<ChatClient>(
-        "planner", (_, _) => CreateChatClient(TimeSpan.FromSeconds(20)));
-    builder.Services.AddKeyedSingleton<ChatClient>(
-        "synth", (_, _) => CreateChatClient(TimeSpan.FromSeconds(30)));
+    // Singleton: the client is thread-safe, one HTTP pipeline for all agents
+    // in the project. DefaultAzureCredential resolves az-login / managed
+    // identity / env vars — the Foundry agents authenticate with Entra ID,
+    // not an API key. Per-call timeouts are enforced by LlmClientPool.
+   builder.Services.AddSingleton(sp =>
+{
+    var env = sp.GetRequiredService<IHostEnvironment>();
+
+    var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+    {
+        // Locally there is no IMDS endpoint; probing it hangs until the pool's timeout fires.
+        ExcludeManagedIdentityCredential = env.IsDevelopment(),
+        TenantId = "99a566cc-af0d-4dca-818d-8753b8a8fb8d" // tenant that holds your Foundry project
+    });
+
+    return new Azure.AI.Projects.AIProjectClient(
+        new Uri(llmProjectEndpoint ?? "https://placeholder.invalid/api/projects/_"),
+        credential);
+});
+
+    // Singletons (not Scrutor-scoped) so per-entry semaphores/cool-downs
+    // persist across requests.
+    //
+    // NOTE (retry/timeout posture): the removed AzureOpenAIClient options
+    // (NetworkTimeout + ClientRetryPolicy(maxRetries: 1)) are replaced by the
+    // pool's per-entry TimeoutSeconds and the agent loop's own first-token /
+    // StreamAttempts guards. Do not re-add silent multi-minute defaults —
+    // one hung call must not block a chat request for minutes.
 
     // 3. Register Embedding Client (Uses AzureAIEmbedding configuration)
-    // Same singleton + fail-fast posture as the chat client above.
+    // Singleton + fail-fast posture: one connection pool, short timeouts so a
+    // sick embedding deployment cannot stall a chat request.
     builder.Services.AddSingleton<EmbeddingClient>(sp =>
     {
         var options = new AzureOpenAIClientOptions(AzureOpenAIClientOptions.ServiceVersion.V2024_06_01)
@@ -292,9 +301,16 @@ try
     // the Scrutor-scanned namespaces because they hold shared state and must
     // be singletons, not per-request scoped like the scanned services).
     // Registered AFTER the scan so these win for their interfaces.
+    // (ILlmCircuitBreaker is gone — LlmClientPool owns per-entry cooldowns.)
     builder.Services.AddSingleton<server.Infrastructure.IAgentConcurrencyGate, server.Infrastructure.AgentConcurrencyGate>();
-    builder.Services.AddSingleton<server.Infrastructure.ILlmCircuitBreaker, server.Infrastructure.LlmCircuitBreaker>();
     builder.Services.AddSingleton<server.Infrastructure.ISemanticAnswerCache, server.Infrastructure.SemanticAnswerCache>();
+
+    // LLM backend + pool. ILlmBackend is registered explicitly (not via the
+    // Scrutor scan) because the pool is a singleton and must not capture a
+    // scoped backend. The scan would otherwise register FoundryAgentBackend
+    // as scoped — this registration comes after the scan so it wins.
+    builder.Services.AddSingleton<server.Services.AI.ILlmBackend, server.Services.AI.FoundryAgentBackend>();
+    builder.Services.AddSingleton<server.Infrastructure.ILlmClientPool, server.Infrastructure.LlmClientPool>();
 
     // Note: IPineconeService, IAgentToolbox, and IMonteAiAgentService are
     // auto-registered by the Scrutor scan above (namespace server.Services.*

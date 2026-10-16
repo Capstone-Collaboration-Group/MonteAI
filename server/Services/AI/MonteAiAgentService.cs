@@ -11,26 +11,27 @@
 //   2. SEMANTIC ANSWER CACHE (zero LLM calls):
 //      near-duplicate of a recent question (cosine >= 0.95 on query
 //      embeddings) -> previously grounded answer served instantly.
-//   3. AGENT PIPELINE (LLM calls, gated + breaker-protected):
+//   3. AGENT PIPELINE (LLM calls, gated + pool-protected):
 //        ┌───────────────────── RunAgentLoopEventsAsync ─────────────────┐
 //        │ for up to MaxAgentIterations (default 3):                     │
-//        │    1. PLANNER (Phi-4-mini, temp 0, capped tokens):            │
-//        │       -> strict JSON: {"tool": "...", "toolArgs": {...},      │
-//        │                          "needsMore": true|false}             │
+//        │    1. PLANNER (Foundry gpt-5-nano agent, strict JSON):        │
+//        │       -> {"tool": "...", "toolArgs": {...},                   │
+//        │           "needsMore": true|false}                            │
 //        │                      or {"final": true}                       │
 //        │    2. Run the chosen tool; needsMore=false ends the loop      │
 //        │       right after this one tool (no confirm-planner call).    │
 //        │    3. Empty results earn one retry turn regardless.           │
 //        │ if NO tool ever ran: one guaranteed semantic_search fallback. │
 //        └───────────────────────────────────────────────────────────────┘
-//        -> SYNTHESIZER (Phi-4-mini, temp 0.2) streams the grounded answer
+//        -> SYNTHESIZER (Foundry gpt-5-nano agent, temp 0.2) streams the grounded answer
 //        -> answer is stored in the semantic cache for future near-duplicates
 //
-// CAPACITY CONTROLS (free-tier Azure OpenAI ~1-2 concurrent LLM calls):
+// CAPACITY CONTROLS (gpt-5-nano Foundry agents, multiple deployments):
 //   - AgentConcurrencyGate: MaxConcurrentAgentRuns permits; queued users see
-//     "about N ahead of you…" status frames.
-//   - LlmCircuitBreaker: consecutive timeouts open the circuit so new runs
-//     fail fast instead of each burning ~40s on a sick deployment.
+//     "about N ahead of you…" status frames, shed after MaxGateWaitSeconds.
+//   - LlmClientPool: per-deployment concurrency caps, least-outstanding
+//     routing and escalating cool-downs; a pool-wide outage throws
+//     LlmUnavailableException so ChatController answers 503 / SSE "error".
 //   - Per-user ChatLimit (Program.cs) caps each user's messages/minute.
 //   - Planner/synthesizer calls are token-capped; observations truncated.
 
@@ -38,7 +39,6 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using OpenAI.Chat;
 using server.Configuration;
@@ -53,16 +53,16 @@ namespace server.Services.AI
 {
     public class MonteAiAgentService : IMonteAiAgentService
     {
-        // Same deployment, different network timeouts (see Program.cs):
-        // the planner fails fast, the synthesizer gets more first-byte headroom.
-        private readonly ChatClient _plannerClient;
-        private readonly ChatClient _synthClient;
+        // All LLM traffic flows through the pool (per-deployment concurrency,
+        // least-outstanding routing, cool-downs — see LlmClientPool). The
+        // planner vs synthesizer distinction survives as LlmCall.Role, which
+        // selects the pool entry, timeout and response format.
+        private readonly ILlmClientPool _pool;
         private readonly IAgentToolbox _toolbox;
         private readonly IPineconeService _pineconeService;
         private readonly IDeterministicResponder _deterministic;
         private readonly ISemanticAnswerCache _cache;
         private readonly IAgentConcurrencyGate _gate;
-        private readonly ILlmCircuitBreaker _breaker;
         private readonly MonteAiAgentConfig _config;
         private readonly ILogger<MonteAiAgentService> _logger;
 
@@ -90,25 +90,21 @@ namespace server.Services.AI
         private sealed record LoopCompleted(AgentLoopOutcome Outcome);
 
         public MonteAiAgentService(
-            [FromKeyedServices("planner")] ChatClient plannerClient,
-            [FromKeyedServices("synth")] ChatClient synthClient,
+            ILlmClientPool pool,
             IAgentToolbox toolbox,
             IPineconeService pineconeService,
             IDeterministicResponder deterministic,
             ISemanticAnswerCache cache,
             IAgentConcurrencyGate gate,
-            ILlmCircuitBreaker breaker,
             IOptions<MonteAiAgentConfig> config,
             ILogger<MonteAiAgentService> logger)
         {
-            _plannerClient = plannerClient;
-            _synthClient = synthClient;
+            _pool = pool;
             _toolbox = toolbox;
             _pineconeService = pineconeService;
             _deterministic = deterministic;
             _cache = cache;
             _gate = gate;
-            _breaker = breaker;
             _config = config.Value;
             _logger = logger;
         }
@@ -175,19 +171,29 @@ namespace server.Services.AI
                 yield break;
             }
 
-            // 3. Circuit breaker — fail fast during deployment outages instead
-            //    of every queued request individually burning ~40s timeouts.
-            if (_breaker.IsOpen)
-            {
-                throw new LlmUnavailableException(LlmCircuitBreaker.UserFacingMessage);
-            }
-
-            // 4. Agent pipeline under the concurrency gate. WaitAsync completes
+            // 3. Agent pipeline under the concurrency gate. WaitAsync completes
             //    synchronously when a permit is free; under load we surface the
-            //    queue depth as status frames while waiting.
+            //    queue depth as status frames while waiting, and shed the
+            //    request (friendly unavailable message) once it has waited
+            //    MaxGateWaitSeconds without a permit.
             var waitTask = _gate.WaitAsync(cancellationToken);
+            var gateDeadline = DateTime.UtcNow.AddSeconds(Math.Max(1, _config.MaxGateWaitSeconds));
             while (!waitTask.IsCompleted)
             {
+                if (DateTime.UtcNow >= gateDeadline)
+                {
+                    // Do not leak the permit when it eventually arrives: hand
+                    // the eventual Releaser straight back to the gate.
+                    _ = waitTask.ContinueWith(
+                        t => { if (t.Status == TaskStatus.RanToCompletion) t.Result.Dispose(); },
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
+                    throw new LlmUnavailableException(
+                        "The AI assistant is at capacity right now — too many requests are in the queue. " +
+                        "Please try again in about a minute.");
+                }
+
                 yield return new AgentStreamEvent.Status(
                     $"The AI assistant is busy — about {Math.Max(1, _gate.WaitingCount)} ahead of you…");
                 await Task.WhenAny(waitTask, Task.Delay(2500, cancellationToken));
@@ -208,7 +214,7 @@ namespace server.Services.AI
                 }
             }
 
-            // 5. Citations before the first token, then stream the synthesis.
+            // 4. Citations before the first token, then stream the synthesis.
             yield return new AgentStreamEvent.SourcesDiscovered(loop!.Sources);
             yield return new AgentStreamEvent.Status("Writing your answer…");
 
@@ -219,7 +225,7 @@ namespace server.Services.AI
                 yield return new AgentStreamEvent.AnswerDelta(delta);
             }
 
-            // 6. Grounding pass, cache store, terminal event.
+            // 5. Grounding pass, cache store, terminal event.
             var answer = EnforceGrounding(answerBuilder.ToString(), loop.Sources.Count);
             // Never cache a dropped-stream partial.
             if (!answer.Contains(MidStreamDropNotice, StringComparison.Ordinal))
@@ -291,38 +297,42 @@ namespace server.Services.AI
 
             if (_config.EnableAgentMode)
             {
-                var systemPrompt = AgentPrompts.PlanningSystemPrompt
-                    .Replace("{TOOLS}", _toolbox.GetToolManifest())
-                    .Replace("{MAX_STEPS}", _config.MaxAgentIterations.ToString());
-
                 yield return new AgentStreamEvent.Status("Understanding your question…");
 
                 for (var step = 0; step < _config.MaxAgentIterations; step++)
                 {
-                    var messages = BuildPlanningMessages(systemPrompt, query, history, observations);
+                    var messages = BuildPlanningMessages(query, history, observations);
 
                     // A planner timeout / transport failure must not kill the
                     // whole request: degrade to the guaranteed single-shot
                     // retrieval below, exactly like unparseable planner JSON.
+                    // A pool-wide outage (every entry cooling down) instead
+                    // fails fast — synthesis could not run either.
                     // (No `yield` inside this try/catch — required in iterators.)
-                    ChatCompletion completion;
+                    LlmCompletion completion;
                     try
                     {
-                        completion = (await _plannerClient.CompleteChatAsync(messages, PlanningOptions(), ct)).Value;
+                        completion = await _pool.CompleteAsync(new LlmCall(
+                            Role: "planner",
+                            Messages: messages,
+                            Temperature: _config.PlanningTemperature,
+                            MaxOutputTokens: _config.PlanningMaxOutputTokens,
+                            JsonMode: true), ct);
+                    }
+                    catch (LlmUnavailableException)
+                    {
+                        throw;
                     }
                     catch (Exception ex) when (!ct.IsCancellationRequested)
                     {
                         usedFallback = true;
-                        _breaker.RecordFailure("planner");
                         _logger.LogWarning(ex, "Planner call failed on step {Step} — falling back to direct RAG", step + 1);
                         break;
                     }
-                    _breaker.RecordSuccess();
-                    LogUsage("planner", completion.Usage);
+                    LogUsage("planner", completion);
 
-                    var action = AgentJson.ParseAction(completion.Content.Count > 0
-                        ? completion.Content[0]?.Text
-                        : null);
+                    var action = AgentJson.ParseAction(
+                        string.IsNullOrEmpty(completion.Text) ? null : completion.Text);
 
                     if (action is null)
                     {
@@ -424,6 +434,15 @@ namespace server.Services.AI
         {
             var messages = BuildAnswerMessages(query, history, loop);
 
+            // One LlmCall description reused by every attempt — the pool
+            // resolves the actual Foundry agent/timeout per attempt.
+            var synthCall = new LlmCall(
+                Role: "synth",
+                Messages: messages,
+                Temperature: _config.AnswerTemperature,
+                MaxOutputTokens: _config.AnswerMaxOutputTokens,
+                JsonMode: false);
+
             var promptChars = messages.Sum(m => m.Content.Sum(c => c.Text?.Length ?? 0));
             var stopwatch = Stopwatch.StartNew();
             _logger.LogInformation("MonteAI synthesis starting — prompt ≈ {Chars} chars", promptChars);
@@ -436,8 +455,9 @@ namespace server.Services.AI
                     using var firstUpdateCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     firstUpdateCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, _config.FirstTokenTimeoutSeconds)));
 
-                    var updates = _synthClient.CompleteChatStreamingAsync(messages, AnswerOptions(), firstUpdateCts.Token);
-                    var enumerator = updates.GetAsyncEnumerator(firstUpdateCts.Token);
+                    var enumerator = _pool
+                        .StreamDeltasAsync(synthCall, firstUpdateCts.Token)
+                        .GetAsyncEnumerator(firstUpdateCts.Token);
                     var stalled = false;
 
                     // NOTE: C# forbids `yield` inside a try block that has a catch
@@ -452,8 +472,9 @@ namespace server.Services.AI
                         }
                         catch (Exception ex) when (!ct.IsCancellationRequested)
                         {
+                            // The pool already recorded the failure against the
+                            // entry (cool-down) when the stream never started.
                             stalled = true;
-                            _breaker.RecordFailure("synthesizer-stream");
                             _logger.LogWarning(
                                 "MonteAI streaming attempt {Attempt}/{Max} stalled with no update within {Seconds}s ({ErrorType}: {Reason}) — abandoning this attempt, retrying with a fresh request",
                                 attempt, maxAttempts, _config.FirstTokenTimeoutSeconds, ex.GetType().Name, ex.Message);
@@ -464,7 +485,6 @@ namespace server.Services.AI
                         {
                             // First update arrived: disarm the guard for the rest of the stream.
                             firstUpdateCts.CancelAfter(Timeout.InfiniteTimeSpan);
-                            _breaker.RecordSuccess();
                             _logger.LogInformation(
                                 "MonteAI synthesis first update after {Ms} ms (attempt {Attempt})",
                                 stopwatch.ElapsedMilliseconds, attempt);
@@ -481,21 +501,16 @@ namespace server.Services.AI
                                 var droppedMidStream = false;
                                 try
                                 {
-                                    var content = enumerator.Current.ContentUpdate;
-                                    for (var i = 0; i < content.Count; i++)
+                                    var text = enumerator.Current;
+                                    if (!string.IsNullOrEmpty(text))
                                     {
-                                        var text = content[i]?.Text;
-                                        if (!string.IsNullOrEmpty(text))
-                                        {
-                                            texts.Add(text);
-                                        }
+                                        texts.Add(text);
                                     }
                                     hasUpdate = await enumerator.MoveNextAsync();
                                 }
                                 catch (Exception ex) when (!ct.IsCancellationRequested)
                                 {
                                     droppedMidStream = true;
-                                    _breaker.RecordFailure("synthesizer-stream");
                                     _logger.LogWarning(
                                         "MonteAI stream dropped mid-stream on attempt {Attempt} after {Ms} ms ({ErrorType}: {Reason}) — keeping the partial answer",
                                         attempt, stopwatch.ElapsedMilliseconds, ex.GetType().Name, ex.Message);
@@ -530,23 +545,23 @@ namespace server.Services.AI
             }
 
             // Non-streaming path: StreamSynthesis=false, or every stream attempt stalled.
-            ChatCompletion fallbackCompletion;
+            LlmCompletion fallbackCompletion;
             try
             {
-                fallbackCompletion = (await _synthClient.CompleteChatAsync(messages, AnswerOptions(), ct)).Value;
+                fallbackCompletion = await _pool.CompleteAsync(synthCall, ct);
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
-                _breaker.RecordFailure("synthesizer");
                 _logger.LogWarning(ex,
-                    "MonteAI non-streaming synthesis failed after retries ({ErrorType}: {Reason}) — breaker recorded; client gets a friendly unavailable message",
+                    "MonteAI non-streaming synthesis failed after retries ({ErrorType}: {Reason}) — client gets a friendly unavailable message",
                     ex.GetType().Name, ex.Message);
-                throw new LlmUnavailableException(LlmCircuitBreaker.UserFacingMessage, ex);
+                throw ex is LlmUnavailableException
+                    ? ex
+                    : new LlmUnavailableException(LlmClientPool.UserFacingMessage, ex);
             }
-            _breaker.RecordSuccess();
-            LogUsage("synthesizer", fallbackCompletion.Usage);
+            LogUsage("synthesizer", fallbackCompletion);
 
-            var answer = (fallbackCompletion.Content.Count > 0 ? fallbackCompletion.Content[0]?.Text : null)?.Trim();
+            var answer = fallbackCompletion.Text?.Trim();
             if (string.IsNullOrEmpty(answer))
             {
                 answer = "I could not generate a response. Please try rephrasing your question.";
@@ -585,14 +600,17 @@ namespace server.Services.AI
         // ────────────────────── prompt assembly ──────────────────────
 
         private List<ChatMessage> BuildPlanningMessages(
-            string systemPrompt,
             string query,
             IReadOnlyList<ConversationTurn> history,
             IReadOnlyList<string> observations)
         {
-            var messages = new List<ChatMessage> { new SystemChatMessage(systemPrompt) };
+            // NO system message: the planner's instructions (including the
+            // rendered tool manifest and MAX_STEPS) are baked into the
+            // monteai-agent-planner Foundry agent definition — see
+            // AgentPrompts.cs for the copy-paste source.
+            var messages = new List<ChatMessage>();
 
-            // ORDER MATTERS (validated against the live Phi-4-mini deployment):
+            // ORDER MATTERS (validated against the live deployment):
             //   1. real conversation memory FIRST
             //   2. few-shot protocol examples SECOND (adjacent to the question)
             //   3. the current planning step LAST
@@ -602,7 +620,7 @@ namespace server.Services.AI
             messages.AddRange(ToChatMessages(history));
 
             // Few-shot protocol examples as REAL turns — the pattern priming
-            // that makes Phi-4-mini emit the correct JSON schema (see
+            // that makes the model emit the correct JSON schema (see
             // AgentPrompts header for the validation notes).
             foreach (var (exampleUser, exampleAssistant) in AgentPrompts.PlanningFewShot)
             {
@@ -620,7 +638,9 @@ namespace server.Services.AI
             IReadOnlyList<ConversationTurn> history,
             AgentLoopOutcome loop)
         {
-            var messages = new List<ChatMessage> { new SystemChatMessage(AgentPrompts.AnswerSystemPrompt) };
+            // NO system message: the synthesizer's instructions are baked into
+            // the monteai-agent-synth Foundry agent definition.
+            var messages = new List<ChatMessage>();
             messages.AddRange(ToChatMessages(history));
             // Observations are intentionally NOT replayed here: they repeat the
             // same excerpts already rendered by BuildSourcesBlock (up to 4000
@@ -647,7 +667,12 @@ namespace server.Services.AI
             return messages;
         }
 
-        /// <summary>Renders the numbered source block the synthesizer cites with [Source n].</summary>
+        /// <summary>
+        /// Renders the numbered source block the synthesizer cites with [Source n].
+        /// Kept compact for the ~1000-token/query budget: 4 sources x ~200-char
+        /// excerpt. ThesisId is intentionally omitted (only the planner's tool
+        /// observations need it).
+        /// </summary>
         private static string BuildSourcesBlock(IReadOnlyList<ChatSourceDto> sources)
         {
             if (sources.Count == 0)
@@ -663,32 +688,12 @@ namespace server.Services.AI
                   .Append("  Title: ").Append(s.Title ?? "Untitled").Append('\n')
                   .Append("  Author(s): ").Append(string.IsNullOrWhiteSpace(s.Authors) ? "Unknown" : s.Authors).Append('\n')
                   .Append("  Year: ").Append(string.IsNullOrWhiteSpace(s.PublicationYear) ? "n.d." : s.PublicationYear).Append('\n')
-                  .Append("  ThesisId: ").Append(s.ThesisId ?? "n/a").Append('\n')
                   .Append("  Excerpt: ").Append(s.Snippet ?? "(no excerpt)").Append('\n');
             }
             return sb.ToString();
         }
 
         // ────────────────────── helpers ──────────────────────
-
-        /// <summary>
-        /// Planner call options. The JSON response format is REQUIRED: it is
-        /// the server-enforced half of the validated Phi-4-mini recipe (see
-        /// AgentPrompts header) — without it the model answers in prose and
-        /// every request would degrade to the fallback path.
-        /// </summary>
-        private ChatCompletionOptions PlanningOptions() => new()
-        {
-            Temperature = _config.PlanningTemperature,
-            MaxOutputTokenCount = _config.PlanningMaxOutputTokens,
-            ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat(),
-        };
-
-        private ChatCompletionOptions AnswerOptions() => new()
-        {
-            Temperature = _config.AnswerTemperature,
-            MaxOutputTokenCount = _config.AnswerMaxOutputTokens,
-        };
 
         private string SanitizeQuery(string query)
         {
@@ -723,7 +728,9 @@ namespace server.Services.AI
             Title = chunk.Title,
             Authors = chunk.Authors,
             PublicationYear = chunk.PublicationYear,
-            Snippet = chunk.Text.Length > 400 ? chunk.Text[..400] + "…" : chunk.Text,
+            // 200-char cap keeps the synth prompt within the token budget
+            // (4 sources max — see MaxSources / BuildSourcesBlock).
+            Snippet = chunk.Text.Length > 200 ? chunk.Text[..200] + "…" : chunk.Text,
             Score = double.TryParse(chunk.RelevanceScore, out var score) ? score : null,
             Url = chunk.Url,
         };
@@ -731,9 +738,9 @@ namespace server.Services.AI
         private static string Summarize(ToolExecutionResult result)
             => result.Observation.Length > 200 ? result.Observation[..200] + "…" : result.Observation;
 
-        private void LogUsage(string stage, ChatTokenUsage? usage)
+        private void LogUsage(string stage, LlmCompletion result)
             => _logger.LogInformation(
                 "MonteAI agent ({Stage}) — input tokens: {In}, output tokens: {Out}",
-                stage, usage?.InputTokenCount, usage?.OutputTokenCount);
+                stage, result.InputTokens, result.OutputTokens);
     }
 }
