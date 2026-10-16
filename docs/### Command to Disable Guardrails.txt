@@ -3,3 +3,13 @@
 az rest --method PATCH \
   --url "https://management.azure.com/subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{resource}/deployments/Phi-4-mini-instruct?api-version=2024-10-01" \
   --body '{"properties": {"raiPolicyName": ""}}'
+
+az rest --method PATCH --url "https://management.azure.com/subscriptions/dea9cf3a-f251-47dd-801e-6ec029219288/resourceGroups/monteai-group/providers/Microsoft.CognitiveServices/accounts/monteai-capstone-models-3-source/deployments/gpt-5-nano?api-version=2026-09-01"   --body '{"properties": {"raiPolicyName": ""}}'
+
+
+
+	
+
+
+https://monteai-capstone-models-3-source.openai.azure.com/openai/v1
+

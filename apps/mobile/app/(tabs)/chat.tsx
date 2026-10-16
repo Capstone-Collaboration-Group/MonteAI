@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -20,13 +20,14 @@ import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { chatService } from '@/lib/chatService';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
-import type { ChatSessionResponseDto } from '@monteai/types';
+import type { ChatSessionResponseDto, ChatSourceDto } from '@monteai/types';
 
 interface Message {
   id: string;
   role: 'ai' | 'user';
   text: string;
   status?: string;
+  sources?: ChatSourceDto[] | null;
 }
 
 const WELCOME_MSG: Message = {
@@ -35,13 +36,22 @@ const WELCOME_MSG: Message = {
   text: 'Hello! I\'m MonteAI, your research assistant. How can I help you today?',
 };
 
-function toMessage(role: string, text: string, id: string): Message {
-  return { id, role: role === 'user' ? 'user' : 'ai', text };
+function toMessage(role: string, text: string, id: string, sources?: ChatSourceDto[] | null): Message {
+  return { id, role: role === 'user' ? 'user' : 'ai', text, sources };
+}
+
+// Chat sources persisted while Pinecone metadata was read through
+// MetadataValue.ToString() carry JSON-quoted ids ("c09a…"). Strip any
+// surrounding quotes so old messages still deep-link to a valid route
+// (mirrors cleanThesisId in packages/ui ChatView).
+function cleanThesisId(id: string): string {
+  return id.replace(/^"+|"+$/g, '');
 }
 
 export default function ChatScreen() {
   const { session: authSession } = useAuthSession();
   const userId = authSession?.uid ?? null;
+  const router = useRouter();
 
   // Drawer requests arrive as an `open` route param (see SidebarDrawer):
   //   "s:<sessionId>:<timestamp>" — open that session
@@ -82,7 +92,11 @@ export default function ChatScreen() {
         setSession(s);
         // Messages arrive latest-first; reverse so the conversation reads
         // chronologically and the latest message is scrolled into view.
-        setMessages(s.messages.map((m) => toMessage(m.role, m.content, m.id)).reverse());
+        setMessages(
+          s.messages
+            .map((m) => toMessage(m.role, m.content, m.id, m.sources))
+            .reverse()
+        );
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
       } catch {
         setMessages((prev) => [
@@ -137,7 +151,7 @@ export default function ChatScreen() {
       }
 
       const res = await chatService.sendMessage(activeSession.id, { role: 'user', content: text });
-      setMessages((prev) => [...prev, toMessage(res.role, res.content, res.id)]);
+      setMessages((prev) => [...prev, toMessage(res.role, res.content, res.id, res.sources)]);
       // Once the response is back, silently refresh the session list so a
       // newly created chat is pushed to the top of the history in real time.
       refresh(true);
@@ -152,100 +166,142 @@ export default function ChatScreen() {
     }
   }
 
-  return (
+    return (
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
-    <View style={[s.root, { backgroundColor: background }]}>
-      <SafeAreaView style={{ flex: 0 }} edges={['top']}>
-        <AppHeader
-          title="MonteAI"
-          leftIcon="menu"
-          onLeftPress={openDrawer}
-          rightIcons={[{ icon: 'share' }, { icon: 'expand-more' }]}
-        />
-      </SafeAreaView>
+        <KeyboardAvoidingView
+          style={[s.root, { backgroundColor: background }]}
+          behavior="padding"
+          keyboardVerticalOffset={0}>
+          <SafeAreaView style={{ flex: 0 }} edges={['top']}>
+            <AppHeader
+              title="MonteAI"
+              leftIcon="menu"
+              onLeftPress={openDrawer}
+              rightIcons={[{ icon: 'share' }, { icon: 'expand-more' }]}
+            />
+          </SafeAreaView>
 
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={s.messages}
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}>
-        {messages.map((msg) => (
-          <View key={msg.id} style={[s.bubbleRow, msg.role === 'user' && s.bubbleRowUser]}>
-            <View
-              style={[
-                s.bubble,
-                msg.role === 'user' ? [s.bubbleUser, { backgroundColor: primary }] : [s.bubbleAi, { backgroundColor: surface, borderColor: outline }],
-              ]}>
-              {msg.status ? (
-                <View style={s.statusRow}>
-                  <MaterialIcons name="auto-awesome" size={14} color={primary} />
-                  <Text style={[s.status, { color: primary }]}>{msg.status}</Text>
+          <ScrollView
+            ref={scrollRef}
+            style={s.scroll}
+            contentContainerStyle={s.messages}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            {messages.map((msg) => (
+              <View key={msg.id} style={[s.bubbleRow, msg.role === 'user' && s.bubbleRowUser]}>
+                <View
+                  style={[
+                    s.bubble,
+                    msg.role === 'user'
+                      ? [s.bubbleUser, { backgroundColor: primary }]
+                      : [s.bubbleAi, { backgroundColor: surface, borderColor: outline }],
+                  ]}>
+                  {msg.status ? (
+                    <View style={s.statusRow}>
+                      <MaterialIcons name="auto-awesome" size={14} color={primary} />
+                      <Text style={[s.status, { color: primary }]}>{msg.status}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={[s.bubbleText, { color: msg.role === 'user' ? onPrimary : heading }]}>
+                    {msg.text}
+                  </Text>
+                  {msg.role === 'ai' && msg.sources && msg.sources.length > 0 ? (
+                    <View style={[s.sources, { borderTopColor: outline }]}>
+                      <Text style={[s.sourcesLabel, { color: body }]}>Sources</Text>
+                      {msg.sources.map((source, index) => {
+                        const label = source.title ?? 'Untitled thesis';
+                        const thesisId = source.thesisId ? cleanThesisId(source.thesisId) : '';
+                        const caption = `[Source ${index + 1}] ${label}${
+                          source.publicationYear ? ` (${source.publicationYear})` : ''
+                        }`;
+                        return thesisId ? (
+                          <Pressable
+                            key={thesisId || String(index)}
+                            accessibilityRole="link"
+                            accessibilityLabel={`Open ${label} in the thesis viewer`}
+                            onPress={() => router.push(`/thesis/${thesisId}` as Href)}
+                            style={s.sourceRow}>
+                            <MaterialIcons name="menu-book" size={14} color={primary} style={s.sourceIcon} />
+                            <Text style={[s.sourceText, { color: primary }]} numberOfLines={2}>
+                              {caption}
+                            </Text>
+                          </Pressable>
+                        ) : (
+                          <View key={String(index)} style={s.sourceRow}>
+                            <MaterialIcons name="menu-book" size={14} color={body} style={s.sourceIcon} />
+                            <Text style={[s.sourceText, { color: body }]} numberOfLines={2}>
+                              {caption}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                  {msg.role === 'ai' && msg.status ? (
+                    <View style={s.actions}>
+                      <Pressable style={[s.actionBtn, { borderColor: outline }]}>
+                        <Text style={[s.actionText, { color: heading }]}>Cite</Text>
+                      </Pressable>
+                      <Pressable style={[s.actionBtn, { borderColor: outline }]}>
+                        <Text style={[s.actionText, { color: heading }]}>Expand</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
-              <Text style={[s.bubbleText, { color: msg.role === 'user' ? onPrimary : heading }]}>
-                {msg.text}
+              </View>
+            ))}
+            {loadingHistory && (
+              <View style={s.typingRow}>
+                <ActivityIndicator size="small" color={primary} />
+                <Text style={[s.typingText, { color: body }]}>Loading conversation...</Text>
+              </View>
+            )}
+            {sending && (
+              <View style={s.typingRow}>
+                <ActivityIndicator size="small" color={primary} />
+                <Text style={[s.typingText, { color: body }]}>MonteAI is thinking...</Text>
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Input bar (in normal flow, no longer absolute) */}
+          <SafeAreaView edges={['bottom']}>
+            <View style={s.inputWrap}>
+              <View style={[s.inputBar, { backgroundColor: surface, borderColor: outline }]}>
+                <Pressable
+                  hitSlop={8}
+                  onPress={startNewChat}
+                  accessibilityRole="button"
+                  accessibilityLabel="Start a new chat">
+                  <MaterialIcons name="add-circle-outline" size={24} color={body} />
+                </Pressable>
+                <TextInput
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Ask MonteAI about your research..."
+                  placeholderTextColor="#9ca3af"
+                  style={[s.input, { color: heading }]}
+                  multiline
+                  editable={!sending}
+                />
+                <Pressable hitSlop={8}>
+                  <MaterialIcons name="photo" size={22} color={body} />
+                </Pressable>
+                <Pressable
+                  style={[s.sendBtn, { backgroundColor: primary }]}
+                  hitSlop={8}
+                  onPress={handleSend}
+                  disabled={sending || !input.trim()}>
+                  <MaterialIcons name="send" size={20} color={onPrimary} />
+                </Pressable>
+              </View>
+              <Text style={[s.disclaimer, { color: body }]}>
+                MonteAI may provide inaccurate info. Verify key citations from primary sources.
               </Text>
-              {msg.role === 'ai' && msg.status ? (
-                <View style={s.actions}>
-                  <Pressable style={[s.actionBtn, { borderColor: outline }]}><Text style={[s.actionText, { color: heading }]}>Cite</Text></Pressable>
-                  <Pressable style={[s.actionBtn, { borderColor: outline }]}><Text style={[s.actionText, { color: heading }]}>Expand</Text></Pressable>
-                </View>
-              ) : null}
             </View>
-          </View>
-        ))}
-        {loadingHistory && (
-          <View style={s.typingRow}>
-            <ActivityIndicator size="small" color={primary} />
-            <Text style={[s.typingText, { color: body }]}>Loading conversation...</Text>
-          </View>
-        )}
-        {sending && (
-          <View style={s.typingRow}>
-            <ActivityIndicator size="small" color={primary} />
-            <Text style={[s.typingText, { color: body }]}>MonteAI is thinking...</Text>
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Input bar */}
-      <SafeAreaView edges={['bottom']} style={s.inputSafe}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={s.inputWrap}>
-            <View style={[s.inputBar, { backgroundColor: surface, borderColor: outline }]}>
-              <Pressable
-                hitSlop={8}
-                onPress={startNewChat}
-                accessibilityRole="button"
-                accessibilityLabel="Start a new chat">
-                <MaterialIcons name="add-circle-outline" size={24} color={body} />
-              </Pressable>
-              <TextInput
-                value={input}
-                onChangeText={setInput}
-                placeholder="Ask MonteAI about your research..."
-                placeholderTextColor="#9ca3af"
-                style={[s.input, { color: heading }]}
-                multiline
-                editable={!sending}
-              />
-              <Pressable hitSlop={8}><MaterialIcons name="photo" size={22} color={body} /></Pressable>
-              <Pressable
-                style={[s.sendBtn, { backgroundColor: primary }]}
-                hitSlop={8}
-                onPress={handleSend}
-                disabled={sending || !input.trim()}>
-                <MaterialIcons name="send" size={20} color={onPrimary} />
-              </Pressable>
-            </View>
-            <Text style={[s.disclaimer, { color: body }]}>
-              MonteAI may provide inaccurate info. Verify key citations from primary sources.
-            </Text>
-          </View>
+          </SafeAreaView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
-    </View>
       )}
     </DrawerProvider>
   );
@@ -253,13 +309,19 @@ export default function ChatScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  messages: { padding: Spacing.xl, paddingBottom: 200, gap: Spacing.lg },
+  scroll: { flex: 1},
+  messages: { padding: Spacing.xl, gap: Spacing.lg },
   bubbleRow: { flexDirection: 'row' },
   bubbleRowUser: { justifyContent: 'flex-end' },
   bubble: { maxWidth: '85%', borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.sm },
   bubbleUser: { borderBottomRightRadius: Radius.sm },
   bubbleAi: { borderBottomLeftRadius: Radius.sm, borderWidth: StyleSheet.hairlineWidth },
   bubbleText: { fontSize: FontSize.md, lineHeight: 22 },
+  sources: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.sm, gap: 6 },
+  sourcesLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  sourceRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  sourceIcon: { marginTop: 1, marginRight: 6 },
+  sourceText: { flex: 1, fontSize: FontSize.sm, lineHeight: 18 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   status: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
@@ -267,7 +329,6 @@ const s = StyleSheet.create({
   actionText: { fontSize: FontSize.sm, fontWeight: '500' },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   typingText: { fontSize: FontSize.sm },
-  inputSafe: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   inputWrap: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm },
   inputBar: {
     flexDirection: 'row',

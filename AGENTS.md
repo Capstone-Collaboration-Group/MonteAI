@@ -33,7 +33,7 @@ RAG-based research/thesis assistant for Colegio de Montalban. pnpm monorepo with
 ## RAG pipeline
 
 - Desktop main process extracts PDF text, isolates the abstract, and chunks it: `apps/desktop/src/pipeline/*` driven by the IPC handler `thesis:approve` in `apps/desktop/src/handlers/approveThesis.ts`.
-- Chunks are POSTed to `/thesis/ingest`; the **server** embeds them (Azure OpenAI `text-embedding-3-small`) and upserts to Pinecone. Chat uses Azure OpenAI `Phi-4-mini-instruct` (`Program.cs`). Embedding is NOT done on the desktop anymore.
+- Chunks are POSTed to `/thesis/ingest`; the **server** embeds them (Azure OpenAI `text-embedding-3-small`) and upserts to Pinecone. Chat uses Azure AI Foundry **gpt-5-nano agents** via the Responses API (planner + synthesizer agents routed by `LlmClientPool` over the `AzureAI:Deployments` config — see `server/Services/AI/`). Embedding is NOT done on the desktop anymore. Prompt changes must pass `dotnet run --project server -- --prompt-check` (`--live-offline` skips the live-agent half; full run needs `az login`).
 
 ## Frontend gotchas
 
