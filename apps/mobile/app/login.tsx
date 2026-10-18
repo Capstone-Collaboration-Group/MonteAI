@@ -145,6 +145,7 @@ export default function LoginRoute() {
           }}
           onLogin={handleLogin}
           onSignUpPress={() => router.push('/sign-up')}
+          onForgotPress={() => router.push('/forgot-password')}
           loading={loading}
           error={error}
           errorAction={errorAction}
@@ -173,12 +174,12 @@ const styles = StyleSheet.create({
   mfaButton: {
     alignItems: 'center',
     borderRadius: 12,
-    backgroundColor: '#1d4ed8',
+    backgroundColor: '#005d41',
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   disabled: { opacity: 0.5 },
   mfaButtonText: { color: '#fff', fontWeight: '600' },
   mfaLink: { alignItems: 'center', marginTop: 16, paddingVertical: 8 },
-  mfaLinkText: { color: '#1d4ed8', fontWeight: '600' },
+  mfaLinkText: { color: '#005d41', fontWeight: '600' },
 });
