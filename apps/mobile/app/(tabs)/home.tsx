@@ -2,16 +2,19 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
+import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
+import { userService } from '@/lib/userService';
 import { scheduleService } from '@/lib/scheduleService';
 import { thesisService } from '@/lib/thesisService';
-import type { ScheduleResponseDto, ThesisResponseDto } from '@monteai/types';
+import type { ScheduleResponseDto, ThesisResponseDto, UserProfileDto } from '@monteai/types';
 
 type QuickActionRoute =
   | '/(tabs)/library'
@@ -45,8 +48,16 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+/** "Juan D. Dela Cruz Jr." — same ordering as the profile tab. */
+function formatName(profile: UserProfileDto): string {
+  const middle = profile.middleInitial ? `${profile.middleInitial}. ` : '';
+  const suffix = profile.suffix ? ` ${profile.suffix}` : '';
+  return `${profile.firstName} ${middle}${profile.lastName}${suffix}`.trim();
+}
+
 export default function HomeScreen() {
   const router = useRouter();
+  const { session } = useAuthSession();
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'onSurface');
   const body = useThemeColor({}, 'onSurfaceVariant');
@@ -55,17 +66,20 @@ export default function HomeScreen() {
 
   const [schedules, setSchedules] = useState<ScheduleResponseDto[]>([]);
   const [theses, setTheses] = useState<ThesisResponseDto[]>([]);
+  const [profile, setProfile] = useState<UserProfileDto | null>(null);
   const [loading, setLoading] = useState(true);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
 
   const loadHome = useCallback(async () => {
     try {
-      const [s, t] = await Promise.all([
+      const [s, t, me] = await Promise.all([
         scheduleService.getSchedules(),
         thesisService.getTheses(),
+        userService.getMe().catch(() => null),
       ]);
       setSchedules(s.slice(0, 3));
       setTheses(t.slice(0, 3));
+      setProfile(me);
     } catch {
       // silently fail — UI stays empty
     }
@@ -81,7 +95,12 @@ export default function HomeScreen() {
 
   const { refreshControl } = usePullToRefresh(loadHome);
 
+  const displayName = profile
+    ? formatName(profile)
+    : session?.email.split('@')[0] ?? 'there';
+
   return (
+    <TabScreenTransition>
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
@@ -92,7 +111,7 @@ export default function HomeScreen() {
         {/* Welcome */}
         <View style={s.welcome}>
           <Text style={[s.greeting, { color: body }]}>Welcome back,</Text>
-          <Text style={[s.name, { color: heading }]}>Jane Doe</Text>
+          <Text style={[s.name, { color: heading }]}>{displayName}</Text>
         </View>
 
         {/* Quick Actions */}
@@ -126,7 +145,16 @@ export default function HomeScreen() {
             {schedules.map((sch, i) => (
               <React.Fragment key={sch.scheduleId}>
                 {i > 0 ? <View style={[s.divider, { backgroundColor: outline }]} /> : null}
-                <View style={s.recentRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open schedule for ${sch.researchGroup?.groupName ?? 'Research Group'}`}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(tabs)/schedules',
+                      params: { scheduleId: sch.scheduleId },
+                    })
+                  }
+                  style={({ pressed }) => [s.recentRow, pressed && { opacity: 0.6 }]}>
                   <View style={s.recentDot} />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.recentTitle, { color: heading }]}>
@@ -137,7 +165,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   <MaterialIcons name="chevron-right" size={20} color={body} />
-                </View>
+                </Pressable>
               </React.Fragment>
             ))}
           </View>
@@ -154,7 +182,11 @@ export default function HomeScreen() {
             {theses.map((t, i) => (
               <React.Fragment key={t.id}>
                 {i > 0 ? <View style={[s.divider, { backgroundColor: outline }]} /> : null}
-                <View style={s.recentRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${t.title}`}
+                  onPress={() => router.push(`/thesis/${t.id}` as Href)}
+                  style={({ pressed }) => [s.recentRow, pressed && { opacity: 0.6 }]}>
                   <View style={s.recentDot} />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.recentTitle, { color: heading }]}>{t.title}</Text>
@@ -163,7 +195,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   <MaterialIcons name="chevron-right" size={20} color={body} />
-                </View>
+                </Pressable>
               </React.Fragment>
             ))}
           </View>
@@ -172,6 +204,7 @@ export default function HomeScreen() {
     </View>
       )}
     </DrawerProvider>
+    </TabScreenTransition>
   );
 }
 
@@ -180,8 +213,8 @@ const s = StyleSheet.create({
   content: { padding: Spacing.xl, paddingBottom: 100 },
   welcome: { marginBottom: Spacing.xl },
   greeting: { fontSize: FontSize.md },
-  name: { fontSize: FontSize.xxl, fontWeight: '700' },
-  sectionTitle: { fontSize: FontSize.lg, fontWeight: '600', marginBottom: Spacing.md },
+  name: { fontSize: FontSize.xl, fontWeight: '700' },
+  sectionTitle: { fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.md },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md, marginBottom: Spacing.xl },
   actionCard: {
     width: '47%',
