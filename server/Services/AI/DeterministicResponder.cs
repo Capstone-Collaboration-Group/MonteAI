@@ -45,6 +45,7 @@ namespace server.Services.AI
     public sealed class DeterministicResponder : IDeterministicResponder
     {
         private readonly IPineconeService _pineconeService;
+        private readonly IThesisMetadataResolver _metadataResolver;
         private readonly MonteAiAgentConfig _config;
         private readonly ILogger<DeterministicResponder> _logger;
 
@@ -73,10 +74,12 @@ namespace server.Services.AI
 
         public DeterministicResponder(
             IPineconeService pineconeService,
+            IThesisMetadataResolver metadataResolver,
             IOptions<MonteAiAgentConfig> config,
             ILogger<DeterministicResponder> logger)
         {
             _pineconeService = pineconeService;
+            _metadataResolver = metadataResolver;
             _config = config.Value;
             _logger = logger;
         }
@@ -117,7 +120,7 @@ namespace server.Services.AI
 
         private async Task<DeterministicAnswer?> AnswerTopicListAsync(string subject, CancellationToken ct)
         {
-            var sources = await RetrieveDedupedAsync(subject, topK: 6, ct);
+            var sources = await RetrieveDedupedAsync(subject, topK: 12, ct);
             if (sources.Count == 0) return null;
 
             var shown = sources.Take(5).ToList();
@@ -126,7 +129,7 @@ namespace server.Services.AI
             for (var i = 0; i < shown.Count; i++)
             {
                 var s = shown[i];
-                sb.Append((i + 1)).Append(". **").Append(s.Title ?? "Untitled").Append("**");
+                sb.Append((i + 1)).Append(". ").Append(s.Title ?? "Untitled").Append("");
                 if (!string.IsNullOrWhiteSpace(s.Authors)) sb.Append(" — ").Append(s.Authors);
                 if (!string.IsNullOrWhiteSpace(s.PublicationYear)) sb.Append(" (").Append(s.PublicationYear).Append(')');
                 sb.Append(" [Source ").Append(i + 1).Append("]\n");
@@ -144,7 +147,7 @@ namespace server.Services.AI
             // For "studies by X" the subject IS the author; for "who authored X"
             // it may be a title OR a name — semantic search handles both (the
             // validated planner recipe puts author names inside the query too).
-            var sources = await RetrieveDedupedAsync(subject, topK: 6, ct);
+            var sources = await RetrieveDedupedAsync(subject, topK: 12, ct);
             if (sources.Count == 0) return null;
 
             var surname = ExtractSignificantNameTokens(subject);
@@ -180,7 +183,7 @@ namespace server.Services.AI
 
         private async Task<DeterministicAnswer?> AnswerYearAsync(string subject, CancellationToken ct)
         {
-            var sources = await RetrieveDedupedAsync(subject, topK: 5, ct);
+            var sources = await RetrieveDedupedAsync(subject, topK: 8, ct);
 
             var withYear = sources.FirstOrDefault(s =>
                 int.TryParse(s.PublicationYear, out var year) && year >= MinPlausibleYear);
@@ -201,9 +204,11 @@ namespace server.Services.AI
         // ────────────────────── shared helpers ──────────────────────
 
         /// <summary>
-        /// One semantic retrieval, keeping up to MaxPassagesPerThesis chunks
-        /// per thesis (full-text ingestion means several body passages from
-        /// one document can be relevant), strongest matches first.
+        /// One semantic retrieval, keeping only the best-scoring chunk per
+        /// thesis (these templates LIST studies — title/author/year — so a
+        /// document must not appear as multiple numbered entries) after the
+        /// global ScoreThreshold drops off-topic matches. Wider topK
+        /// compensates for the per-thesis collapse.
         /// </summary>
         private async Task<List<ChatSourceDto>> RetrieveDedupedAsync(string query, int topK, CancellationToken ct)
         {
@@ -231,6 +236,12 @@ namespace server.Services.AI
                     Url = chunk.Url,
                 });
             }
+
+            // Fill author/year from SQL/Firestore when the vector metadata
+            // lacks them (vectors from before the ingest-time fix, or recovery
+            // jobs with null metadata) — must happen BEFORE AnswerAuthorAsync
+            // filters on author names and before "(year)" templates render.
+            await _metadataResolver.EnrichAsync(sources, ct);
 
             _logger.LogInformation(
                 "Deterministic fast path retrieved {Count} deduped thesis source(s) for query '{Query}'",

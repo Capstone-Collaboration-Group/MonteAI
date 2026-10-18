@@ -233,7 +233,10 @@ namespace server.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> IngestFullThesis([FromBody] IngestFullThesisDto dto)
         {
-            if (string.IsNullOrWhiteSpace(dto?.FullText))
+            // Metadata-only requests may omit the text entirely (the desktop
+            // sends just the title-page pages, or nothing, after the admin
+            // confirms no headings were detected).
+            if (dto is null || (string.IsNullOrWhiteSpace(dto.FullText) && !dto.MetadataOnly))
                 return BadRequest(new { Message = "Full thesis text is required." });
 
             var result = await _service.IngestFullAsync(dto);
@@ -242,6 +245,18 @@ namespace server.Controllers
                 _logger.LogWarning("Thesis {ThesisId} full-text ingestion could not be queued", dto.ThesisId);
                 return StatusCode(StatusCodes.Status500InternalServerError,
                     new { Message = "Thesis ingestion could not be queued. Please try again." });
+            }
+
+            if (result.Status == "MetadataOnly")
+            {
+                _logger.LogInformation(
+                    "Thesis {ThesisId} indexed metadata-only (no chapter headings) — 1 metadata vector live",
+                    dto.ThesisId);
+                return Accepted(new
+                {
+                    result,
+                    Message = "Thesis indexed from its metadata only — no chapter headings were detected, so full text was not vectorized.",
+                });
             }
 
             _logger.LogInformation("Thesis {ThesisId} full-text ingestion queued (metadata vector live)", dto.ThesisId);

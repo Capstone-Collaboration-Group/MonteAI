@@ -63,6 +63,7 @@ namespace server.Services.AI
         private readonly IDeterministicResponder _deterministic;
         private readonly ISemanticAnswerCache _cache;
         private readonly IAgentConcurrencyGate _gate;
+        private readonly IThesisMetadataResolver _metadataResolver;
         private readonly MonteAiAgentConfig _config;
         private readonly ILogger<MonteAiAgentService> _logger;
 
@@ -96,6 +97,7 @@ namespace server.Services.AI
             IDeterministicResponder deterministic,
             ISemanticAnswerCache cache,
             IAgentConcurrencyGate gate,
+            IThesisMetadataResolver metadataResolver,
             IOptions<MonteAiAgentConfig> config,
             ILogger<MonteAiAgentService> logger)
         {
@@ -105,6 +107,7 @@ namespace server.Services.AI
             _deterministic = deterministic;
             _cache = cache;
             _gate = gate;
+            _metadataResolver = metadataResolver;
             _config = config.Value;
             _logger = logger;
         }
@@ -160,14 +163,38 @@ namespace server.Services.AI
             }
 
             // 2. Semantic cache — near-duplicate of a recent question, zero LLM calls.
-            var cached = await _cache.TryGetAsync(query, cancellationToken);
+            //    Topic-void follow-ups ("tell me more about the source you
+            //    provided") mean the same words on every topic — a cache hit
+            //    would replay one session's answer for another topic's
+            //    conversation, so those queries bypass read AND write.
+            var isFollowUp = ContextDependentFollowUp.IsMatch(query);
+            var cached = isFollowUp ? null : await _cache.TryGetAsync(query, cancellationToken);
             if (cached is not null)
             {
-                yield return new AgentStreamEvent.SourcesDiscovered(cached.Sources);
+                // Cached citations may predate the author-resolution fix —
+                // fill their author/year from SQL/Firestore (memoized; a no-op
+                // when already complete) so the Sources panel never shows
+                // "Unknown" for a resolvable thesis. Deep-copied so the shared
+                // cache entry is not mutated by concurrent requests.
+                var cachedSources = cached.Sources
+                    .Select(s => new ChatSourceDto
+                    {
+                        ThesisId = s.ThesisId,
+                        Title = s.Title,
+                        Authors = s.Authors,
+                        PublicationYear = s.PublicationYear,
+                        Snippet = s.Snippet,
+                        Score = s.Score,
+                        Url = s.Url,
+                    })
+                    .ToList();
+                await _metadataResolver.EnrichAsync(cachedSources, cancellationToken);
+
+                yield return new AgentStreamEvent.SourcesDiscovered(cachedSources);
                 yield return new AgentStreamEvent.Status("Answer ready — served from cache");
                 yield return new AgentStreamEvent.AnswerDelta(cached.Answer);
                 yield return new AgentStreamEvent.Completed(
-                    new AgentChatResult(cached.Answer, cached.Sources, [], false));
+                    new AgentChatResult(cached.Answer, cachedSources, [], false));
                 yield break;
             }
 
@@ -227,8 +254,9 @@ namespace server.Services.AI
 
             // 5. Grounding pass, cache store, terminal event.
             var answer = EnforceGrounding(answerBuilder.ToString(), loop.Sources.Count);
-            // Never cache a dropped-stream partial.
-            if (!answer.Contains(MidStreamDropNotice, StringComparison.Ordinal))
+            // Never cache a dropped-stream partial — nor a topic-void
+            // follow-up, whose raw text is shared across sessions/topics.
+            if (!answer.Contains(MidStreamDropNotice, StringComparison.Ordinal) && !isFollowUp)
             {
                 await _cache.RememberAsync(query, answer, loop.Sources, cancellationToken);
             }
@@ -392,12 +420,32 @@ namespace server.Services.AI
             {
                 // Grounding guarantee: no tool ran (greeting, immediate "final",
                 // or agent mode disabled) — one retrieval keeps the answer
-                // grounded in the repository.
-                var fallbackSources = (await _pineconeService.RetrieveRelevantChunksAsync(query, cancellationToken: ct))
+                // grounded in the repository. A topic-void follow-up ("tell me
+                // more about the source you provided") is blended with the
+                // previous user question so this guaranteed retrieval stays on
+                // the conversation's topic — the raw meta-phrase semantically
+                // matches this repository's own MonteAI thesis (whose chapter
+                // text is about sources, citations and research assistants).
+                var fallbackQuery = query;
+                var previousUserQuestion = LastUserQuestion(history);
+                if (previousUserQuestion is not null && ContextDependentFollowUp.IsMatch(query))
+                {
+                    fallbackQuery = BlendWithHistory(previousUserQuestion, query);
+                }
+                var fallbackSources = (await _pineconeService.RetrieveRelevantChunksAsync(fallbackQuery, cancellationToken: ct))
                     .Select(ToSource).ToList();
                 observations.Add($"semantic_search (automatic): {fallbackSources.Count} passages retrieved for the original question.");
                 sources = MergeSources(sources, fallbackSources);
             }
+
+            // ONE enrichment point for the merged list (id-memoized, so the
+            // toolbox's earlier enrichments are free here): fills whatever the
+            // single-shot fallback or older vectors still lack, BEFORE
+            // SourcesDiscovered, the synthesis prompt, the semantic cache and
+            // the persisted SourcesJson all consume this list — this is what
+            // turns "Author(s): Unknown" into "Author(s): Dela Cruz | Year:
+            // 2024" so the synthesizer writes "Dela Cruz et al. (2024)…".
+            await _metadataResolver.EnrichAsync(sources, ct);
 
             yield return new LoopCompleted(new AgentLoopOutcome(sources, trace, observations, usedFallback));
         }
@@ -628,8 +676,11 @@ namespace server.Services.AI
                 messages.Add(new AssistantChatMessage(exampleAssistant));
             }
 
-            // The current planning step (mirrors the fourth few-shot input shape).
-            messages.Add(new UserChatMessage(AgentPrompts.BuildPlanningUserPrompt(query, observations)));
+            // The current planning step (mirrors the last few-shot input shape).
+            // The previous user question (when any) is surfaced inside the prompt
+            // so follow-ups can be rewritten to the earlier topic.
+            messages.Add(new UserChatMessage(
+                AgentPrompts.BuildPlanningUserPrompt(query, observations, LastUserQuestion(history))));
             return messages;
         }
 
@@ -668,6 +719,42 @@ namespace server.Services.AI
         }
 
         /// <summary>
+        /// Topic-void follow-ups ("tell me more about the source you provided")
+        /// whose meaning depends on the previous turn. Retrieval keyed on the
+        /// raw phrase matches this repository's own MonteAI thesis (its chapter
+        /// text is about sources, citations and research assistants), and the
+        /// semantic cache would replay one topic's answer for every session
+        /// that repeats the phrase — so both are bypassed/blended for these
+        /// queries.
+        /// </summary>
+        private static readonly Regex ContextDependentFollowUp = new(
+            @"\b(you\s+(?:provided|mentioned|gave|listed|found|showed|shared)|the\s+(?:source|sources|study|studies|thesis|theses|paper|papers|result|results|passage|passages|work|works)\b[^?]{0,40}\b(?:provided|mentioned|above|earlier|before|listed|found)|more\s+about\s+(?:it|them|this|that|those|these)\b)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+        /// <summary>Most recent user message from conversation memory (null when none).</summary>
+        private static string? LastUserQuestion(IReadOnlyList<ConversationTurn> history)
+        {
+            for (var i = history.Count - 1; i >= 0; i--)
+            {
+                var turn = history[i];
+                if (string.Equals(turn.Role, "user", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(turn.Content))
+                {
+                    return turn.Content;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>Blends the previous question with the current follow-up so retrieval keeps the conversation's topic (capped).</summary>
+        private static string BlendWithHistory(string previousUserQuestion, string followUp)
+        {
+            const int maxLength = 400;
+            var blended = $"{previousUserQuestion} {followUp}".Trim();
+            return blended.Length <= maxLength ? blended : blended[..maxLength];
+        }
+
+        /// <summary>
         /// Renders the numbered source block the synthesizer cites with [Source n].
         /// Kept compact for the ~1000-token/query budget: 4 sources x ~200-char
         /// excerpt. ThesisId is intentionally omitted (only the planner's tool
@@ -703,10 +790,10 @@ namespace server.Services.AI
 
         /// <summary>
         /// Merges new sources into the list, allowing up to
-        /// MaxPassagesPerThesis passages per thesis (full-text ingestion means
-        /// several body chunks from one document can be relevant to a single
-        /// question — the synthesizer needs real document context, not one
-        /// winning excerpt), keeping the strongest matches first.
+        /// MaxPassagesPerThesis passages per thesis (default 1 — the sources
+        /// panel lists STUDIES, so one document can only claim one source
+        /// slot with its strongest passage), keeping the strongest matches
+        /// first.
         /// </summary>
         private List<ChatSourceDto> MergeSources(List<ChatSourceDto> current, IReadOnlyList<ChatSourceDto> additions)
         {

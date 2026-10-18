@@ -70,7 +70,7 @@ namespace server.Repositories
 
             return await query
                 .OrderBy(t => t.SubmittedAt)
-                .Take(5)
+                .Take(10)
                 .ToListAsync();
         }
         public async Task<Thesis?> GetThesisByIdAsync(Guid id)

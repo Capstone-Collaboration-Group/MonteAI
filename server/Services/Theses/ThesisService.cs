@@ -61,6 +61,7 @@ namespace server.Services.Theses
         private readonly IThesisAbstractService _abstractService;
         private readonly FirestoreDb _firestore;
         private readonly IThesisIngestionQueue _ingestionQueue;
+        private readonly IThesisMetadataResolver _metadataResolver;
 
         public ThesisService(
             IThesisRepository repo,
@@ -74,7 +75,8 @@ namespace server.Services.Theses
             IThesisAbstractService abstractService,
             FirestoreDb firestore,
             IOptions<PineconeConfig> pineconeConfig,
-            IThesisIngestionQueue ingestionQueue)
+            IThesisIngestionQueue ingestionQueue,
+            IThesisMetadataResolver metadataResolver)
         {
             _thesisRepo = repo;
             _thesisVersionRepo = thesisVersionRepo;
@@ -88,6 +90,7 @@ namespace server.Services.Theses
             _firestore = firestore;
             _pineconeConfig = pineconeConfig.Value;
             _ingestionQueue = ingestionQueue;
+            _metadataResolver = metadataResolver;
         }
 
         public async Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync(
@@ -485,8 +488,11 @@ namespace server.Services.Theses
         /// <inheritdoc />
         public async Task<IngestFullThesisResponseDto> IngestFullAsync(IngestFullThesisDto dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.FullText) ||
-                dto.FullText.Length > _pineconeConfig.MaxFullTextChars)
+            // Full text is required unless the caller already resolved to
+            // metadata-only indexing (then the text is optional and unused).
+            if ((!dto.MetadataOnly &&
+                 (string.IsNullOrWhiteSpace(dto.FullText) ||
+                  dto.FullText.Length > _pineconeConfig.MaxFullTextChars)))
             {
                 _logger.LogWarning(
                     "Full-text ingestion for thesis {ThesisId} rejected: text {Reason}",
@@ -505,22 +511,36 @@ namespace server.Services.Theses
             // SQL is the source of truth for Title/FilePath — client-sent
             // values only fill what SQL doesn't have (title-page metadata the
             // desktop extracted may be fresher than a stale catalog row).
-            var title = !string.IsNullOrWhiteSpace(dto.Title) ? dto.Title.Trim() : thesis.Title;
-            var authors = string.IsNullOrWhiteSpace(dto.Authors) ? null : dto.Authors.Trim();
-            var publicationYear = string.IsNullOrWhiteSpace(dto.PublicationYear) ? null : dto.PublicationYear.Trim();
+            // Extraction fallbacks like "Unknown" are sentinels, not data:
+            // treat them as absent so they never overwrite real SQL/Firestore
+            // values or get embedded.
+            var dtoTitle = SanitizeSentinel(dto.Title);
+            var title = dtoTitle ?? thesis.Title;
+
+            // Title-page extraction is preferred, but when it fails (the
+            // common case — title pages rarely carry machine-readable
+            // "Authors:" labels) the resolver falls back to Firestore
+            // metadata, then the research group's members (the catalog's
+            // authors), then SubmittedAt year — so the metadata vector AND
+            // every body chunk land with citation-ready authors/year instead
+            // of "Author(s): Unknown" → bare [Source n] citations.
+            var resolved = await _metadataResolver.ResolveAsync(
+                dto.ThesisId,
+                preferredAuthors: SanitizeSentinel(dto.Authors),
+                preferredPublicationYear: SanitizeSentinel(dto.PublicationYear));
+            var authors = resolved.Authors;
+            var publicationYear = resolved.PublicationYear;
 
             string? stagingUrl = null;
             try
             {
-                // 1. Stage the full text to blob storage. The worker carries the
-                //    text in-memory on the happy path; this blob is the recovery
-                //    source if the process restarts before the job finishes.
-                await using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(dto.FullText)))
-                {
-                    stagingUrl = await _blobService.UploadAsync(
-                        stream, "ingest.txt", "text/plain", thesis.Title);
-                }
-                await _thesisRepo.UpdateIngestStagingUrlAsync(dto.ThesisId, stagingUrl);
+                // 1. Re-run the section filter HERE — the server is
+                //    authoritative, whatever the desktop pre-flight said.
+                //    Chapters 1/3/4/5 are indexed; Chapter 2 (RRL), front
+                //    matter and back matter are not. No headings or an empty
+                //    keep-set means metadata-only indexing.
+                var filter = ThesisSectionFilter.ExtractIndexableSections(dto.MetadataOnly ? null : dto.FullText);
+                var metadataOnly = dto.MetadataOnly || !filter.HeadingsDetected || filter.Sections.Count == 0;
 
                 // 2. Idempotent re-ingestion: wipe EVERYTHING from any previous
                 //    ingest (legacy abstract chunks, old body chunks, old meta).
@@ -540,19 +560,52 @@ namespace server.Services.Theses
                     return new IngestFullThesisResponseDto { ThesisId = dto.ThesisId, Status = "Failed" };
                 }
 
-                // 4. Approved + Indexing: moderation is done, vectors are
+                // 4a. METADATA-ONLY: no body chunks by design (headings not
+                //     detected, or the admin confirmed metadata-only). The
+                //     thesis reaches its terminal indexed state right here —
+                //     no staging blob, no worker.
+                if (metadataOnly)
+                {
+                    await _thesisRepo.UpdateStatusAsync(dto.ThesisId, new ThesisEntity { Status = "Approved" });
+                    await _thesisRepo.UpdatePineconeStatusAsync(dto.ThesisId, "Indexed");
+
+                    _logger.LogWarning(
+                        "Thesis {ThesisId} ingested METADATA-ONLY ({Reason}); body chapters were not indexed",
+                        dto.ThesisId,
+                        dto.MetadataOnly ? "admin confirmed metadata-only" : "no chapter headings detected");
+
+                    return new IngestFullThesisResponseDto
+                    {
+                        ThesisId = dto.ThesisId,
+                        Status = "MetadataOnly",
+                        VectorCount = metaUpserted,
+                    };
+                }
+
+                // 4b. Normal path: stage the full text to blob storage. The
+                //     worker carries the text in-memory on the happy path;
+                //     this blob is the recovery source if the process restarts
+                //     before the job finishes.
+                await using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(dto.FullText)))
+                {
+                    stagingUrl = await _blobService.UploadAsync(
+                        stream, "ingest.txt", "text/plain", thesis.Title);
+                }
+                await _thesisRepo.UpdateIngestStagingUrlAsync(dto.ThesisId, stagingUrl);
+
+                // 5. Approved + Indexing: moderation is done, vectors are
                 //    pending. Students don't see the thesis yet (visibility
                 //    filter requires Indexed); owner + admin do.
                 await _thesisRepo.UpdateStatusAsync(dto.ThesisId, new ThesisEntity { Status = "Approved" });
                 await _thesisRepo.UpdatePineconeStatusAsync(dto.ThesisId, "Indexing");
 
-                // 5. Hand the body to the background worker and return.
+                // 6. Hand the body to the background worker and return.
                 _ingestionQueue.Enqueue(new ThesisIngestionJob(
                     dto.ThesisId, stagingUrl, dto.FullText, title, authors, publicationYear));
 
                 _logger.LogInformation(
-                    "Thesis {ThesisId} full-text ingestion queued (metadata vector live, {Chars} chars staged)",
-                    dto.ThesisId, dto.FullText.Length);
+                    "Thesis {ThesisId} full-text ingestion queued (metadata vector live, {Chars} chars staged, {Sections} indexable sections)",
+                    dto.ThesisId, dto.FullText.Length, filter.Sections.Count);
 
                 return new IngestFullThesisResponseDto
                 {
@@ -581,6 +634,22 @@ namespace server.Services.Theses
 
                 return new IngestFullThesisResponseDto { ThesisId = dto.ThesisId, Status = "Failed" };
             }
+        }
+
+        /// <summary>
+        /// Extraction fallbacks the desktop may send when a field is absent
+        /// ("Unknown", "N/A", …). They mean "no value", so map them to null —
+        /// otherwise a placeholder overwrites real values and gets embedded
+        /// into vectors.
+        /// </summary>
+        private static string? SanitizeSentinel(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var trimmed = value.Trim();
+            return trimmed.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                   trimmed.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : trimmed;
         }
 
         /// <summary>
@@ -633,15 +702,43 @@ namespace server.Services.Theses
                 fullText = await http.GetStringAsync(sasUrl, cancellationToken);
             }
 
-            var texts = AbstractChunker.Chunk(fullText)
+            // Authoritative section filter (same rule IngestFullAsync applied
+            // at queue time, re-run here so blob-recovery jobs obey it too):
+            // index Chapters 1/3/4/5 only. An empty keep-set means this job
+            // must not chunk the raw text — finish as metadata-only instead.
+            var filtered = ThesisSectionFilter.ExtractIndexableSections(fullText);
+            if (filtered.Sections.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Ingestion job for thesis {ThesisId} produced no indexable sections ({Reason}) — completing metadata-only",
+                    job.ThesisId,
+                    filtered.HeadingsDetected ? "keep-set is empty" : "no chapter headings detected");
+
+                await _thesisRepo.UpdatePineconeStatusAsync(job.ThesisId, "Indexed", cancellationToken);
+                await CleanupStagingAsync(job, cancellationToken);
+                return;
+            }
+
+            var sectionText = string.Join("\n\n", filtered.Sections);
+            var texts = AbstractChunker.Chunk(sectionText)
                 .Take(Math.Max(1, _pineconeConfig.MaxChunksPerIngest))
                 .ToList();
             if (texts.Count == 0)
                 throw new InvalidOperationException($"Full text of thesis {job.ThesisId} produced no chunks.");
 
-            // SQL remains the source of truth for URL; title/authors/year come
-            // from the job (page-2 metadata) with SQL as fallback.
+            // SQL remains the source of truth for URL; title comes from the
+            // job (page-2 metadata) with SQL as fallback. Authors/year: job
+            // values preferred, then the resolver's Firestore → research
+            // group → SubmittedAt chain — the startup recovery path re-enqueues
+            // jobs with nulls, and even the happy path often has neither (the
+            // title-page regex misses), which would land every body chunk
+            // authorless and force bare [Source n] citations.
             var title = !string.IsNullOrWhiteSpace(job.Title) ? job.Title : thesis.Title;
+            var resolved = await _metadataResolver.ResolveAsync(
+                job.ThesisId,
+                preferredAuthors: job.Authors,
+                preferredPublicationYear: job.PublicationYear,
+                cancellationToken);
             var chunks = new List<Chunk>(texts.Count);
             for (var i = 0; i < texts.Count; i++)
             {
@@ -649,8 +746,8 @@ namespace server.Services.Theses
                     Text: texts[i],
                     Title: title,
                     Url: thesis.FilePath,
-                    Authors: job.Authors,
-                    PublicationYear: job.PublicationYear,
+                    Authors: resolved.Authors,
+                    PublicationYear: resolved.PublicationYear,
                     Journal: null,
                     RelevanceScore: null,
                     ThesisId: job.ThesisId.ToString()));
@@ -674,16 +771,26 @@ namespace server.Services.Theses
             await _thesisRepo.UpdateStatusAsync(job.ThesisId, new ThesisEntity { Status = "Indexed" });
 
             // Staging blob has served its purpose.
+            await CleanupStagingAsync(job, cancellationToken);
+
+            _logger.LogInformation(
+                "Thesis {ThesisId} fully ingested — {Count} body vectors + metadata vector live",
+                job.ThesisId, upserted);
+        }
+
+        /// <summary>
+        /// Clears the staging-blob pointer from SQL and deletes the blob
+        /// itself — called once a job reaches its terminal state (body
+        /// indexed, or metadata-only completion).
+        /// </summary>
+        private async Task CleanupStagingAsync(ThesisIngestionJob job, CancellationToken cancellationToken)
+        {
             await _thesisRepo.UpdateIngestStagingUrlAsync(job.ThesisId, null, cancellationToken);
             if (!string.IsNullOrWhiteSpace(job.StagingBlobUrl))
             {
                 try { await _blobService.DeleteAsync(job.StagingBlobUrl); }
                 catch (Exception ex) { _logger.LogWarning(ex, "Staging blob cleanup failed for thesis {ThesisId}", job.ThesisId); }
             }
-
-            _logger.LogInformation(
-                "Thesis {ThesisId} fully ingested — {Count} body vectors + metadata vector live",
-                job.ThesisId, upserted);
         }
 
         public async Task<string?> GetDownloadUrlAsync(Guid thesisId)

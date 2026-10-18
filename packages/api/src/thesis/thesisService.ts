@@ -229,7 +229,15 @@ export class LiveThesisService implements ThesisService {
         try {
         await this.client.post(
             `/thesis/${thesisId}/versions`,
-            formData
+            formData,
+            {
+                // Same fix as submitThesis: drop the client's default
+                // application/json header so the request goes out as real
+                // multipart/form-data (otherwise the server's
+                // [Consumes("multipart/form-data")] rejects it with 415).
+                headers: { "Content-Type": null },
+                timeout: 120000,
+            }
         );
 
         return true;

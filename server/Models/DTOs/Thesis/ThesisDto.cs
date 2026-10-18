@@ -127,13 +127,25 @@ namespace server.Models.DTOs.Thesis
         public string? Title { get; set; }
         public string? Authors { get; set; }
         public string? PublicationYear { get; set; }
+
+        /// <summary>
+        /// The desktop found no chapter headings and the admin confirmed
+        /// metadata-only indexing. The server still re-runs its own section
+        /// filter (it is authoritative); this flag only skips staging/queueing
+        /// when the user explicitly chose metadata-only.
+        /// </summary>
+        public bool MetadataOnly { get; set; }
     }
 
     public class IngestFullThesisResponseDto
     {
         public Guid ThesisId { get; set; }
 
-        /// <summary>"Queued" = metadata vector upserted, body ingestion pending; "Failed".</summary>
+        /// <summary>
+        /// "Queued" = metadata vector upserted, body ingestion pending;
+        /// "MetadataOnly" = metadata vector upserted, no body chunks by design;
+        /// "Failed".
+        /// </summary>
         public string Status { get; set; } = string.Empty;
 
         /// <summary>Vectors already upserted synchronously (the metadata vector: 0 or 1).</summary>

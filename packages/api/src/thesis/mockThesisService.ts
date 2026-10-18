@@ -282,9 +282,16 @@ export const mockThesisService: ThesisService = {
     async ingestFullThesis(dto: IngestFullThesisDto) {
         await delay(300);
         const existing = thesesMap.get(dto.thesisId);
-        if (!existing || !dto.fullText.trim()) {
+        // Metadata-only requests may omit the text (mirrors the live controller).
+        if (!existing || (!dto.metadataOnly && !dto.fullText.trim())) {
             return { thesisId: dto.thesisId, vectorCount: 0, status: "Failed" } as IngestFullThesisResponseDto;
         }
+        // Server-authoritative chapter check, mirrored from ThesisSectionFilter:
+        // without a "CHAPTER n" heading only the metadata vector is indexed.
+        const hasHeadings =
+            /\bCHAPTER\s+(?:[1-9]|10|I{1,3}|IV|V|VI{0,3}|IX|X|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)\b/i
+                .test(dto.fullText);
+        const metadataOnly = dto.metadataOnly || !hasHeadings;
         // Mirrors the live pipeline: metadata vector lands immediately (the
         // mock has no background worker, so the row jumps straight to Indexed).
         thesesMap.set(dto.thesisId, {
@@ -293,7 +300,11 @@ export const mockThesisService: ThesisService = {
             pineconeStatus: "Indexed",
             indexedAt: new Date().toISOString(),
         });
-        return { thesisId: dto.thesisId, vectorCount: 1, status: "Queued" } as IngestFullThesisResponseDto;
+        return {
+            thesisId: dto.thesisId,
+            vectorCount: 1,
+            status: metadataOnly ? "MetadataOnly" : "Queued",
+        } as IngestFullThesisResponseDto;
     },
 
     async updateThesis(thesisId, dto: UpdateThesisDto) {
