@@ -33,18 +33,24 @@ namespace server.Services.AI.Agent
     {
         private readonly IPineconeService _pineconeService;
         private readonly IThesisRepository _thesisRepository;
+        private readonly IThesisMetadataResolver _metadataResolver;
         private readonly ILogger<AgentToolbox> _logger;
 
-        /// <summary>Characters of a source's text included in prompt observations — keeps the context window small.</summary>
-        private const int SnippetLength = 400;
+        /// <summary>Characters of a source's text included in prompt observations — keeps the context window small while giving the synthesizer real body passages (full-text ingestion).</summary>
+        private const int SnippetLength = 600;
 
         /// <summary>Hard cap per tool observation so one call cannot blow up the prompt.</summary>
         private const int MaxObservationLength = 4000;
 
-        public AgentToolbox(IPineconeService pineconeService, IThesisRepository thesisRepository, ILogger<AgentToolbox> logger)
+        public AgentToolbox(
+            IPineconeService pineconeService,
+            IThesisRepository thesisRepository,
+            IThesisMetadataResolver metadataResolver,
+            ILogger<AgentToolbox> logger)
         {
             _pineconeService = pineconeService;
             _thesisRepository = thesisRepository;
+            _metadataResolver = metadataResolver;
             _logger = logger;
         }
 
@@ -120,6 +126,12 @@ namespace server.Services.AI.Agent
             var chunks = await _pineconeService.RetrieveRelevantChunksAsync(query, options, ct);
             var sources = chunks.Select(ToSource).ToList();
 
+            // Vectors ingested before authors were resolved (or by a recovery
+            // job with null metadata) cite as "Unknown" — fill them from SQL/
+            // Firestore so both the planner observation and the merged
+            // citation list carry real author-year data.
+            await _metadataResolver.EnrichAsync(sources, ct);
+
             return new ToolExecutionResult(
                 Observation: FormatSources(sources),
                 Sources: sources);
@@ -146,12 +158,16 @@ namespace server.Services.AI.Agent
             {
                 ThesisId = t.Id.ToString(),
                 Title = t.Title,
-                Authors = null, // author names live in the PDF/Pinecone metadata, not the SQL table
+                // Placeholder only — enriched below: author names live in
+                // Firestore/research-group data, not the SQL Theses table.
+                Authors = null,
                 PublicationYear = t.SubmittedAt?.Year.ToString(),
                 Snippet = Truncate(t.Abstract, SnippetLength),
                 Score = null,
                 Url = t.FilePath,
             }).ToList();
+
+            await _metadataResolver.EnrichAsync(sources, ct);
 
             var sb = new StringBuilder();
             sb.Append("keyword_search('").Append(term).Append("') found ").Append(sources.Count).Append(" theses:");
@@ -199,12 +215,15 @@ namespace server.Services.AI.Agent
             {
                 ThesisId = thesis.Id.ToString(),
                 Title = thesis.Title,
+                // Placeholder only — enriched below (Firestore → research
+                // group → SubmittedAt).
                 Authors = null,
                 PublicationYear = thesis.SubmittedAt?.Year.ToString(),
                 Snippet = Truncate(thesis.Abstract, SnippetLength),
                 Score = null,
                 Url = thesis.FilePath,
             };
+            await _metadataResolver.EnrichAsync(new List<ChatSourceDto> { source }, ct);
 
             var sb = new StringBuilder();
             sb.Append("Thesis record:\n");
@@ -212,6 +231,10 @@ namespace server.Services.AI.Agent
             sb.Append("  Title: ").Append(thesis.Title ?? "Untitled").Append('\n');
             sb.Append("  Status: ").Append(thesis.Status ?? "Unknown").Append('\n');
             sb.Append("  Submitted: ").Append(thesis.SubmittedAt?.ToString("yyyy-MM-dd") ?? "n.d.").Append('\n');
+            if (!string.IsNullOrWhiteSpace(source.Authors))
+                sb.Append("  Author(s): ").Append(source.Authors).Append('\n');
+            if (!string.IsNullOrWhiteSpace(source.PublicationYear))
+                sb.Append("  Year: ").Append(source.PublicationYear).Append('\n');
             sb.Append("  Abstract: ").Append(Truncate(thesis.Abstract, SnippetLength));
 
             return new ToolExecutionResult(

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ThesisCatalogPage } from "@monteai/ui/pages";
 import { ThesisUploadModal, ThesisEditModal, ThesisDeleteDialog } from "@monteai/ui/components/Thesis";
+import { ConfirmDialog } from "@monteai/ui/components/common";
 import { useApproveThesis } from "@/hooks/useApproveThesis";
 import { useRequestRevision } from "@/hooks/useRequestRevision";
 import { useRejectThesis } from "@/hooks/useRejectThesis";
@@ -34,7 +35,7 @@ function getActionErrorMessage(err: unknown, forbiddenMessage: string, fallback:
 export default function Theses() {
   const navigate = useNavigate();
   const { profile } = useUserProfile(profileService);
-  const { mutate: approve } = useApproveThesis();
+  const { mutate: approve, isPending: isApproving } = useApproveThesis();
   const { mutate: revision } = useRequestRevision();
   const { mutate: reject } = useRejectThesis();
   const { mutate: submitThesis, isPending: isUploading } = useSubmitThesis(thesisService);
@@ -53,16 +54,88 @@ export default function Theses() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ variant: "success" | "error"; message: string } | null>(null);
 
+  // Two-phase ingest confirm: the main process found no chapter headings and
+  // stopped BEFORE any server call — cancelling here leaves the thesis
+  // untouched; continuing re-invokes the pipeline with metadataOnly: true.
+  const [ingestConfirm, setIngestConfirm] = useState<{
+    thesisId: string;
+    action: "approve" | "reindex";
+  } | null>(null);
+
   const isAdmin = profile?.role === "Admin";
 
   // Full CRUD (edit/delete) is Admin-only; moderation stays as before.
+  // Reindex (re-run full-text ingestion) is Admin-only too and is only
+  // offered for already-approved/indexed rows (see ThesisListView).
   // Web/mobile never pass these actions, so the catalog is read-only there.
   const allowedActions: ThesisActionType[] = isAdmin
-    ? ["approve", "reject", "revision", "edit", "delete"]
+    ? ["approve", "reject", "revision", "edit", "delete", "reindex"]
     : ["approve", "reject", "revision"];
 
+  // Shared by approve and reindex: both run the same local pipeline
+  // (download → extract → heading pre-flight → /thesis/ingest/full).
+  const runIngest = (
+    thesisId: string,
+    action: "approve" | "reindex",
+    opts?: { metadataOnly?: boolean },
+  ) => {
+    setNotice(null);
+    approve(
+      { thesisId, metadataOnly: opts?.metadataOnly },
+      {
+        onSuccess: (data) => {
+          setIngestConfirm(null);
+          // No chapter headings → ask the admin BEFORE anything reached the
+          // server. Cancel = untouched; confirm re-runs metadata-only.
+          if ("kind" in data && data.kind === "SectionsNotDetected") {
+            setIngestConfirm({ thesisId, action });
+            return;
+          }
+          if (data.status === "Failed") {
+            setNotice({
+              variant: "error",
+              message: "MonteAI could not ingest this thesis. Please try again.",
+            });
+            return;
+          }
+          setNotice({
+            variant: "success",
+            message:
+              data.status === "MetadataOnly"
+                ? "Thesis indexed from its metadata only — no chapter headings were detected, so the full text was not vectorized."
+                : action === "reindex"
+                  ? "Reindexing started — MonteAI is refreshing this thesis's index (metadata first, chapters after)."
+                  : "Thesis approved — MonteAI is indexing it now (status: Indexed once background ingestion finishes).",
+          });
+        },
+        onError: (err) => {
+          setIngestConfirm(null);
+          // IPC rejections from the main process have no axios `response`
+          // — their reason lives in `message` (e.g. connect ECONNREFUSED).
+          const ipcMessage =
+            !("response" in (err as object)) && err instanceof Error && err.message
+              ? err.message.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, "")
+              : null;
+          setNotice({
+            variant: "error",
+            message: ipcMessage
+              ? `Failed to ingest thesis: ${ipcMessage}`
+              : getActionErrorMessage(
+                  err,
+                  "You are not allowed to index theses.",
+                  "Failed to ingest thesis. Please try again.",
+                ),
+          });
+        },
+      },
+    );
+  };
+
   const handleThesisAction = async (thesisId: string, action: ThesisActionType) => {
-    if (action === "approve") { approve({ thesisId }); return; }
+    if (action === "approve" || action === "reindex") {
+      runIngest(thesisId, action);
+      return;
+    }
     if (action === "reject") { reject({ thesisId }); return; }
     if (action === "revision") { revision({ thesisId }); return; }
 
@@ -187,6 +260,24 @@ export default function Theses() {
                 ),
             },
           );
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!ingestConfirm}
+        variant="warning"
+        title="No chapter headings detected"
+        description="MonteAI couldn't find chapter headings in this PDF, so the full text can't be split into indexable sections. Only the thesis metadata (title, authors, year, abstract) will be vectorized — the full text will NOT be searchable. Continue?"
+        confirmLabel="Index metadata only"
+        cancelLabel="Cancel"
+        loading={isApproving}
+        onCancel={() => setIngestConfirm(null)}
+        onConfirm={() => {
+          if (!ingestConfirm) return;
+          // Stay open while the metadata-only run is in flight (loading
+          // disables both buttons); success/error closes it and shows the
+          // notice.
+          runIngest(ingestConfirm.thesisId, ingestConfirm.action, { metadataOnly: true });
         }}
       />
 

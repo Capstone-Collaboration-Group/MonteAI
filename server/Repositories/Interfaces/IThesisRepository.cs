@@ -50,6 +50,28 @@ namespace server.Repositories.Interfaces
 
         Task<bool> UpdateStatusAsync(Guid id, Thesis updateStatusDto);
 
+        /// <summary>
+        /// Updates ONLY the PineconeStatus column (None / Indexing / Indexed /
+        /// IngestFailed) without touching Status or the lifecycle timestamps.
+        /// Used by the async ingestion pipeline to surface vector-store state
+        /// independently of the moderation status.
+        /// </summary>
+        Task<bool> UpdatePineconeStatusAsync(Guid id, string pineconeStatus, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Records (or clears with null) the staging-blob URL holding a
+        /// thesis's full text while its body ingestion is queued/running.
+        /// Lets the worker recover interrupted jobs after a server restart.
+        /// </summary>
+        Task<bool> UpdateIngestStagingUrlAsync(Guid id, string? stagingUrl, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Theses whose PineconeStatus is "Indexing" — i.e. a body-ingestion
+        /// job was in flight when the process stopped. Scanned by the
+        /// ingestion worker's startup recovery pass.
+        /// </summary>
+        Task<IReadOnlyList<Thesis>> GetIngestingThesesAsync(CancellationToken cancellationToken = default);
+
         Task<bool> DeleteThesisAsync(Guid id);
 
 

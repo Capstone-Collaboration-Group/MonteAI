@@ -53,17 +53,22 @@ namespace server.Services.AI.Agent
     internal static class AgentPrompts
     {
         /// <summary>
-
-        /// <summary>
         /// Few-shot examples injected as REAL user/assistant chat turns before
         /// the actual question. This in-conversation pattern priming is what
         /// makes the planner emit the correct schema (see the file header).
         /// Trimmed from 12 to 6 examples to fit the ~1000-token/query budget:
         /// author + duplicate-topic/code cases were dropped (author/year
         /// shapes live in the tool manifest and IsOutOfScope pre-blocks code
-        /// requests). The sixth example teaches the "tool results so far"
+        /// requests). The LAST example teaches the "tool results so far"
         /// input format used by BuildPlanningUserPrompt; the fourth teaches
-        /// the needsMore two-step chain.
+        /// the needsMore two-step chain; the sixth teaches follow-up
+        /// rewriting ("tell me more about the source you provided" must
+        /// search the PREVIOUS USER QUESTION's topic, not the meta-phrase —
+        /// a raw meta-query semantically matches this repository's own
+        /// MonteAI thesis and returns it as a false source). The follow-up
+        /// example is intentionally NOT last so it cannot leak attention
+        /// into a live greeting ("hi!" was mis-answered as a search when a
+        /// full-prompt-shaped search example sat directly before it).
         /// </summary>
         public static readonly (string User, string Assistant)[] PlanningFewShot =
         [
@@ -88,6 +93,10 @@ namespace server.Services.AI.Agent
                 """{"thought": "greeting", "final": true}"""
             ),
             (
+                "RESEARCH QUESTION:\nCan you tell me more about the sources you provided?\n\nPREVIOUS USER QUESTION:\nShow me theses about wastewater treatment in schools",
+                """{"thought": "follow-up — search the earlier topic from the previous question", "tool": "semantic_search", "toolArgs": {"query": "wastewater treatment in schools"}, "needsMore": false}"""
+            ),
+            (
                 "RESEARCH QUESTION:\nWhat theses use machine learning for student performance?\n\nTOOL RESULTS SO FAR:\n[Result 1]\nsemantic_search retrieved 2 relevant passages:\n- [Source 1] Predicting Student Success Using Ensemble Models | Author(s): Dela Cruz | Year: 2024\n- [Source 2] ML-based Academic Analytics | Author(s): Unknown | Year: 2023\n\nDecide the next action, or finish if the results above are enough to answer.",
                 """{"thought": "results sufficient", "final": true}"""
             ),
@@ -95,12 +104,25 @@ namespace server.Services.AI.Agent
 
         /// <summary>
         /// User prompt for each planning step. Mirrors the input format of the
-        /// fourth few-shot example so the model recognizes the shape.
+        /// last few-shot example so the model recognizes the shape. When the
+        /// conversation has a previous user question, it is surfaced as a
+        /// PREVIOUS USER QUESTION block so follow-ups like "tell me more about
+        /// the source you provided" can be rewritten to the earlier topic
+        /// (a raw meta-query matches this repository's own MonteAI thesis).
         /// </summary>
-        public static string BuildPlanningUserPrompt(string userQuery, IReadOnlyList<string> observations)
+        public static string BuildPlanningUserPrompt(
+            string userQuery,
+            IReadOnlyList<string> observations,
+            string? previousUserQuestion = null)
         {
             var sb = new StringBuilder();
             sb.Append("RESEARCH QUESTION:\n").AppendLine(userQuery);
+
+            var hasPrevious = !string.IsNullOrWhiteSpace(previousUserQuestion);
+            if (hasPrevious)
+            {
+                sb.Append("\nPREVIOUS USER QUESTION:\n").AppendLine(TruncateForPrompt(previousUserQuestion!, 240));
+            }
 
             if (observations.Count == 0)
             {
@@ -116,8 +138,20 @@ namespace server.Services.AI.Agent
                 sb.Append("\nDecide the next action, or finish if the results above are enough to answer.");
             }
 
+            if (hasPrevious)
+            {
+                sb.Append("\nIf the RESEARCH QUESTION is a follow-up about the PREVIOUS USER QUESTION (e.g. \"the source you provided\"), put that earlier topic into the search query.");
+            }
+
             sb.Append("\n\nReply with one JSON object with exactly the keys shown in the examples above.");
             return sb.ToString();
+        }
+
+        /// <summary>Flattens and caps a quoted block so one long turn cannot blow the prompt budget.</summary>
+        private static string TruncateForPrompt(string text, int max)
+        {
+            var flat = text.ReplaceLineEndings(" ").Trim();
+            return flat.Length <= max ? flat : flat[..max] + "…";
         }
 
         /// <summary>User prompt for the synthesis stage: the question, the gathered sources, and leftover tool observations.</summary>

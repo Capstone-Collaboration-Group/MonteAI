@@ -33,6 +33,12 @@ namespace server.Models.Entities
 
         public string? PineconeStatus { get; set; } = "None";
 
+        // Staging-blob URL holding the extracted full text while the body
+        // ingestion job is queued/running (async full-text pipeline). Set on
+        // ingest/full, cleared when the worker finishes; lets startup recovery
+        // re-queue interrupted jobs after a server restart. Null otherwise.
+        public string? IngestStagingUrl { get; set; }
+
         public Guid? GroupId { get; set; }
         public ResearchGroup? ResearchGroup { get; set; }
 

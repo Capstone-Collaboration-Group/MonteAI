@@ -56,6 +56,12 @@ namespace server.Tools
             var poolConfig = new LlmPoolConfig();
             config.GetSection(LlmPoolConfig.SectionName).Bind(poolConfig);
 
+            // Mirror the runtime token caps so the harness exercises the
+            // planner under the SAME budget as production (a too-small cap
+            // starves gpt-5-nano's reasoning tokens and truncates the JSON).
+            var agentConfig = new MonteAiAgentConfig();
+            config.GetSection(MonteAiAgentConfig.SectionName).Bind(agentConfig);
+
             var plannerEntry = poolConfig.Deployments?.FirstOrDefault(e =>
                 e.Roles?.Contains("planner", StringComparer.OrdinalIgnoreCase) == true);
             var synthEntry = poolConfig.Deployments?.FirstOrDefault(e =>
@@ -126,7 +132,8 @@ namespace server.Tools
             // Planner: replay every few-shot example as a real request.
             foreach (var (user, assistant) in AgentPrompts.PlanningFewShot)
             {
-                var (failed, inputTokens) = await RunPlannerCaseAsync(backend, plannerEntry, user, expectedRaw: assistant);
+                var (failed, inputTokens) = await RunPlannerCaseAsync(
+                    backend, plannerEntry, user, expectedRaw: assistant, agentConfig.PlanningMaxOutputTokens);
                 failures += failed;
                 if (inputTokens is int t) plannerTokens.Add(t);
             }
@@ -142,7 +149,8 @@ namespace server.Tools
             ];
             foreach (var probe in probes)
             {
-                var (failed, inputTokens) = await RunPlannerCaseAsync(backend, plannerEntry, probe, expectedRaw: null);
+                var (failed, inputTokens) = await RunPlannerCaseAsync(
+                    backend, plannerEntry, probe, expectedRaw: null, agentConfig.PlanningMaxOutputTokens);
                 failures += failed;
                 if (inputTokens is int t) plannerTokens.Add(t);
             }
@@ -156,7 +164,7 @@ namespace server.Tools
             // Synth smoke: one canned grounded answer.
             if (synthEntry is not null)
             {
-                failures += await RunSynthSmokeAsync(backend, synthEntry);
+                failures += await RunSynthSmokeAsync(backend, synthEntry, agentConfig.AnswerMaxOutputTokens);
             }
 
             Console.WriteLine();
@@ -178,7 +186,8 @@ namespace server.Tools
             ILlmBackend backend,
             LlmPoolEntry entry,
             string userQuery,
-            string? expectedRaw)
+            string? expectedRaw,
+            int maxOutputTokens)
         {
             // Same message order as MonteAiAgentService.BuildPlanningMessages with
             // empty history: few-shot turns first, then the current step.
@@ -194,7 +203,7 @@ namespace server.Tools
                 Role: "planner",
                 Messages: messages,
                 Temperature: 0f,
-                MaxOutputTokens: 250,
+                MaxOutputTokens: maxOutputTokens,
                 JsonMode: true,
                 TargetAgent: entry.AgentName);
 
@@ -250,7 +259,7 @@ namespace server.Tools
 
         // ────────────────────────── synth smoke ──────────────────────────
 
-        private static async Task<int> RunSynthSmokeAsync(ILlmBackend backend, LlmPoolEntry entry)
+        private static async Task<int> RunSynthSmokeAsync(ILlmBackend backend, LlmPoolEntry entry, int maxOutputTokens)
         {
             const string userQuery = "What theses are about machine learning in education?";
             const string sourcesBlock =
@@ -270,7 +279,7 @@ namespace server.Tools
                 Role: "synth",
                 Messages: messages,
                 Temperature: 0.2f,
-                MaxOutputTokens: 800,
+                MaxOutputTokens: maxOutputTokens,
                 JsonMode: false,
                 TargetAgent: entry.AgentName);
 

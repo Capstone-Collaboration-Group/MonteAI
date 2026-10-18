@@ -4,6 +4,8 @@ import type {
     ThesisResponseDto,
     IngestThesisDto,
     IngestThesisResponseDto,
+    IngestFullThesisDto,
+    IngestFullThesisResponseDto,
     AnnotationResponseDto,
     CreateAnnotationDto,
     ResolveAnnotationDto,
@@ -13,6 +15,12 @@ import type {
 export interface ThesisService { 
     submitThesis(dto: SubmitThesisDto, file: File): Promise<ThesisResponseDto>;
     ingestThesis(dto: IngestThesisDto): Promise<IngestThesisResponseDto>;
+    /**
+     * Full-text async ingestion: sends the complete extracted PDF text.
+     * Returns 202 Queued once the metadata vector is live; body chunking
+     * continues in a server background worker.
+     */
+    ingestFullThesis(dto: IngestFullThesisDto): Promise<IngestFullThesisResponseDto>;
     getDownloadUrl(thesisId: string): Promise<{url: string} | null>
     getThesis(thesisId: string): Promise<ThesisResponseDto | null>;
     /** The caller's own group thesis (GET /thesis/my); null/404 = not submitted yet. */

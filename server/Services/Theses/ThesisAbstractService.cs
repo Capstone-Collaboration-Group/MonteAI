@@ -66,6 +66,52 @@ namespace server.Services.Theses
             return ReadLatestAbstract(snapshot);
         }
 
+        public async Task<StoredAbstractMetadata?> GetStoredMetadataAsync(Guid thesisId)
+        {
+            try
+            {
+                var snapshot = await DocRef(thesisId).GetSnapshotAsync();
+                if (!snapshot.Exists) return null;
+
+                // Each field guarded separately — a type mismatch on one must
+                // not throw away the other (Firestore materializes values
+                // loosely; ReadAuthors already tolerates any shape).
+                var authors = new List<string>();
+                if (snapshot.ContainsField(AuthorsField))
+                {
+                    try { authors = ReadAuthors(snapshot.GetValue<object>(AuthorsField)); }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Could not read stored authors for thesis {ThesisId}", thesisId);
+                    }
+                }
+
+                string? year = null;
+                if (snapshot.ContainsField(PublicationYearField))
+                {
+                    try
+                    {
+                        year = snapshot.GetValue<string>(PublicationYearField);
+                        if (string.IsNullOrWhiteSpace(year)) year = null;
+                        else year = year.Trim();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Could not read stored publication year for thesis {ThesisId}", thesisId);
+                    }
+                }
+
+                return authors.Count == 0 && year is null ? null : new StoredAbstractMetadata(authors, year);
+            }
+            catch (Exception ex)
+            {
+                // Best-effort, like ResolveAbstractsAsync: degrade to null so
+                // an ingest/citation path never fails over a Firestore hiccup.
+                _logger.LogWarning(ex, "Could not read stored metadata for thesis {ThesisId}", thesisId);
+                return null;
+            }
+        }
+
         public async Task UpdateAbstractAsync(Guid thesisId, string text)
         {
             // In-place overwrite of the newest entry: ReadLatestAbstract always

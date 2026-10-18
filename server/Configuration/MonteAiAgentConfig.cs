@@ -41,9 +41,12 @@ namespace server.Configuration
 
         /// <summary>
         /// Token cap for each planner response (the planner only emits a small
-        /// JSON action object). Default: 250.
+        /// JSON action object). The cap counts gpt-5-nano's REASONING tokens
+        /// too: at 250 the visible JSON was intermittently truncated/empty
+        /// (a silent single-shot RAG fallback), so the cap is 512 — only paid
+        /// when the model actually reasons longer. Default: 512.
         /// </summary>
-        public int PlanningMaxOutputTokens { get; set; } = 250;
+        public int PlanningMaxOutputTokens { get; set; } = 512;
 
         /// <summary>
         /// Token cap for the final synthesized answer. Default: 800.
@@ -85,9 +88,20 @@ namespace server.Configuration
         /// <summary>
         /// Maximum number of deduplicated sources attached to one answer.
         /// Part of the ~1000-token/query budget: each source block costs
-        /// ~120 tokens (see BuildSourcesBlock excerpt cap). Default: 4.
+        /// ~150 tokens (see BuildSourcesBlock excerpt cap). Sized to hold
+        /// several DISTINCT studies. Default: 6.
         /// </summary>
-        public int MaxSources { get; set; } = 4;
+        public int MaxSources { get; set; } = 6;
+
+        /// <summary>
+        /// How many retrieved passages may be attached per thesis. One:
+        /// every answer cites a study at most ONCE (the strongest passage),
+        /// so a single document can no longer occupy 3 of the source slots
+        /// and show up as "[Source 1] … [Source 2] … [Source 3]" with the
+        /// identical title — the sources panel lists studies, not excerpts.
+        /// Default: 1.
+        /// </summary>
+        public int MaxPassagesPerThesis { get; set; } = 1;
 
         /// <summary>
         /// Hard cap on the length of a single user query accepted by the
