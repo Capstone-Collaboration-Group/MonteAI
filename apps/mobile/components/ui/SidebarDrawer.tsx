@@ -51,7 +51,6 @@ const NAV_ITEMS: NavItem[] = [
   { icon: 'calendar-month', label: 'Schedules', route: '/(tabs)/schedules' },
   { icon: 'campaign', label: 'Announcements', route: '/(tabs)/announcements' },
   { icon: 'search', label: 'Find Thesis' },
-  { icon: 'chat', label: 'Search Chat' },
 ];
 
 const LEGACY_RECENT = [

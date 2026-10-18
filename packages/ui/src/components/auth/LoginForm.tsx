@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   type Auth,
@@ -38,6 +39,28 @@ type LoginFormProps = {
 const RESEND_COOLDOWN_SECONDS = 60;
 const POLL_INTERVAL_MS = 4000;
 
+function describeResetError(error: unknown): string {
+  if (error instanceof FirebaseError) {
+    switch (error.code) {
+      case "auth/user-not-found":
+        return "No account found with that email address.";
+      case "auth/invalid-email":
+      case "auth/missing-email":
+        return "That email address is not valid.";
+      case "auth/too-many-requests":
+      case "auth/quota-exceeded":
+        return "Too many attempts. Please wait a moment and try again.";
+      case "auth/network-request-failed":
+        return "Network error. Check your connection and try again.";
+      default:
+        return error.message;
+    }
+  }
+  return error instanceof Error && error.message
+    ? error.message
+    : "Could not send the reset email. Please try again.";
+}
+
 export function LoginForm({
   auth,
   onSuccess,
@@ -51,6 +74,9 @@ export function LoginForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
+  const [resetView, setResetView] = useState(false);
+  const [resetSentTo, setResetSentTo] = useState<string | null>(null);
+  const [resetCooldown, setResetCooldown] = useState(0);
   const [checking, setChecking] = useState(false);
   const advancingRef = useRef(false);
   const { pending, setPending } = useMfaPendingChallenge();
@@ -189,6 +215,51 @@ export function LoginForm({
     setPassword("");
   };
 
+  const openForgotPassword = () => {
+    setError(null);
+    setNotice(null);
+    setResetView(true);
+  };
+
+  const backToLogin = () => {
+    setResetView(false);
+    setResetSentTo(null);
+    setResetCooldown(0);
+    setError(null);
+    setNotice(null);
+  };
+
+  const sendResetEmail = async (address: string) => {
+    const target = address.trim();
+    if (!target) {
+      setError("Enter your email address first.");
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    setIsSubmitting(true);
+    try {
+      await sendPasswordResetEmail(auth, target);
+      setEmail(target);
+      setResetSentTo(target);
+      setResetCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch (err) {
+      setError(describeResetError(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSendReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendResetEmail(email);
+  };
+
+  const resendResetEmail = async () => {
+    if (isSubmitting || resetCooldown > 0) return;
+    await sendResetEmail(resetSentTo ?? email);
+  };
+
   // Poll while waiting for the email link to be clicked.
   useEffect(() => {
     if (!unverifiedEmail) return;
@@ -215,6 +286,13 @@ export function LoginForm({
     const id = window.setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => window.clearTimeout(id);
   }, [unverifiedEmail, resendIn]);
+
+  // Reset-email resend cooldown ticker.
+  useEffect(() => {
+    if (!resetView || resetCooldown <= 0) return;
+    const id = window.setTimeout(() => setResetCooldown((s) => s - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [resetView, resetCooldown]);
 
   // While an MFA challenge is pending, the MfaLoginFlowGate renders the
   // code-entry screen instead of this form. Returning null here keeps the
@@ -267,6 +345,80 @@ export function LoginForm({
     );
   }
 
+  if (resetView) {
+    return (
+      <section className="flex w-full flex-1 max-w-md flex-col lg:max-w-none">
+        <h2 className="text-4xl font-bold text-on-surface">Reset your password</h2>
+        {resetSentTo ? (
+          <>
+            <p className="mt-2 text-base text-gray-500">
+              We sent a password reset link to{" "}
+              <span className="font-semibold text-on-surface">{resetSentTo}</span>
+              . Open it in your inbox to choose a new password.
+            </p>
+            {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+            <div className="mt-6 flex w-full flex-col gap-3">
+              <button
+                type="button"
+                onClick={resendResetEmail}
+                disabled={isSubmitting || resetCooldown > 0}
+                className="h-12 rounded-xl border border-outline-variant bg-white font-semibold text-on-surface transition-all hover:border-primary disabled:opacity-60"
+              >
+                {resetCooldown > 0
+                  ? `Resend email (${resetCooldown}s)`
+                  : "Resend email"}
+              </button>
+              <button
+                type="button"
+                onClick={backToLogin}
+                disabled={isSubmitting}
+                className="h-12 rounded-xl text-sm font-semibold text-primary transition-all hover:opacity-80 disabled:opacity-60"
+              >
+                Back to login
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-base text-gray-500">
+              Enter the email you registered with and we'll send you a link to
+              set a new password.
+            </p>
+            {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+            <form
+              onSubmit={handleSendReset}
+              className="mt-6 flex w-full flex-col gap-6"
+            >
+              <TextInput
+                label="Email"
+                name="reset-email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="h-12 rounded-xl bg-primary font-semibold text-white transition-all hover:bg-primary/90 disabled:opacity-60"
+              >
+                {isSubmitting ? "Sending..." : "Send reset link"}
+              </button>
+              <button
+                type="button"
+                onClick={backToLogin}
+                disabled={isSubmitting}
+                className="h-12 rounded-xl text-sm font-semibold text-primary transition-all hover:opacity-80 disabled:opacity-60"
+              >
+                Back to login
+              </button>
+            </form>
+          </>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section className="flex w-full flex-1 max-w-md flex-col lg:max-w-none">
       <h2 className="text-4xl font-bold text-on-surface">Welcome Back</h2>
@@ -286,13 +438,25 @@ export function LoginForm({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <PasswordInput
-          label="Password"
-          name="password"
-          placeholder="Enter your password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div className="flex flex-col gap-2">
+          <PasswordInput
+            label="Password"
+            name="password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={openForgotPassword}
+              disabled={isSubmitting}
+              className="text-sm font-semibold text-primary transition-all hover:opacity-80 disabled:opacity-60"
+            >
+              Forgot Password?
+            </button>
+          </div>
+        </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           type="submit"

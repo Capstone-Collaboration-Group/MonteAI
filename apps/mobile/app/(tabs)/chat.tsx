@@ -17,6 +17,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
+import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { chatService } from '@/lib/chatService';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
@@ -167,6 +168,7 @@ export default function ChatScreen() {
   }
 
     return (
+    <TabScreenTransition>
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
         <KeyboardAvoidingView
@@ -304,6 +306,7 @@ export default function ChatScreen() {
         </KeyboardAvoidingView>
       )}
     </DrawerProvider>
+    </TabScreenTransition>
   );
 }
 
