@@ -7,6 +7,7 @@ import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
+import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { AnnouncementDetailModal } from '@/components/announcement/AnnouncementDetailModal';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { announcementService } from '@/lib/announcementService';
@@ -72,6 +73,7 @@ export default function AnnouncementsScreen() {
   const { refreshControl } = usePullToRefresh(loadAnnouncements);
 
   return (
+    <TabScreenTransition>
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
@@ -151,6 +153,7 @@ export default function AnnouncementsScreen() {
     </View>
       )}
     </DrawerProvider>
+    </TabScreenTransition>
   );
 }
 
