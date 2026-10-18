@@ -12,6 +12,8 @@ import {
   Users,
   Menu,
   X,
+  Book,
+  Megaphone,
 } from "lucide-react"; // Imported LogOut
 import CdmLogo from "../../assets/cdm-logo.png";
 
@@ -72,10 +74,7 @@ function AppSidebar({
             />
             <div className="min-w-0 flex-1">
               <p className="text-md font-bold leading-tight text-on-surface">
-                MonteAI
-              </p>
-              <p className="text-[11px] leading-tight text-on-surface-variant">
-                Your AI research assistant
+                MonteSkolar
               </p>
             </div>
           </>
@@ -114,15 +113,7 @@ function AppSidebar({
       </div>
 
       <Sidebar.Nav className="gap-0.5">
-        <NavLink to="/chat" onClick={onClose}>
-          {({ isActive }) => (
-            <Sidebar.Item
-              icon={<MessageSquare className="h-4 w-4" />}
-              label="AI Chat"
-              active={isActive}
-            />
-          )}
-        </NavLink>
+       
         <NavLink to="/theses" onClick={onClose}>
           {({ isActive }) => (
             <Sidebar.Item
@@ -135,8 +126,23 @@ function AppSidebar({
         <NavLink to="/submit" onClick={onClose}>
           {({ isActive }) => (
             <Sidebar.Item
-              icon={<Search className="h-4 w-4" />}
+              icon={<Book className="h-4 w-4" />}
               label="Submit Thesis"
+              active={isActive}
+            />
+          )}
+        </NavLink>
+        
+        <NavLink to="/announcements" onClick={onClose}>
+          {({ isActive }) => (
+            <Sidebar.Item icon={<Megaphone className="h-4 w-4" />} label="Announcements" active={isActive} />
+          )}
+        </NavLink>
+        <NavLink to="/research-groups" onClick={onClose}>
+          {({ isActive }) => (
+            <Sidebar.Item
+              icon={<Users className="h-4 w-4" />}
+              label="Research Groups"
               active={isActive}
             />
           )}
@@ -146,20 +152,6 @@ function AppSidebar({
             <Sidebar.Item
               icon={<Settings className="h-4 w-4" />}
               label="Settings"
-              active={isActive}
-            />
-          )}
-        </NavLink>
-        <NavLink to="/announcements" onClick={onClose}>
-          {({ isActive }) => (
-            <Sidebar.Item icon={<Search className="h-4 w-4" />} label="Announcements" active={isActive} />
-          )}
-        </NavLink>
-        <NavLink to="/research-groups" onClick={onClose}>
-          {({ isActive }) => (
-            <Sidebar.Item
-              icon={<Users className="h-4 w-4" />}
-              label="Research Groups"
               active={isActive}
             />
           )}
