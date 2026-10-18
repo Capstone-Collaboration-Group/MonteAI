@@ -31,6 +31,9 @@ interface Message {
   sources?: ChatSourceDto[] | null;
 }
 
+/** Hard cap on user input length (enforced on the TextInput and defensively in handleSend). */
+const MAX_INPUT_LENGTH = 150;
+
 const WELCOME_MSG: Message = {
   id: 'welcome',
   role: 'ai',
@@ -125,7 +128,7 @@ export default function ChatScreen() {
   }, [open, handleSelectSession, startNewChat]);
 
   async function handleSend() {
-    const text = input.trim();
+    const text = input.trim().slice(0, MAX_INPUT_LENGTH);
     if (!text || sending || loadingHistory) return;
 
     if (!userId) {
@@ -138,7 +141,14 @@ export default function ChatScreen() {
 
     setSending(true);
     setInput('');
-    setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text }]);
+    // Optimistic user bubble + a streaming AI draft that fills in as
+    // status/delta/source SSE events arrive.
+    const draftId = `a-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: `u-${Date.now()}`, role: 'user', text },
+      { id: draftId, role: 'ai', text: '', status: 'Thinking…' },
+    ]);
 
     try {
       let activeSession = session;
@@ -151,16 +161,42 @@ export default function ChatScreen() {
         setSession(activeSession);
       }
 
-      const res = await chatService.sendMessage(activeSession.id, { role: 'user', content: text });
-      setMessages((prev) => [...prev, toMessage(res.role, res.content, res.id, res.sources)]);
+      const patchDraft = (patch: Partial<Message> | ((m: Message) => Partial<Message>)) => {
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== draftId) return m;
+            const p = typeof patch === 'function' ? patch(m) : patch;
+            return { ...m, ...p };
+          })
+        );
+      };
+
+      const res = await chatService.sendMessageStream(
+        activeSession.id,
+        { role: 'user', content: text },
+        {
+          onStatus: (message) => patchDraft({ status: message }),
+          onSources: (sources) => patchDraft({ sources }),
+          onDelta: (fragment) => patchDraft((m) => ({ text: m.text + fragment })),
+        }
+      );
+      // Swap the draft for the persisted assistant message (final content,
+      // sources, real id) so it matches what history reload will show.
+      setMessages((prev) =>
+        prev.map((m) => (m.id === draftId ? toMessage(res.role, res.content, res.id, res.sources) : m))
+      );
       // Once the response is back, silently refresh the session list so a
       // newly created chat is pushed to the top of the history in real time.
       refresh(true);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: `err-${Date.now()}`, role: 'ai', text: 'Sorry, something went wrong. Please try again.' },
-      ]);
+    } catch (err) {
+      // Prefer the server-provided friendly message (rate limit, breaker…).
+      const text =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Sorry, something went wrong. Please try again.';
+      setMessages((prev) =>
+        prev.map((m) => (m.id === draftId ? { id: `err-${Date.now()}`, role: 'ai', text } : m))
+      );
     } finally {
       setSending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -259,12 +295,6 @@ export default function ChatScreen() {
                 <Text style={[s.typingText, { color: body }]}>Loading conversation...</Text>
               </View>
             )}
-            {sending && (
-              <View style={s.typingRow}>
-                <ActivityIndicator size="small" color={primary} />
-                <Text style={[s.typingText, { color: body }]}>MonteAI is thinking...</Text>
-              </View>
-            )}
           </ScrollView>
 
           {/* Input bar (in normal flow, no longer absolute) */}
@@ -285,6 +315,7 @@ export default function ChatScreen() {
                   placeholderTextColor="#9ca3af"
                   style={[s.input, { color: heading }]}
                   multiline
+                  maxLength={MAX_INPUT_LENGTH}
                   editable={!sending}
                 />
                 <Pressable hitSlop={8}>

@@ -21,7 +21,8 @@ type DrawerRoute =
   | '/(tabs)/schedules'
   | '/(tabs)/announcements'
   | '/(tabs)/research-group'
-  | '/submit-thesis';
+  | '/submit-thesis'
+  | '/(tabs)/library'
 
 interface NavItem {
   icon: React.ComponentProps<typeof MaterialIcons>['name'];
@@ -46,11 +47,12 @@ interface SidebarDrawerProps {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { icon: 'search', label: 'Find Thesis', route: '/(tabs)/library'},
   { icon: 'upload-file', label: 'Submit Thesis Document', route: '/submit-thesis' },
   { icon: 'group', label: 'Research Group', route: '/(tabs)/research-group' },
   { icon: 'calendar-month', label: 'Schedules', route: '/(tabs)/schedules' },
   { icon: 'campaign', label: 'Announcements', route: '/(tabs)/announcements' },
-  { icon: 'search', label: 'Find Thesis' },
+  
 ];
 
 const LEGACY_RECENT = [
