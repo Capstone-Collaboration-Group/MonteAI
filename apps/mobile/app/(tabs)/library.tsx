@@ -16,6 +16,7 @@ import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
+import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { BottomSheet } from '@/components/thesis/BottomSheet';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { thesisService } from '@/lib/thesisService';
@@ -83,6 +84,7 @@ export default function LibraryScreen() {
   const hasFilter = program !== null || search.trim().length > 0;
 
   return (
+    <TabScreenTransition>
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
@@ -208,6 +210,7 @@ export default function LibraryScreen() {
     </View>
       )}
     </DrawerProvider>
+    </TabScreenTransition>
   );
 }
 
