@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation, matchPath } from "react-router-dom";
 import { Sidebar } from "@monteai/ui";
 import {
-  MessageSquare,
   Search,
   MessageCircle,
   Plus,
