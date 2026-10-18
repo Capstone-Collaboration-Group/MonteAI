@@ -17,6 +17,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updatePassword,
@@ -25,6 +26,9 @@ import {
 import type { User } from 'firebase/auth';
 import { firebaseAuth } from './firebase';
 import { getMfaAccessToken, refreshMfaAccessToken } from './mfaSession';
+
+const useMock =
+  (process.env.EXPO_PUBLIC_USE_MOCK ?? (__DEV__ ? 'true' : 'false')) === 'true';
 
 /** Error code used for "signed in but the email link wasn't opened yet". */
 export const EMAIL_NOT_VERIFIED_CODE = 'auth/email-not-verified';
@@ -212,6 +216,21 @@ export async function signInWithPassword(
     password,
   );
   return credential.user;
+}
+
+/**
+ * Forgot-password: sends the Firebase password-reset email directly to
+ * the account's address. Returns the email so the UI can show where the
+ * link was sent. In mock mode (EXPO_PUBLIC_USE_MOCK) no network call is
+ * made — the address is echoed back so the flow completes offline.
+ */
+export async function sendPasswordReset(email: string): Promise<string> {
+  const trimmed = email.trim();
+  if (useMock) {
+    return trimmed;
+  }
+  await sendPasswordResetEmail(firebaseAuth, trimmed);
+  return trimmed;
 }
 
 /** Clears the Firebase session; AuthSessionContext reacts via listener. */
