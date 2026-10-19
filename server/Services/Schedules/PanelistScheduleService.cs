@@ -2,6 +2,7 @@
 using server.Models.DTOs.PanelistSchedule;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
+using server.Services.Caching;
 using server.Services.Interfaces;
 
 namespace server.Services.Schedules
@@ -12,7 +13,8 @@ namespace server.Services.Schedules
         IFacultyRepository _facultyRepo,
         IProgramHeadRepository _programHeadRepo,
         IAdminRepository _adminRepo,
-        IMapper _mapper
+        IMapper _mapper,
+        IResponseCache _cache
         ) : IPanelistScheduleService
     {
          public async Task<IEnumerable<PanelistResponseDto>> GetAllAsync()
@@ -87,6 +89,7 @@ namespace server.Services.Schedules
         {
             var panelistSchedule = _mapper.Map<PanelistSchedule>(createDto);
             var result = await _repo.CreatePanelistScheduleAsync(panelistSchedule);
+            if (result) await _cache.InvalidateAsync(CacheRegions.Schedules);
 
             return result;
 
@@ -101,12 +104,14 @@ namespace server.Services.Schedules
             var updatePanelistSchedule = _mapper.Map(updateDto, existing);
 
             var result = await _repo.UpdatePanelistScheduleAsync(updatePanelistSchedule);
+            if (result) await _cache.InvalidateAsync(CacheRegions.Schedules);
 
             return result;
         }
         public async Task<bool> DeleteAsync(Guid scheduleId, string panelistId)
         {
             var result = await _repo.DeletePanelistScheduleAsync(scheduleId, panelistId);
+            if (result) await _cache.InvalidateAsync(CacheRegions.Schedules);
             return result;
         }
     }

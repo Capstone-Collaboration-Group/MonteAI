@@ -4,6 +4,7 @@ using server.Models.DTOs.ProgramHead;
 using server.Models.DTOs.User;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
+using server.Services.Caching;
 using server.Services.Interfaces;
 
 namespace server.Services.User
@@ -11,7 +12,8 @@ namespace server.Services.User
     public class ProgramHeadService
     (
     IProgramHeadRepository _repo,
-    IMapper _mapper
+    IMapper _mapper,
+    IResponseCache _cache
     ): IProgramHeadService
     {
         public async Task<IEnumerable<UserResponseDto>> GetAllAsync()
@@ -33,6 +35,7 @@ namespace server.Services.User
             Console.WriteLine($"Id is {createDto.Id}");
             var programHead = _mapper.Map<ProgramHead>(createDto);
             var result = await _repo.CreateProgramHeadAsync(programHead);
+            if (result) await _cache.InvalidateAsync(CacheRegions.Schedules);
 
             return result;
         }
@@ -42,12 +45,15 @@ namespace server.Services.User
             programHead.UpdatedAt = DateTime.UtcNow;
 
             var result = await _repo.UpdateProgramHeadAsync(programHead, id);
+            if (result) await _cache.InvalidateAsync(CacheRegions.Schedules);
 
             return result;
         }
         public async Task<bool> DeleteAsync(string id)
         {
-            return await _repo.DeleteProgramHeadAsync(id);
+            var result = await _repo.DeleteProgramHeadAsync(id);
+            if (result) await _cache.InvalidateAsync(CacheRegions.Schedules);
+            return result;
         }
     }
 }

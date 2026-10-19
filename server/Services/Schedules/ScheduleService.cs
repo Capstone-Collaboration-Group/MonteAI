@@ -2,6 +2,7 @@
 using server.Models.DTOs.PanelistSchedule;
 using server.Models.DTOs.Schedule;
 using server.Models.Entities;
+using server.Services.Caching;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
 
@@ -14,19 +15,22 @@ namespace server.Services.Schedules
         private readonly IFacultyRepository _facultyRepo;
         private readonly IProgramHeadRepository _programHeadRepo;
         private readonly IAdminRepository _adminRepo;
+        private readonly IResponseCache _cache;
 
         public ScheduleService(
             IScheduleRepository repo,
             IMapper mapper,
             IFacultyRepository facultyRepo,
             IProgramHeadRepository programHeadRepo,
-            IAdminRepository adminRepo)
+            IAdminRepository adminRepo,
+            IResponseCache cache)
         {
             _repo = repo;
             _mapper = mapper;
             _facultyRepo = facultyRepo;
             _programHeadRepo = programHeadRepo;
             _adminRepo = adminRepo;
+            _cache = cache;
         }
 
         // PanelistId points at one of three role tables — resolve every id to a
@@ -66,34 +70,53 @@ namespace server.Services.Schedules
 
         public async Task<IEnumerable<ScheduleResponseDto>> GetAllAsync()
         {
-            var result = await _repo.GetAllSchedulesAsync();
-
-            var responseDto = _mapper.Map<IEnumerable<ScheduleResponseDto>>(result);
-
-            ApplyPanelistNames(responseDto, await BuildPanelistNamesAsync());
+            var responseDto = await _cache.GetOrCreateAsync(
+                CacheRegions.Schedules,
+                "all",
+                TimeSpan.FromSeconds(45),
+                async _ =>
+                {
+                    var result = await _repo.GetAllSchedulesAsync();
+                    var dtos = _mapper.Map<List<ScheduleResponseDto>>(result);
+                    ApplyPanelistNames(dtos, await BuildPanelistNamesAsync());
+                    return dtos;
+                }) ?? [];
 
             return responseDto;
         }
 
         public async Task<ScheduleResponseDto?> GetByIdAsync(Guid id)
         {
-            var result = await _repo.GetScheduleByIdAsync(id);
-            var responseDto = _mapper.Map<ScheduleResponseDto>(result);
-
-            if (responseDto != null)
-                ApplyPanelistNames([responseDto], await BuildPanelistNamesAsync());
+            var responseDto = await _cache.GetOrCreateAsync(
+                CacheRegions.Schedules,
+                $"id:{id:N}",
+                TimeSpan.FromSeconds(45),
+                async _ =>
+                {
+                    var result = await _repo.GetScheduleByIdAsync(id);
+                    var dto = _mapper.Map<ScheduleResponseDto>(result);
+                    if (dto is not null)
+                        ApplyPanelistNames([dto], await BuildPanelistNamesAsync());
+                    return dto;
+                });
 
             return responseDto;
 
         }
         public async Task<ScheduleResponseDto?> GetByGroupIdAsync(Guid groupId)
         {
-            var result = await _repo.GetScheduleByGroupIdAsync(groupId);
-
-            var responseDto = _mapper.Map<ScheduleResponseDto>(result);
-
-            if (responseDto != null)
-                ApplyPanelistNames([responseDto], await BuildPanelistNamesAsync());
+            var responseDto = await _cache.GetOrCreateAsync(
+                CacheRegions.Schedules,
+                $"group:{groupId:N}",
+                TimeSpan.FromSeconds(45),
+                async _ =>
+                {
+                    var result = await _repo.GetScheduleByGroupIdAsync(groupId);
+                    var dto = _mapper.Map<ScheduleResponseDto>(result);
+                    if (dto is not null)
+                        ApplyPanelistNames([dto], await BuildPanelistNamesAsync());
+                    return dto;
+                });
 
             return responseDto;
         }
@@ -112,6 +135,7 @@ namespace server.Services.Schedules
                 .Select(p => _mapper.Map<PanelistSchedule>(p))
                 .ToList();
             var result = await _repo.CreateScheduleAsync(createSchedule);
+            if (result) await InvalidateScheduleCachesAsync();
 
             return result;
         }
@@ -151,6 +175,7 @@ namespace server.Services.Schedules
             } 
            
             var result = await _repo.UpdateScheduleAsync(existing);
+            if (result) await InvalidateScheduleCachesAsync();
 
             return result;
         }
@@ -172,15 +197,21 @@ namespace server.Services.Schedules
             existing.StartTime = dto.StartTime;
             existing.EndingTime = dto.EndingTime;
 
-            return await _repo.UpdateScheduleAsync(existing);
+            var result = await _repo.UpdateScheduleAsync(existing);
+            if (result) await InvalidateScheduleCachesAsync();
+            return result;
         }
 
         public async Task<bool> DeleteAsync(Guid id )
         {
             var result = await _repo.DeleteScheduleAsync(id);
+            if (result) await InvalidateScheduleCachesAsync();
             return result;
 
         }
+
+        private Task InvalidateScheduleCachesAsync()
+            => _cache.InvalidateAsync(CacheRegions.Schedules, CacheRegions.ThesisCatalog);
 
     }
 }

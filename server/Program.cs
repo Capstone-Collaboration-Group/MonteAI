@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using OpenAI.Chat;
@@ -128,6 +129,15 @@ try
             policy.RequireAuthenticatedUser());
     });
     builder.Services.AddHttpContextAccessor();
+
+    var redisConnectionString = builder.Configuration.GetConnectionString("Redis")
+        ?? builder.Configuration["Redis:ConnectionString"]
+        ?? "localhost:6379";
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnectionString;
+        options.InstanceName = $"MonteAI:{builder.Environment.EnvironmentName}:";
+    });
      
     builder.Services.Configure<PineconeConfig>(
             builder.Configuration.GetSection(PineconeConfig.SectionName)
@@ -254,6 +264,7 @@ try
                 "https://localhost:8080",
                 "https://localhost:5173",
                 "https://monteskolar.pnm.edu.ph",
+                "https://effective-waffle-9g5x94gqp66hp4rq-5173.app.github.dev",
                 "http://192.168.100.9:8081"
                 )
             .AllowAnyHeader()

@@ -5,6 +5,7 @@ using server.Data;
 using server.Models.DTOs.ResearchGroup;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
+using server.Services.Caching;
 using server.Services.Interfaces;
 
 namespace server.Services.User
@@ -14,7 +15,8 @@ namespace server.Services.User
         IResearchGroupRepository repo,
         IMapper mapper,
         AppDbContext db,
-        IHttpContextAccessor httpContext
+        IHttpContextAccessor httpContext,
+        IResponseCache cache
     ) : IResearchGroupService
     {
         private const int MaxGroupSize = 4;
@@ -87,6 +89,7 @@ namespace server.Services.User
             leader.GroupId = group.Id;
             leader.Position = "Leader";
             await db.SaveChangesAsync();
+            await InvalidateRelatedCachesAsync();
 
             var saved = await repo.GetResearchGroupByIdAsync(group.Id);
             return saved is null ? null : mapper.Map<ResearchGroupResponseDto>(saved);
@@ -109,7 +112,9 @@ namespace server.Services.User
 
             var entity = mapper.Map<ResearchGroup>(updateDto);
             entity.Id = groupId;
-            return await repo.UpdateResearchGroupAsync(entity);
+            var updated = await repo.UpdateResearchGroupAsync(entity);
+            if (updated) await InvalidateRelatedCachesAsync();
+            return updated;
         }
 
         public async Task<bool> DeleteAsync(Guid groupId)
@@ -128,7 +133,9 @@ namespace server.Services.User
                 throw new UnauthorizedAccessException();
             }
 
-            return await repo.DeleteResearchGroupAsync(groupId);
+            var deleted = await repo.DeleteResearchGroupAsync(groupId);
+            if (deleted) await InvalidateRelatedCachesAsync();
+            return deleted;
         }
 
         public async Task<bool> AddMemberAsync(Guid groupId, string studentId)
@@ -162,7 +169,9 @@ namespace server.Services.User
                 }
             }
 
-            return await repo.AddMemberAsync(groupId, studentId);
+            var added = await repo.AddMemberAsync(groupId, studentId);
+            if (added) await InvalidateRelatedCachesAsync();
+            return added;
         }
 
         public async Task<bool> RemoveMemberAsync(Guid groupId, string studentId)
@@ -175,8 +184,13 @@ namespace server.Services.User
             if (studentId == group.LeaderId)
                 throw new InvalidOperationException("The group leader cannot be removed.");
 
-            return await repo.RemoveMemberAsync(groupId, studentId);
+            var removed = await repo.RemoveMemberAsync(groupId, studentId);
+            if (removed) await InvalidateRelatedCachesAsync();
+            return removed;
         }
+
+        private Task InvalidateRelatedCachesAsync()
+            => cache.InvalidateAsync(CacheRegions.ThesisCatalog, CacheRegions.Schedules);
 
         private async Task EnsureCanViewAsync(ResearchGroup group)
         {

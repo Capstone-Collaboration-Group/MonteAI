@@ -9,6 +9,7 @@ using server.Repositories;
 using server.Repositories.Interfaces;
 using server.Models.Retrieval;
 using server.Models.Entities;
+using server.Services.Caching;
 
 
 // server/Services/Theses/ThesisService.cs
@@ -44,6 +45,7 @@ namespace server.Services.Theses
         private readonly IStudentRepository _studentRepo;
         private readonly IThesisAbstractService _abstractService;
         private readonly FirestoreDb _firestore;
+        private readonly IResponseCache _cache;
 
         public ThesisService(
             IThesisRepository repo,
@@ -56,6 +58,7 @@ namespace server.Services.Theses
             IBlobService blobService,
             IThesisAbstractService abstractService,
             FirestoreDb firestore,
+            IResponseCache cache,
             IOptions<PineconeConfig> pineconeConfig)
         {
             _thesisRepo = repo;
@@ -68,6 +71,7 @@ namespace server.Services.Theses
             _blobService = blobService;
             _abstractService = abstractService;
             _firestore = firestore;
+            _cache = cache;
             _pineconeConfig = pineconeConfig.Value;
         }
 
@@ -75,15 +79,22 @@ namespace server.Services.Theses
             string? program = null,
             string? studentId = null)
         {
-            var result = await _thesisRepo.GetFirst20ThesisAsync(program, studentId);
+            var normalizedProgram = program?.Trim().ToUpperInvariant() ?? string.Empty;
+            var viewer = string.IsNullOrWhiteSpace(studentId) ? "all" : $"student:{studentId}";
+            return await _cache.GetOrCreateAsync(
+                CacheRegions.ThesisCatalog,
+                $"list:program:{normalizedProgram}:viewer:{viewer}",
+                TimeSpan.FromSeconds(45),
+                async _ =>
+                {
+                    var result = await _thesisRepo.GetFirst20ThesisAsync(program, studentId);
+                    var dtos = result.Select(MapThesisToResponse).ToList();
 
-            var dtos = result.Select(MapThesisToResponse).ToList();
-
-            // SQL holds the Firestore doc ID (legacy rows hold raw text) — swap
-            // in the actual abstract text before the client ever sees it.
-            await _abstractService.ResolveAbstractsAsync(dtos);
-
-            return dtos;
+                    // SQL holds the Firestore doc ID (legacy rows hold raw text) — swap
+                    // in the actual abstract text before the client ever sees it.
+                    await _abstractService.ResolveAbstractsAsync(dtos);
+                    return dtos;
+                }) ?? [];
 
         }
 
@@ -95,11 +106,21 @@ namespace server.Services.Theses
         {
             if (!semantic)
             {
-                var exactMatches = await _thesisRepo.SearchCatalogAsync(
-                    query, 10, studentId, cancellationToken);
-                var exactDtos = exactMatches.Select(MapThesisToResponse).ToList();
-                await _abstractService.ResolveAbstractsAsync(exactDtos);
-                return exactDtos;
+                var normalizedQuery = query.Trim().ToLowerInvariant();
+                var viewer = string.IsNullOrWhiteSpace(studentId) ? "all" : $"student:{studentId}";
+                return await _cache.GetOrCreateAsync(
+                    CacheRegions.ThesisCatalog,
+                    $"search:{normalizedQuery}:viewer:{viewer}",
+                    TimeSpan.FromSeconds(45),
+                    async ct =>
+                    {
+                        var exactMatches = await _thesisRepo.SearchCatalogAsync(
+                            query, 10, studentId, ct);
+                        var exactDtos = exactMatches.Select(MapThesisToResponse).ToList();
+                        await _abstractService.ResolveAbstractsAsync(exactDtos);
+                        return exactDtos;
+                    },
+                    cancellationToken) ?? [];
             }
 
             var chunks = await _pineconeService.RetrieveRelevantChunksAsync(
@@ -287,6 +308,7 @@ namespace server.Services.Theses
                     result.Id, ingestResult.VectorCount, ingestResult.Status);
             }
 
+            await InvalidateCatalogCacheAsync();
             var response = _mapper.Map<ThesisResponseDto>(result);
             await _abstractService.ResolveAbstractsAsync(new[] { response });
             return response;
@@ -436,6 +458,7 @@ namespace server.Services.Theses
                 {
                     Status = "Indexed"
                 }));
+                await InvalidateCatalogCacheAsync();
 
                 _logger.LogInformation(
                     "Thesis {ThesisId} ingested — {Count} vectors upserted",
@@ -506,6 +529,7 @@ namespace server.Services.Theses
             // An "Indexed" thesis otherwise keeps serving the pre-edit title/
             // abstract to MonteAI forever — re-ingest from the stored sources.
             await ReindexEditedThesisAsync(id);
+            await InvalidateCatalogCacheAsync();
 
             return true;
         }
@@ -561,6 +585,7 @@ namespace server.Services.Theses
             var dto = _mapper.Map<ThesisEntity>(updateStatusDto);
 
             var result = await _thesisRepo.UpdateStatusAsync(id, dto);
+            if (result) await InvalidateCatalogCacheAsync();
 
             return result;
         }
@@ -577,6 +602,7 @@ namespace server.Services.Theses
 
             if (result)
             {
+                await InvalidateCatalogCacheAsync();
                 // Keep the vector store in sync: deleting a thesis must also
                 // remove its embeddings, otherwise the chat would keep
                 // answering from a document that no longer exists.
@@ -613,6 +639,9 @@ namespace server.Services.Theses
 
             return result;
         }
+
+        private Task InvalidateCatalogCacheAsync()
+            => _cache.InvalidateAsync(CacheRegions.ThesisCatalog);
 
 
         // Thesis Version

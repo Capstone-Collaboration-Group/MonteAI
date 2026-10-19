@@ -4,6 +4,7 @@ using server.Models.DTOs.User;
 using server.Models.DTOs.Student;
 using server.Mappings;
 using server.Repositories.Interfaces;
+using server.Services.Caching;
 using server.Services.Interfaces;
 
 namespace server.Services.User
@@ -13,12 +14,18 @@ namespace server.Services.User
         private readonly IStudentRepository _repo;
         private readonly ILogger<StudentService> _logger;
         private readonly IMapper _mapper;
+        private readonly IResponseCache _cache;
 
-        public StudentService(IStudentRepository repo, ILogger<StudentService> logger, IMapper mapper)
+        public StudentService(
+            IStudentRepository repo,
+            ILogger<StudentService> logger,
+            IMapper mapper,
+            IResponseCache cache)
         {
             _repo = repo;
             _logger = logger;
             _mapper = mapper;
+            _cache = cache;
         }
 
         public async Task<UserResponseDto> RegisterAsync(RegisterUserDto dto, string firebaseUid)
@@ -30,6 +37,7 @@ namespace server.Services.User
             student.UpdatedAt = DateTime.UtcNow;
 
             await _repo.CreateAsync(student);
+            await _cache.InvalidateAsync(CacheRegions.ThesisCatalog);
 
             _logger.LogInformation("Student Registered: {Id}", firebaseUid);
 
@@ -67,6 +75,7 @@ namespace server.Services.User
             student.UpdatedAt = DateTime.UtcNow;
 
             await _repo.UpdateAsync(student);
+            await _cache.InvalidateAsync(CacheRegions.ThesisCatalog);
 
             _logger.LogInformation("Student Updated: {Id}", id);
 
@@ -82,6 +91,7 @@ namespace server.Services.User
             student.UpdatedAt = DateTime.UtcNow;
 
             await _repo.UpdateAsync(student);
+            await _cache.InvalidateAsync(CacheRegions.ThesisCatalog);
 
             _logger.LogInformation("Student Active Status Updated: {id}", id);
 
