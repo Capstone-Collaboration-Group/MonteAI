@@ -3,6 +3,7 @@ using server.Models.DTOs.Announcement;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
+using NotificationKinds = server.Models.Entities.NotificationKinds;
 
 namespace server.Services
 {
@@ -11,12 +12,21 @@ namespace server.Services
         private readonly IAnnouncementRepository _repo;
         private readonly ILogger<AnnouncementService> _logger;
         private readonly IMapper _mapper;
+        private readonly INotificationService _notifications;
+        private readonly IProgramHeadRepository _programHeadRepo;
 
-        public AnnouncementService(IAnnouncementRepository repo, ILogger<AnnouncementService> logger, IMapper mapper)
+        public AnnouncementService(
+            IAnnouncementRepository repo,
+            ILogger<AnnouncementService> logger,
+            IMapper mapper,
+            INotificationService notifications,
+            IProgramHeadRepository programHeadRepo)
         {
             _repo = repo;
             _logger = logger;
             _mapper = mapper;
+            _notifications = notifications;
+            _programHeadRepo = programHeadRepo;
         }
 
         public async Task<IEnumerable<AnnouncementResponseDto>> GetAllAsync()
@@ -44,6 +54,9 @@ namespace server.Services
         public async Task<bool> CreateAsync(CreateAnnouncementDto createDto, string userId, string role)
         {
             var announcement = _mapper.Map<Announcement>(createDto);
+            // Id is NEWID() on SQL Server; generating it here keeps the value
+            // available for fan-out targeting and works on SQLite test hosts.
+            announcement.Id = Guid.NewGuid();
             announcement.CreatedAt = DateTime.UtcNow;
             if (role == "Admin")
                 announcement.CreatedByAdminId = userId;
@@ -52,7 +65,41 @@ namespace server.Services
             
                 var result = await _repo.CreateAnnouncementAsync(announcement);
             _logger.LogInformation("Performed Announcement Creation");
+            if (result)
+                await FanOutAsync(announcement, userId, role);
             return result;
+        }
+
+        // Audience mirrors MappingProfile's Institute rule: Admin-authored =>
+        // college-wide ("All"), ProgramHead-authored => the head's institute.
+        // Best-effort — NotificationService never throws.
+        private async Task FanOutAsync(Announcement announcement, string userId, string role)
+        {
+            var title = announcement.Subject;
+            var body = announcement.Content.Length > 300
+                ? announcement.Content[..300] + "…"
+                : announcement.Content;
+            var targetId = announcement.Id.ToString();
+
+            if (role == "ProgramHead" && !string.IsNullOrEmpty(userId))
+            {
+                var head = await _programHeadRepo.GetProgramHeadByIdAsync(userId);
+                var institute = head?.Institute;
+                if (!string.IsNullOrEmpty(institute))
+                {
+                    await _notifications.NotifyInstituteAsync(
+                        institute, NotificationKinds.Announcement, title, body,
+                        NotificationKinds.TargetAnnouncement, targetId);
+                    return;
+                }
+            }
+
+            if (role == "Admin")
+            {
+                await _notifications.NotifyAllActiveUsersAsync(
+                    NotificationKinds.Announcement, title, body,
+                    NotificationKinds.TargetAnnouncement, targetId);
+            }
         }
         public async Task<bool> UpdateAsync(UpdateAnnouncementDto updateDto, Guid id, string userId, string role)
         {
