@@ -13,6 +13,7 @@ import {
   X,
   Book,
   Megaphone,
+  CalendarDays,
 } from "lucide-react"; // Imported LogOut
 import CdmLogo from "../../assets/cdm-logo.png";
 
@@ -172,6 +173,15 @@ function AppSidebar({
             <Sidebar.Item
               icon={<Users className="h-4 w-4" />}
               label="Research Groups"
+              active={isActive}
+            />
+          )}
+        </NavLink>
+        <NavLink to="/schedule" onClick={onClose}>
+          {({ isActive }) => (
+            <Sidebar.Item
+              icon={<CalendarDays className="h-4 w-4" />}
+              label="Schedules"
               active={isActive}
             />
           )}
