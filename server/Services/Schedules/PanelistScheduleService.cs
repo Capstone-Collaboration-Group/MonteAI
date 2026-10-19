@@ -3,6 +3,7 @@ using server.Models.DTOs.PanelistSchedule;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
+using NotificationKinds = server.Models.Entities.NotificationKinds;
 
 namespace server.Services.Schedules
 {
@@ -12,6 +13,9 @@ namespace server.Services.Schedules
         IFacultyRepository _facultyRepo,
         IProgramHeadRepository _programHeadRepo,
         IAdminRepository _adminRepo,
+        IScheduleRepository _scheduleRepo,
+        INotificationService _notifications,
+        ILogger<PanelistScheduleService> _logger,
         IMapper _mapper
         ) : IPanelistScheduleService
     {
@@ -88,8 +92,35 @@ namespace server.Services.Schedules
             var panelistSchedule = _mapper.Map<PanelistSchedule>(createDto);
             var result = await _repo.CreatePanelistScheduleAsync(panelistSchedule);
 
+            if (result)
+                await NotifyPanelistAssignedAsync(createDto.ScheduleId, createDto.PanelistId);
+
             return result;
 
+        }
+
+        // Best-effort: schedule lookup failure logs + skips, never fails the write.
+        private async Task NotifyPanelistAssignedAsync(Guid scheduleId, string panelistId)
+        {
+            try
+            {
+                var schedule = await _scheduleRepo.GetScheduleByIdAsync(scheduleId);
+                if (schedule is null) return;
+
+                var when = $"{schedule.Date:MMMM d, yyyy}, {schedule.StartTime:h:mm tt}–{schedule.EndingTime:h:mm tt}";
+                var groupName = schedule.ResearchGroup?.GroupName ?? "a research group";
+                var body = $"You have been assigned as a panelist for the thesis defense of \"{groupName}\" on {when} at {schedule.RoomVenue}.";
+
+                await _notifications.NotifyUserAsync(
+                    panelistId, NotificationKinds.PanelistAssigned, "Assigned as panelist", body,
+                    NotificationKinds.TargetSchedule, scheduleId.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to build panelist assignment notification for schedule {ScheduleId} — skipped",
+                    scheduleId);
+            }
         }
 
         public async Task<bool> UpdateAsync(UpdatePanelistScheduleDto updateDto, Guid scheduleId, string panelistId)
