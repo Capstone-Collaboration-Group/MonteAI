@@ -1,6 +1,7 @@
 // apps/mobile/components/schedule/WeekView.tsx
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
+import { ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import type { ScheduleResponseDto } from '@monteai/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';

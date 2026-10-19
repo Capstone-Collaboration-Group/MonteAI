@@ -1,49 +1,28 @@
-import React, { useEffect, useState } from 'react';
 import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { FontSize, Spacing } from '@/constants/theme';
+import { FontSize, Spacing, type FontSizeChoice } from '@/constants/theme';
+import { useFontSize } from '@/contexts/FontSizeContext';
 
-const fontSizes = ['Small', 'Medium', 'Large'];
-
-export const FONT_SIZE_STORAGE_KEY = 'monteai.settings.fontSize';
+const fontSizes: FontSizeChoice[] = ['Small', 'Medium', 'Large'];
 
 export default function AppearanceScreen() {
   const router = useRouter();
+  const { choice, setChoice } = useFontSize();
 
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'text');
   const body = useThemeColor({}, 'icon');
   const primary = useThemeColor({}, 'primary');
-
-  const [fontSize, setFontSize] = useState('Medium');
-
-  useEffect(() => {
-    AsyncStorage.getItem(FONT_SIZE_STORAGE_KEY)
-      .then((stored) => {
-        if (stored && fontSizes.includes(stored)) setFontSize(stored);
-      })
-      .catch(() => {
-        // keep default
-      });
-  }, []);
-
-  const selectFontSize = (option: string) => {
-    setFontSize(option);
-    AsyncStorage.setItem(FONT_SIZE_STORAGE_KEY, option).catch(() => {
-      // preference is best-effort — next launch retries
-    });
-  };
 
   return (
     <SafeAreaView
@@ -74,17 +53,17 @@ export default function AppearanceScreen() {
         {fontSizes.map((option) => (
           <Pressable
             key={option}
-            onPress={() => selectFontSize(option)}
+            onPress={() => setChoice(option)}
             style={styles.radioRow}
           >
             <MaterialIcons
               name={
-                fontSize === option
+                choice === option
                   ? 'radio-button-checked'
                   : 'radio-button-unchecked'
               }
               size={20}
-              color={fontSize === option ? primary : body}
+              color={choice === option ? primary : body}
             />
 
             <Text style={[styles.optionText, { color: heading }]}>

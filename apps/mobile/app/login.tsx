@@ -1,6 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/ScaledText';
 
 import LoginScreen, { type LoginCredentials } from '@/components/LoginScreen';
 import { useAuthSession } from '@/contexts/AuthSessionContext';

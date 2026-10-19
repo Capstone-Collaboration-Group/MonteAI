@@ -48,3 +48,29 @@ export const FontSize = {
   xxl: 28,
   display: 35,
 } as const;
+
+/**
+ * In-app font scaling (Settings → Appearance → font size).
+ *
+ * `FontSize` values are baked into module-level `StyleSheet.create` objects
+ * at import time, so they can only be scaled at render time. The app runs
+ * with the React Compiler (`experiments.reactCompiler`), which memoizes
+ * JSX — a root-level state change bails out before reaching nested text, so
+ * re-rendering from the root is not enough to restyle the tree.
+ *
+ * The live preference therefore lives in `contexts/FontSizeContext.tsx`
+ * (persisted under `FONT_SIZE_STORAGE_KEY`), and every text node renders
+ * through `components/ui/ScaledText.tsx`, which consumes that context
+ * itself and multiplies baked `fontSize`/`lineHeight` by the current scale
+ * via `scaleStyle`. Context consumers always re-render regardless of
+ * memoized ancestors, so the preference applies app-wide instantly.
+ */
+export type FontSizeChoice = 'Small' | 'Medium' | 'Large';
+
+export const FONT_SIZE_STORAGE_KEY = 'monteai.settings.fontSize';
+
+export const FONT_SIZE_SCALES: Record<FontSizeChoice, number> = {
+  Small: 0.9,
+  Medium: 1,
+  Large: 1.2,
+};
