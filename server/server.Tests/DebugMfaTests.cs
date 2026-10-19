@@ -11,6 +11,7 @@ using Xunit;
 
 namespace server.Tests;
 
+[Collection(WebFactoryCollection.Name)]
 public class DebugMfaTests
 {
     [Fact]
