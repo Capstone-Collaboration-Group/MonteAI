@@ -1,5 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet} from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Radius, Spacing } from '@/constants/theme';
 

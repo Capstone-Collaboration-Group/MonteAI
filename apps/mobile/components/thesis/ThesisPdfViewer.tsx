@@ -13,7 +13,8 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import type { AnnotationResponseDto } from '@monteai/types';

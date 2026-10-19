@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/ScaledText';
 import type { MfaEnrollResponse, MfaStatusResponse } from '@monteai/types';
 import { mfaService } from '@/lib/mfaService';
 import { storeMfaTokens } from '@/lib/mfaSession';

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Image, Text, StyleSheet, Dimensions, Pressable } from 'react-native';
+import { View, Image, StyleSheet, Dimensions, Pressable } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import Animated, { 
     useSharedValue,
