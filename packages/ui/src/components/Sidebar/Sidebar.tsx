@@ -23,9 +23,11 @@ function Sidebar({ collapsed = false, className = "", children, ...props }: Side
 }
 
 // ---------- Header (logo, window controls, whatever the app needs) ----------
+// min-h (not h) so a collapsed stacked control group (bell above the toggle)
+// can grow the header instead of overflowing it.
 function SidebarHeader({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`flex h-14 shrink-0 items-center px-3 ${className}`} {...props}>
+    <div className={`flex min-h-14 shrink-0 items-center px-3 ${className}`} {...props}>
       {children}
     </div>
   );
