@@ -6,6 +6,7 @@ using server.Models.DTOs.ResearchGroup;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
+using NotificationKinds = server.Models.Entities.NotificationKinds;
 
 namespace server.Services.User
 {
@@ -14,7 +15,8 @@ namespace server.Services.User
         IResearchGroupRepository repo,
         IMapper mapper,
         AppDbContext db,
-        IHttpContextAccessor httpContext
+        IHttpContextAccessor httpContext,
+        INotificationService notifications
     ) : IResearchGroupService
     {
         private const int MaxGroupSize = 4;
@@ -162,7 +164,8 @@ namespace server.Services.User
                 }
             }
 
-            return await repo.AddMemberAsync(groupId, studentId);
+            return await repo.AddMemberAsync(groupId, studentId) && await NotifyGroupMemberAsync(
+                studentId, group, NotificationKinds.GroupAdded, "added to");
         }
 
         public async Task<bool> RemoveMemberAsync(Guid groupId, string studentId)
@@ -175,7 +178,29 @@ namespace server.Services.User
             if (studentId == group.LeaderId)
                 throw new InvalidOperationException("The group leader cannot be removed.");
 
-            return await repo.RemoveMemberAsync(groupId, studentId);
+            var removed = await repo.RemoveMemberAsync(groupId, studentId);
+            if (removed)
+                await NotifyGroupMemberAsync(studentId, group, NotificationKinds.GroupRemoved, "removed from");
+            return removed;
+        }
+
+        // Best-effort (NotificationService never throws) — the membership
+        // change must stand even if the notification write fails.
+        private async Task<bool> NotifyGroupMemberAsync(
+            string studentId, ResearchGroup group, string type, string verb)
+        {
+            var title = type == NotificationKinds.GroupAdded
+                ? "Added to a research group"
+                : "Removed from a research group";
+            var body = $"You have been {verb} research group \"{group.GroupName}\"" +
+                       (string.IsNullOrWhiteSpace(group.ResearchTitle)
+                            ? "."
+                            : $" — {group.ResearchTitle}.");
+
+            await notifications.NotifyUserAsync(
+                studentId, type, title, body,
+                NotificationKinds.TargetResearchGroup, group.Id.ToString());
+            return true;
         }
 
         private async Task EnsureCanViewAsync(ResearchGroup group)
