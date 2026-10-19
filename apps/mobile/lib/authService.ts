@@ -256,6 +256,49 @@ export async function changePassword(
   await updatePassword(user, newPassword);
 }
 
+/**
+ * Server-managed password change (POST /auth/change-password): the server
+ * verifies the current password against Firebase and writes the new one via
+ * the Admin SDK — this is the flow that triggers the "password changed"
+ * security email. Prefer this over the client-side changePassword above.
+ */
+export async function changePasswordOnServer(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const token = await getAuthToken();
+  if (!token) throw authError('auth/no-current-user');
+
+  try {
+    await axios.post(
+      `${baseURL}/auth/change-password`,
+      { currentPassword, newPassword },
+      {
+        timeout: 15000,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      const data = err.response?.data as
+        | { message?: string; Message?: string }
+        | undefined;
+      const message = (data?.message ?? data?.Message ?? '').toLowerCase();
+
+      if (status === 429) throw authError('auth/too-many-requests');
+      if (status === 401 && message.includes('password'))
+        throw authError('auth/wrong-password');
+      if (status === 400 && message.includes('at least 6'))
+        throw authError('auth/weak-password');
+    }
+    throw err;
+  }
+}
+
 /** Maps Firebase / network / API errors to user-friendly messages. */
 export function describeAuthError(err: unknown): string {
   const code = (err as { code?: string } | null | undefined)?.code ?? '';

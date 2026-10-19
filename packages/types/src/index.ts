@@ -19,5 +19,6 @@ export * from "./auth";
 export * from "./mfa";
 export * from "./mfa-flow";
 export * from "./member-row";
+export * from "./notification";
 export * from "./panelist"
 export * from "./auth-guards"

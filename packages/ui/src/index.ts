@@ -14,6 +14,7 @@ export * from "./components/Backup";
 export * from "./pages";
 export * from "./components/common";
 export * from "./components/NotificationButton";
+export * from "./components/NotificationBell";
 export * from "./components/Hamburger";
 export * from "./components/announcements/permissions";
 export * from "./components/announcements/institutes";

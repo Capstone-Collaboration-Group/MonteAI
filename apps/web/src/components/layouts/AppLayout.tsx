@@ -1,7 +1,7 @@
 // layouts/AppLayout.tsx
 import { useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation, matchPath } from "react-router-dom";
-import { Sidebar } from "@monteai/ui";
+import { Sidebar, NotificationBell } from "@monteai/ui";
 import {
   Search,
   MessageCircle,
@@ -20,7 +20,22 @@ import CdmLogo from "../../assets/cdm-logo.png";
 import { useUserProfile, useAuth, useChatSessions, queryClient } from "@monteai/hooks";
 import { profileService } from "../../lib/authService";
 import { chatService } from "../../lib/chat/chatService";
+import { notificationService } from "../../lib/notificationService";
 import { auth } from "../../lib/firebase";
+
+// Deep links for notification clicks — each app maps targetType to its router.
+function notificationRoute(targetType: string): string | null {
+  switch (targetType) {
+    case "research_group":
+      return "/research-groups";
+    case "schedule":
+      return "/schedule";
+    case "announcement":
+      return "/announcements";
+    default:
+      return null;
+  }
+}
 
 function AppSidebar({
   onClose,
@@ -78,26 +93,41 @@ function AppSidebar({
             </div>
           </>
         )}
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high md:hidden"
-          aria-label="Close navigation menu"
-        >
-          <X className="h-5 w-5" />
-        </button>
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high md:flex ${
-            collapsed ? "mx-auto" : "ml-auto"
+        {/* Collapsed: toggle on top, bell under it (above the New chat + icon
+            in the body). Expanded: close (mobile), toggle, and bell sit in a
+            row on the right — X and Menu never coexist (md:hidden vs md:flex). */}
+        <div
+          className={`flex items-center ${
+            collapsed ? "mx-auto flex-col gap-1" : "ml-auto gap-1.5"
           }`}
-          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          aria-expanded={!collapsed}
-          title={collapsed ? "Expand navigation" : "Collapse navigation"}
         >
-          <Menu className="h-5 w-5" />
-        </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high md:hidden"
+            aria-label="Close navigation menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high md:flex"
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand navigation" : "Collapse navigation"}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <NotificationBell
+            notificationService={notificationService}
+            onNavigate={(targetType) => {
+              const route = notificationRoute(targetType);
+              if (route) navigate(route);
+            }}
+            className="shrink-0"
+          />
+        </div>
       </Sidebar.Header>
 
       <div className="px-2 pb-2">
@@ -220,6 +250,7 @@ function AppSidebar({
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -270,6 +301,14 @@ export default function AppLayout() {
             className="h-8 w-8 rounded-full object-cover"
           />
           <span className="font-semibold text-on-surface">MonteAI</span>
+          <NotificationBell
+            notificationService={notificationService}
+            onNavigate={(targetType) => {
+              const route = notificationRoute(targetType);
+              if (route) navigate(route);
+            }}
+            className="ml-auto"
+          />
         </header>
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <Outlet />

@@ -9,6 +9,7 @@ using Xunit;
 
 namespace server.Tests;
 
+[Collection(WebFactoryCollection.Name)]
 public class MfaIntegrationTests
 {
     private const string Uid = "mfa-student-1";

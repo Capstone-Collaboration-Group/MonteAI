@@ -269,6 +269,20 @@ try
                     Window = TimeSpan.FromMinutes(1),
                     QueueLimit = 0,
                 }));
+
+        // Password change verifies the CURRENT password against Firebase —
+        // cap attempts per user so the endpoint can't be used to brute-force it.
+        options.AddPolicy("ChangePasswordLimit", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     });
 
@@ -311,6 +325,15 @@ try
     // scope the worker creates.
     builder.Services.AddSingleton<server.Infrastructure.IThesisIngestionQueue, server.Infrastructure.ThesisIngestionQueue>();
     builder.Services.AddHostedService<server.Infrastructure.ThesisIngestionWorker>();
+
+    // Outbound email (MailKit SMTP). Same posture as the ingestion queue:
+    // handlers call IEmailService.Queue(...) and EmailWorker drains it, so a
+    // slow mail server never blocks a response. Enabled defaults to false —
+    // see EmailOptions.
+    builder.Services.Configure<EmailOptions>(
+        builder.Configuration.GetSection(EmailOptions.SectionName));
+    builder.Services.AddSingleton<server.Infrastructure.IEmailQueue, server.Infrastructure.EmailQueue>();
+    builder.Services.AddHostedService<server.Infrastructure.EmailWorker>();
 
     // LLM backend + pool. ILlmBackend is registered explicitly (not via the
     // Scrutor scan) because the pool is a singleton and must not capture a

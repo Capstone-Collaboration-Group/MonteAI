@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
-import { changePassword, describeAuthError } from '@/lib/authService';
+import { changePasswordOnServer, describeAuthError } from '@/lib/authService';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
@@ -51,7 +51,9 @@ export default function ChangePasswordScreen() {
 
     setSubmitting(true);
     try {
-      await changePassword(currentPassword, newPassword);
+      // Server-managed flow: verifies + writes via Firebase on the backend,
+      // which is what triggers the "password changed" security email.
+      await changePasswordOnServer(currentPassword, newPassword);
       Alert.alert('Password updated', 'Your password has been changed successfully.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
