@@ -22,6 +22,8 @@ namespace server.Data
 
         public DbSet<Announcement> Announcements { get; set; }
 
+        public DbSet<Notification> Notifications { get; set; }
+
         public DbSet<ThesisVersion> ThesisVersions { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -365,6 +367,37 @@ namespace server.Data
                         "([CreatedByAdminId] IS NULL AND [CreatedByProgramHeadId] IS NOT NULL)"
                     ));
                 }
+            });
+
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                entity.ToTable("Notifications");
+                entity.HasKey(e => e.Id);
+                // Client-generated Guid — same posture as Firebase UIDs: no DB default.
+                entity.Property(e => e.Id)
+                      .ValueGeneratedNever();
+                entity.Property(e => e.UserId)
+                      .HasMaxLength(128)
+                      .IsRequired();
+                entity.Property(e => e.Type)
+                      .HasMaxLength(50)
+                      .IsRequired();
+                entity.Property(e => e.Title)
+                      .HasMaxLength(256)
+                      .IsRequired();
+                entity.Property(e => e.Body)
+                      .HasMaxLength(1000)
+                      .IsRequired();
+                entity.Property(e => e.TargetType)
+                      .HasMaxLength(50)
+                      .IsRequired();
+                entity.Property(e => e.TargetId)
+                      .HasMaxLength(64);
+                entity.Property(e => e.IsRead)
+                      .HasDefaultValue(false);
+                // CreatedAt is stamped in code (DateTime.UtcNow) — no
+                // GETUTCDATE() default so the SQLite test schema matches.
+                entity.HasIndex(e => new { e.UserId, e.IsRead, e.CreatedAt });
             });
         }
 
