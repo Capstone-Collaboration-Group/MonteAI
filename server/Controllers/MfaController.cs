@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using server.Models.DTOs.Mfa;
 using server.Models.DTOs.User;
 using server.RateLimiting;
+using server.Services.Email;
 using server.Services.Interfaces;
+using server.Services.Theses;
 
 namespace server.Controllers
 {
@@ -21,6 +23,7 @@ namespace server.Controllers
         private readonly IFacultyService _facultyService;
         private readonly IProgramHeadService _programHeadService;
         private readonly IAdminService _adminService;
+        private readonly IEmailService _email;
         private readonly ILogger<MfaController> _logger;
 
         public MfaController(
@@ -32,6 +35,7 @@ namespace server.Controllers
             IFacultyService facultyService,
             IProgramHeadService programHeadService,
             IAdminService adminService,
+            IEmailService email,
             ILogger<MfaController> logger)
         {
             _totp = totp;
@@ -42,6 +46,7 @@ namespace server.Controllers
             _facultyService = facultyService;
             _programHeadService = programHeadService;
             _adminService = adminService;
+            _email = email;
             _logger = logger;
         }
 
@@ -162,6 +167,14 @@ namespace server.Controllers
             var tokens = _sessionTokens.IssueSessionTokens(uid, profile.Role, profile.Email);
 
             _logger.LogInformation("TOTP enabled for UID {Uid}", uid);
+
+            // Security email — fire-and-forget into the background queue.
+            if (!string.IsNullOrEmpty(user.Email))
+            {
+                var content = EmailTemplates.MfaEnabled(ThesisAuthorNames.FormatPersonName(user), DateTime.UtcNow);
+                _email.Queue(user.Email!, content.Subject, content.Html, content.Text);
+            }
+
             return Ok(new MfaConfirmEnrollResponseDto
             {
                 RecoveryCodes = recovery.PlainCodes,
@@ -201,6 +214,14 @@ namespace server.Controllers
             await _mfaStore.SaveAsync();
 
             _logger.LogInformation("TOTP disabled for UID {Uid}", uid);
+
+            // Security email — fire-and-forget into the background queue.
+            if (!string.IsNullOrEmpty(user.Email))
+            {
+                var content = EmailTemplates.MfaDisabled(ThesisAuthorNames.FormatPersonName(user), DateTime.UtcNow);
+                _email.Queue(user.Email!, content.Subject, content.Html, content.Text);
+            }
+
             return Ok(new { Message = "Two-factor authentication disabled." });
         }
 
