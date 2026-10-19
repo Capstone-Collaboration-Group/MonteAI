@@ -13,6 +13,8 @@ import { Href, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
+import { userService } from '@/lib/userService';
+import type { UserProfileDto } from '@monteai/types';
 
 const DRAWER_WIDTH = 320;
 const OVERLAY_OPACITY = 0.4;
@@ -72,6 +74,25 @@ export function SidebarDrawer({
   const router = useRouter();
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const [profile, setProfile] = React.useState<UserProfileDto | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    userService
+      .getMe()
+      .then((me) => { if (active) setProfile(me); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [visible]);
+
+  const displayName = profile
+    ? `${profile.firstName} ${profile.lastName}`.trim()
+    : 'Signed out';
+  const initials = profile
+    ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase() || '?'
+    : '—';
+  const displayRole = profile?.role ?? '';
 
   const surface = useThemeColor({}, 'surface');
   const heading = useThemeColor({}, 'onSurface');
@@ -219,14 +240,21 @@ export function SidebarDrawer({
         <View style={[s.footer, { borderTopColor: outline }]}>
           <View style={s.userRow}>
             <View style={[s.avatar, { backgroundColor: primary }]}>
-              <Text style={[s.avatarText, { color: onPrimary }]}>JD</Text>
+              <Text style={[s.avatarText, { color: onPrimary }]}>{initials}</Text>
             </View>
             <View style={s.userInfo}>
-              <Text style={[s.userName, { color: heading }]}>Jane Doe</Text>
-              <Text style={[s.userRole, { color: body }]}>Academic Researcher</Text>
+              <Text style={[s.userName, { color: heading }]}>{displayName}</Text>
+              <Text style={[s.userRole, { color: body }]}>{displayRole}</Text>
             </View>
           </View>
-          <Pressable hitSlop={8}>
+          <Pressable
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+            onPress={() => {
+              router.push('/settings');
+              onClose();
+            }}>
             <MaterialIcons name="settings" size={20} color={body} />
           </Pressable>
         </View>

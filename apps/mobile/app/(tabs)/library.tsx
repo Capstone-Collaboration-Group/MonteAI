@@ -22,6 +22,8 @@ import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { thesisService } from '@/lib/thesisService';
 import { THESIS_PROGRAMS, type ThesisProgram, type ThesisResponseDto } from '@monteai/types';
 
+const PAGE_SIZE = 10;
+
 /**
  * Library tab — published-thesis catalog.
  *
@@ -46,6 +48,7 @@ export default function LibraryScreen() {
   const [program, setProgram] = useState<ThesisProgram | null>(null);
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [shown, setShown] = useState(PAGE_SIZE);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
 
   const loadTheses = useCallback(async () => {
@@ -80,6 +83,13 @@ export default function LibraryScreen() {
         t.abstract?.toLowerCase().includes(q),
     );
   }, [theses, search]);
+
+  // Client-side pagination — "Load More" reveals the next page.
+  const page = useMemo(() => visibleTheses.slice(0, shown), [visibleTheses, shown]);
+  const hasMore = shown < visibleTheses.length;
+
+  // Reset pagination whenever the result set changes (new search/filter).
+  useEffect(() => { setShown(PAGE_SIZE); }, [search, program]);
 
   const hasFilter = program !== null || search.trim().length > 0;
 
@@ -140,7 +150,7 @@ export default function LibraryScreen() {
             {hasFilter ? 'No theses match your filters' : 'No theses found'}
           </Text>
         ) : (
-          visibleTheses.map((t) => (
+          page.map((t) => (
             <Pressable
               key={t.id}
               onPress={() => router.push(`/thesis/${t.id}` as Href)}
@@ -169,8 +179,12 @@ export default function LibraryScreen() {
           ))
         )}
 
-        {!loading && visibleTheses.length > 0 && (
-          <Pressable style={s.loadMore}>
+        {!loading && hasMore && (
+          <Pressable
+            onPress={() => setShown((n) => n + PAGE_SIZE)}
+            accessibilityRole="button"
+            accessibilityLabel="Load more theses"
+            style={({ pressed }) => [s.loadMore, pressed && { opacity: 0.85 }]}>
             <Text style={[s.loadMoreText, { color: primary }]}>Load More</Text>
             <MaterialIcons name="expand-more" size={20} color={primary} />
           </Pressable>

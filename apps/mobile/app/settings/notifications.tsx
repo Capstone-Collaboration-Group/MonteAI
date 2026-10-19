@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -9,9 +9,16 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
+
+export const NOTIFICATIONS_STORAGE_KEY = 'monteai.settings.notifications';
+
+type NotificationPrefs = { email: boolean; research: boolean; thesis: boolean };
+
+const DEFAULT_PREFS: NotificationPrefs = { email: true, research: false, thesis: true };
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -22,9 +29,34 @@ export default function NotificationsScreen() {
   const primary = useThemeColor({}, 'primary');
   const border = useThemeColor({}, 'outline');
 
-  const [email, setEmail] = useState(true);
-  const [research, setResearch] = useState(false);
-  const [thesis, setThesis] = useState(true);
+  const [email, setEmail] = useState(DEFAULT_PREFS.email);
+  const [research, setResearch] = useState(DEFAULT_PREFS.research);
+  const [thesis, setThesis] = useState(DEFAULT_PREFS.thesis);
+
+  useEffect(() => {
+    AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY)
+      .then((stored) => {
+        if (!stored) return;
+        const parsed = JSON.parse(stored) as Partial<NotificationPrefs>;
+        if (typeof parsed.email === 'boolean') setEmail(parsed.email);
+        if (typeof parsed.research === 'boolean') setResearch(parsed.research);
+        if (typeof parsed.thesis === 'boolean') setThesis(parsed.thesis);
+      })
+      .catch(() => {
+        // keep defaults
+      });
+  }, []);
+
+  // Persist immediately on any change so the toggles survive navigation/relaunch.
+  const update = (key: keyof NotificationPrefs, value: boolean) => {
+    const next: NotificationPrefs = { email, research, thesis, [key]: value };
+    setEmail(next.email);
+    setResearch(next.research);
+    setThesis(next.thesis);
+    AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(next)).catch(() => {
+      // preference is best-effort — next launch retries
+    });
+  };
 
   const NotificationRow = ({
     title,
@@ -86,21 +118,21 @@ export default function NotificationsScreen() {
           title="Email Notification"
           subtitle="Receive updates and important information via email"
           value={email}
-          onChange={setEmail}
+          onChange={(v) => update('email', v)}
         />
 
         <NotificationRow
           title="Research Update"
           subtitle="Get notified about new research and publications"
           value={research}
-          onChange={setResearch}
+          onChange={(v) => update('research', v)}
         />
 
         <NotificationRow
           title="Thesis Repository Announcements"
           subtitle="Receive announcements from the thesis repository"
           value={thesis}
-          onChange={setThesis}
+          onChange={(v) => update('thesis', v)}
         />
       </ScrollView>
     </SafeAreaView>
