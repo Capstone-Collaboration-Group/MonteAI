@@ -212,59 +212,24 @@ namespace server.Controllers
             }
         }
 
-        // Desktop-driven ingestion: the Electron pipeline extracts + chunks the
-        // abstract, then this endpoint embeds and upserts it (see ThesisService).
+        // Metadata-only ingestion: approve/reindex from the desktop panel (or
+        // any Admin tool). The server resolves authors/year/abstract itself
+        // and synchronously upserts ONE metadata vector — no full text, no
+        // staging, no background job.
         [HttpPost("ingest")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> IngestThesis([FromBody] IngestThesisDto dto)
         {
             var result = await _service.IngestAsync(dto);
-            _logger.LogInformation("Thesis {ThesisId} ingestion finished with status {Status}", dto.ThesisId, result.Status);
-            return Ok(new { result, Message = "Thesis Ingestion successfully completed and added to knowledge of MonteAI." });
-        }
-
-        // Desktop-driven FULL-TEXT ingestion (async): the Electron pipeline
-        // extracts every page + title-page metadata and POSTs the raw text
-        // here. The server upserts the metadata vector synchronously (so the
-        // thesis is citable immediately), stages the text, enqueues the body
-        // chunk/embed job for the background worker, and returns 202 —
-        // concurrent approvals never block each other.
-        [HttpPost("ingest/full")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> IngestFullThesis([FromBody] IngestFullThesisDto dto)
-        {
-            // Metadata-only requests may omit the text entirely (the desktop
-            // sends just the title-page pages, or nothing, after the admin
-            // confirms no headings were detected).
-            if (dto is null || (string.IsNullOrWhiteSpace(dto.FullText) && !dto.MetadataOnly))
-                return BadRequest(new { Message = "Full thesis text is required." });
-
-            var result = await _service.IngestFullAsync(dto);
             if (result.Status == "Failed")
             {
-                _logger.LogWarning("Thesis {ThesisId} full-text ingestion could not be queued", dto.ThesisId);
+                _logger.LogWarning("Thesis {ThesisId} metadata ingestion failed", dto.ThesisId);
                 return StatusCode(StatusCodes.Status500InternalServerError,
-                    new { Message = "Thesis ingestion could not be queued. Please try again." });
+                    new { result, Message = "Thesis ingestion failed. Please try again." });
             }
 
-            if (result.Status == "MetadataOnly")
-            {
-                _logger.LogInformation(
-                    "Thesis {ThesisId} indexed metadata-only (no chapter headings) — 1 metadata vector live",
-                    dto.ThesisId);
-                return Accepted(new
-                {
-                    result,
-                    Message = "Thesis indexed from its metadata only — no chapter headings were detected, so full text was not vectorized.",
-                });
-            }
-
-            _logger.LogInformation("Thesis {ThesisId} full-text ingestion queued (metadata vector live)", dto.ThesisId);
-            return Accepted(new
-            {
-                result,
-                Message = "Thesis metadata indexed; full-text ingestion is running in the background.",
-            });
+            _logger.LogInformation("Thesis {ThesisId} metadata ingestion finished with status {Status}", dto.ThesisId, result.Status);
+            return Ok(new { result, Message = "Thesis metadata successfully indexed and added to the knowledge of MonteAI." });
         }
         [HttpPut("update/details/{id}")]
         [Authorize(Roles = "Student,Admin")]

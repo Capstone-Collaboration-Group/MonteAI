@@ -154,11 +154,22 @@ namespace server.Services.AI.Agent
             return flat.Length <= max ? flat : flat[..max] + "…";
         }
 
-        /// <summary>User prompt for the synthesis stage: the question, the gathered sources, and leftover tool observations.</summary>
+        /// <summary>
+        /// User prompt for the synthesis stage: the question, the gathered sources, and leftover tool observations.
+        /// The trailing instruction depends on whether sources exist:
+        ///  - hasSources: narrate from the sources AND explicitly FORBIND the
+        ///    agent's fixed "No relevant theses were found…" reply (reserved
+        ///    for empty sources) — gpt-5-nano fired it even with 4 sources
+        ///    when none directly matched the asked method.
+        ///  - no sources: nothing here — the block text below already mirrors
+        ///    the agent's own no-sources/greeting rules verbatim so the two
+        ///    instruction sets cannot fight each other.
+        /// </summary>
         public static string BuildAnswerUserPrompt(
             string userQuery,
             string sourcesBlock,
-            IReadOnlyList<string> observations)
+            IReadOnlyList<string> observations,
+            bool hasSources)
         {
             var sb = new StringBuilder();
             sb.Append("SOURCES:\n").AppendLine(sourcesBlock);
@@ -173,7 +184,12 @@ namespace server.Services.AI.Agent
                 }
             }
 
-            sb.Append("\nWrite a natural narrative answer (not a bullet list). Attribute findings to authors, e.g. \"According to Basulgan et al. (2025)…\". Keep the [Source n] marker after each cited claim.");
+            if (hasSources)
+            {
+                sb.Append("\nWrite a natural narrative answer (not a bullet list). Attribute findings to authors, e.g. \"According to Basulgan et al. (2025)…\". Keep the [Source n] marker after each cited claim.");
+                sb.Append("\nSOURCES ARE NON-EMPTY — the fixed \"No relevant theses were found…\" reply is FORBIDDEN here; it is reserved for an EMPTY sources list. If no source directly answers the question, still write prose grounded strictly in the sources above: name the closest ones, summarize what they DO cover, and state plainly that their abstracts do not explicitly address the asked aspect. Never invent findings beyond them.");
+            }
+
             return sb.ToString();
         }
     }

@@ -1,5 +1,4 @@
-﻿using server.Infrastructure;
-using server.Models.DTOs.Thesis;
+﻿using server.Models.DTOs.Thesis;
 using server.Models.Entities;
 
 namespace server.Services.Interfaces
@@ -28,24 +27,13 @@ namespace server.Services.Interfaces
 
         Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false);
 
+        /// <summary>
+        /// METADATA-ONLY ingestion (POST /thesis/ingest): resolves authors/
+        /// year/abstract server-side, deletes any previous vectors for the
+        /// thesis, upserts the single metadata vector, and marks the row
+        /// Approved → Indexed. Returns "Indexed" or "Failed".
+        /// </summary>
         Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto);
-
-        /// <summary>
-        /// Phase 1 of async full-text ingestion (POST /thesis/ingest/full):
-        /// stages the extracted text to blob storage, upserts the single
-        /// metadata vector so the thesis is citable immediately, marks the row
-        /// Approved/Indexing, and enqueues the body job for the background
-        /// worker. Returns "Queued" or "Failed".
-        /// </summary>
-        Task<IngestFullThesisResponseDto> IngestFullAsync(IngestFullThesisDto dto);
-
-        /// <summary>
-        /// Phase 2 (background worker): chunks the staged full text, wipes old
-        /// BODY vectors only (the metadata vector survives), batch-upserts the
-        /// body chunks, and marks the thesis Indexed. Throws on failure so the
-        /// worker can retry.
-        /// </summary>
-        Task ProcessQueuedIngestionAsync(ThesisIngestionJob job, CancellationToken cancellationToken = default);
 
         Task<string?> GetDownloadUrlAsync(Guid thesisId);
         Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateThesisdto, string callerId, bool isAdmin);

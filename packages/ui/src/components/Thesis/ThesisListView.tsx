@@ -31,8 +31,8 @@ const ACTIONS_BY_STATUS: Record<ThesisStatus, ThesisAction[]> = {
   approved: [
     { label: "Request Revision", action: "revision", className: "text-amber-600 hover:bg-amber-600/10" },
     { label: "Reject", action: "reject", className: "text-error hover:bg-error/10" },
-    // Reindex re-runs full-text ingestion — only offered once the thesis is
-    // already past moderation (admin-gated via allowedActions; desktop only).
+    // Reindex re-runs metadata-only ingestion — only offered once the thesis
+    // is already past moderation (admin-gated via allowedActions; desktop only).
     { label: "Reindex", action: "reindex", className: "text-primary hover:bg-primary/10" },
   ],
   rejected: [

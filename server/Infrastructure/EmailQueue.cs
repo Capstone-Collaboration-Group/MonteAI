@@ -1,10 +1,9 @@
 // server/Infrastructure/EmailQueue.cs
 //
-// In-process queue for outbound email — same posture as ThesisIngestionQueue:
-// request handlers enqueue (never block on SMTP round-trips) and EmailWorker
-// drains the channel in the background. Unbounded because email volume here
-// is tiny (security notices) and dropping a password-change email is worse
-// than queueing it.
+// In-process queue for outbound email: request handlers enqueue (never block
+// on SMTP round-trips) and EmailWorker drains the channel in the background.
+// Unbounded because email volume here is tiny (security notices) and
+// dropping a password-change email is worse than queueing it.
 //
 // Registered as a SINGLETON in Program.cs (outside the Scrutor scan —
 // shared state).

@@ -696,7 +696,8 @@ namespace server.Services.AI
             // Observations are intentionally NOT replayed here: they repeat the
             // same excerpts already rendered by BuildSourcesBlock (up to 4000
             // chars each), which only inflated the prompt, cost and latency.
-            messages.Add(new UserChatMessage(AgentPrompts.BuildAnswerUserPrompt(query, BuildSourcesBlock(loop.Sources), [])));
+            messages.Add(new UserChatMessage(AgentPrompts.BuildAnswerUserPrompt(
+                query, BuildSourcesBlock(loop.Sources), [], loop.Sources.Count > 0)));
             return messages;
         }
 
@@ -756,15 +757,22 @@ namespace server.Services.AI
 
         /// <summary>
         /// Renders the numbered source block the synthesizer cites with [Source n].
-        /// Kept compact for the ~1000-token/query budget: 4 sources x ~200-char
-        /// excerpt. ThesisId is intentionally omitted (only the planner's tool
-        /// observations need it).
+        /// Uses FullExcerpt (complete abstract) when present — the 600-char
+        /// Snippet cut methodology sentences off the END of abstracts, which
+        /// made the synthesizer report "no explicit indication" of methods
+        /// that were in fact embedded in Pinecone. Kept within the ~4000-char
+        /// cap per source (4-6 sources ≈ 3k tokens of prompt). ThesisId is
+        /// intentionally omitted (only the planner's tool observations need it).
         /// </summary>
         private static string BuildSourcesBlock(IReadOnlyList<ChatSourceDto> sources)
         {
             if (sources.Count == 0)
             {
-                return "(No sources were retrieved. If the question is a greeting or small talk, reply conversationally; otherwise state that the repository has no relevant material and suggest broadening the question.)";
+                // Mirrors the Foundry synth agent's no-sources/greeting rules
+                // VERBATIM — the previous wording ("suggest broadening the
+                // question") directly contradicted the agent's fixed reply
+                // and gave the model two conflicting instructions.
+                return "(No sources were retrieved for this question. If it is a greeting or small talk, reply warmly as MonteAI — a thesis-research assistant for Colegio de Montalban's institutional repository. Otherwise reply with EXACTLY: \"No relevant theses were found in the repository for this topic. Please try a different topic or different keywords.\")";
             }
 
             var sb = new StringBuilder();
@@ -775,7 +783,7 @@ namespace server.Services.AI
                   .Append("  Title: ").Append(s.Title ?? "Untitled").Append('\n')
                   .Append("  Author(s): ").Append(string.IsNullOrWhiteSpace(s.Authors) ? "Unknown" : s.Authors).Append('\n')
                   .Append("  Year: ").Append(string.IsNullOrWhiteSpace(s.PublicationYear) ? "n.d." : s.PublicationYear).Append('\n')
-                  .Append("  Excerpt: ").Append(s.Snippet ?? "(no excerpt)").Append('\n');
+                  .Append("  Excerpt: ").Append(s.FullExcerpt ?? s.Snippet ?? "(no excerpt)").Append('\n');
             }
             return sb.ToString();
         }
@@ -830,6 +838,7 @@ namespace server.Services.AI
             Authors = chunk.Authors,
             PublicationYear = chunk.PublicationYear,
             Snippet = chunk.Text.Length > 600 ? chunk.Text[..600] + "…" : chunk.Text,
+            FullExcerpt = chunk.Text.Length > 4000 ? chunk.Text[..4000] + "…" : chunk.Text,
             Score = double.TryParse(chunk.RelevanceScore, out var score) ? score : null,
             Url = chunk.Url,
         };

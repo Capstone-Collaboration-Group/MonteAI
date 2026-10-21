@@ -41,10 +41,17 @@ namespace server.Services.Theses
             IReadOnlyList<string>? authors = null,
             string? publicationYear = null)
         {
-            // Merge into the nested map key — creates the document when missing
-            // and leaves sibling version entries intact. Admin uploads add the
-            // metadata fields in the SAME write so there is no partial state.
-            var payload = new Dictionary<string, object> { [Key(versionNumber)] = text };
+            // NESTED map {"abstracts": {"<n>": text}} — a dotted dictionary
+            // KEY ("abstracts.<n>") is stored by this SDK version as a
+            // LITERAL top-level field name that no reader finds (it silently
+            // embedded "(abstract not yet available)" for every thesis).
+            // MergeAll merges the nested map field-by-field, so sibling
+            // version entries survive. Admin uploads add the metadata fields
+            // in the SAME write so there is no partial state.
+            var payload = new Dictionary<string, object>
+            {
+                [AbstractsField] = new Dictionary<string, object> { [versionNumber.ToString()] = text }
+            };
 
             if (authors is { Count: > 0 })
                 payload[AuthorsField] = authors.ToList();
@@ -61,7 +68,7 @@ namespace server.Services.Theses
         public async Task<string?> GetLatestAsync(Guid thesisId)
         {
             var snapshot = await DocRef(thesisId).GetSnapshotAsync();
-            if (!snapshot.Exists || !snapshot.ContainsField(AbstractsField)) return null;
+            if (!snapshot.Exists) return null;
 
             return ReadLatestAbstract(snapshot);
         }
@@ -121,18 +128,17 @@ namespace server.Services.Theses
             var snapshot = await DocRef(thesisId).GetSnapshotAsync();
 
             var latestKey = 1;
-            if (snapshot.Exists && snapshot.ContainsField(AbstractsField))
+            if (snapshot.Exists)
             {
-                var map = snapshot.GetValue<Dictionary<string, object>>(AbstractsField);
-                foreach (var entry in map)
-                {
-                    if (int.TryParse(entry.Key, out var version) && version >= latestKey)
-                        latestKey = version;
-                }
+                foreach (var version in EnumerateVersions(snapshot))
+                    latestKey = Math.Max(latestKey, version);
             }
 
             await DocRef(thesisId).SetAsync(
-                new Dictionary<string, object> { [Key(latestKey)] = text },
+                new Dictionary<string, object>
+                {
+                    [AbstractsField] = new Dictionary<string, object> { [latestKey.ToString()] = text }
+                },
                 SetOptions.MergeAll);
 
             _logger.LogInformation(
@@ -143,12 +149,28 @@ namespace server.Services.Theses
         {
             var doc = DocRef(thesisId);
             var snapshot = await doc.GetSnapshotAsync();
-            if (!snapshot.Exists || !snapshot.ContainsField(AbstractsField)) return;
+            if (!snapshot.Exists) return;
 
-            await doc.UpdateAsync(new Dictionary<string, object>
+            // Nested map entry (intended shape).
+            if (snapshot.ContainsField(AbstractsField))
             {
-                [Key(versionNumber)] = FieldValue.Delete
-            });
+                await doc.UpdateAsync(new Dictionary<string, object>
+                {
+                    [Key(versionNumber)] = FieldValue.Delete
+                });
+            }
+
+            // Legacy literal dotted field, if still present. FieldPath takes
+            // the name as ONE literal segment — the string-key overload would
+            // split it into a nested path that matches nothing.
+            var literalName = Key(versionNumber);
+            if (snapshot.ToDictionary().ContainsKey(literalName))
+            {
+                await doc.UpdateAsync(new Dictionary<FieldPath, object>
+                {
+                    [new FieldPath(literalName)] = FieldValue.Delete
+                });
+            }
 
             _logger.LogInformation(
                 "Abstract entry removed for thesis {ThesisId} version {Version}", thesisId, versionNumber);
@@ -174,9 +196,7 @@ namespace server.Services.Theses
                 {
                     var snapshot = await DocRef(dto.Id).GetSnapshotAsync();
 
-                    dto.Abstract = snapshot.Exists && snapshot.ContainsField(AbstractsField)
-                        ? ReadLatestAbstract(snapshot)
-                        : null;
+                    dto.Abstract = snapshot.Exists ? ReadLatestAbstract(snapshot) : null;
 
                     // Admin archival metadata — only overwrite the mapped
                     // (research-group) values when Firestore actually has them.
@@ -208,25 +228,87 @@ namespace server.Services.Theses
             }));
         }
 
-        // Highest-versioned entry of the "abstracts" map.
+        // Highest-versioned entry of the "abstracts" map — tolerates the
+        // legacy literal "abstracts.<n>" top-level fields written by the
+        // dotted-key bug (nested map wins when both shapes coexist).
         private static string? ReadLatestAbstract(DocumentSnapshot snapshot)
         {
-            var map = snapshot.GetValue<Dictionary<string, object>>(AbstractsField);
-
             string? text = null;
             var bestVersion = int.MinValue;
 
-            foreach (var entry in map)
+            if (snapshot.ContainsField(AbstractsField))
             {
-                if (!int.TryParse(entry.Key, out var version)) continue;
+                try
+                {
+                    var map = snapshot.GetValue<Dictionary<string, object>>(AbstractsField);
+                    foreach (var entry in map)
+                    {
+                        if (int.TryParse(entry.Key, out var version) && version > bestVersion)
+                        {
+                            bestVersion = version;
+                            text = entry.Value?.ToString();
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // Wrong type on the field — fall through to the literal scan.
+                }
+            }
+
+            foreach (var (version, value) in EnumerateLiteralVersions(snapshot))
+            {
                 if (version > bestVersion)
                 {
                     bestVersion = version;
-                    text = entry.Value?.ToString();
+                    text = value;
                 }
             }
 
             return text;
+        }
+
+        // Version numbers present on the doc (nested map + literal fields).
+        private static IEnumerable<int> EnumerateVersions(DocumentSnapshot snapshot)
+        {
+            foreach (var version in ReadNestedVersions(snapshot))
+                yield return version;
+
+            foreach (var (version, _) in EnumerateLiteralVersions(snapshot))
+                yield return version;
+        }
+
+        private static List<int> ReadNestedVersions(DocumentSnapshot snapshot)
+        {
+            var versions = new List<int>();
+            if (!snapshot.ContainsField(AbstractsField)) return versions;
+
+            try
+            {
+                var map = snapshot.GetValue<Dictionary<string, object>>(AbstractsField);
+                foreach (var entry in map)
+                    if (int.TryParse(entry.Key, out var version))
+                        versions.Add(version);
+            }
+            catch (Exception)
+            {
+                // Wrong type on the field — literal scan still runs.
+            }
+
+            return versions;
+        }
+
+        // Legacy dotted-key shape: top-level fields literally named
+        // "abstracts.<n>" instead of a nested map entry.
+        private static IEnumerable<(int Version, string? Value)> EnumerateLiteralVersions(DocumentSnapshot snapshot)
+        {
+            const string prefix = "abstracts.";
+            foreach (var field in snapshot.ToDictionary())
+            {
+                if (!field.Key.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                if (!int.TryParse(field.Key[prefix.Length..], out var version)) continue;
+                yield return (version, field.Value?.ToString());
+            }
         }
 
         // Firestore materializes arrays as List<object> (strings inside);

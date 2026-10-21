@@ -1,33 +1,31 @@
 // server/Services/AI/PineconeService.cs
 //
 // Pinecone + Azure OpenAI embedding integration — the vector-store layer of
-// the RAG pipeline.
+// the RAG pipeline. METADATA-ONLY: one vector per thesis.
 //
 // ── INGESTION (called by ThesisService.IngestAsync) ─────────────────────────
-//   chunks ──> EmbedBatchAsync (16 texts per text-embedding-3-small call,
-//              instead of one HTTP request per chunk). What gets EMBEDDED is
-//              BuildEmbeddingText: a Title/Authors/Publication year header
-//              above the abstract, so "studies by <author>" and year-bounded
-//              questions can match — the abstract alone never contains
-//              author names or years. metadata["abstract"] keeps the RAW
-//              excerpt for citations/prompts.
-//          ──> one bulk UpsertRequest per 100 vectors, with metadata:
-//              abstract, title, url (blob path, NEVER a SAS link), authors,
-//              publication_year, journal, thesis_id, chunk_index, uploaded_at
+//   one text-embedding-3-small call embeds BuildMetadataEmbeddingText: a
+//   Title/Authors/Publication year header above the abstract, so "studies by
+//   <author>" and year-bounded questions can match — the abstract alone never
+//   contains author names or years. metadata["abstract"] keeps the RAW
+//   excerpt for citations/prompts. The vector id is deterministic
+//   (thesis_{id}_meta), so re-ingesting the same thesis REPLACES its vector.
 //
-// ── RETRIEVAL (called by the agent's semantic_search tool and the fallback
-//   RAG path) ────────────────────────────────────────────────────────────────
+// ── RETRIEVAL (called by the agent's semantic_search tool, the deterministic
+//   fast path, and catalog semantic search) ──────────────────────────────────
 //   query ──> DetectYearRange (fills YearFrom/YearTo from years in the query
 //             when the planner omitted them — small models do that often)
-//          ──> one embedding call ──> Pinecone QueryAsync(TopK, Filter)
+//          ──> one embedding call ──> Pinecone QueryAsync(TopK, Filter) on
+//             the METADATA namespace only
 //          ──> score-threshold filter ──> mapped to Chunk records (with the
 //              real match score and thesis_id for citation linking)
 //
 // ── DELETION ────────────────────────────────────────────────────────────────
-//   DeleteThesisVectorsAsync lists vector IDs by the "thesis_{id}_chunk_"
-//   prefix (paginated) and deletes them, then also deletes by the thesis_id
-//   metadata filter. This keeps re-ingestion idempotent and removes vectors
-//   when a thesis is edited or deleted.
+//   DeleteThesisVectorsAsync filter-deletes by thesis_id in every namespace,
+//   then prefix-scans for legacy thesis_{id}_chunk_* ids (pre-metadata-only
+//   full-text vectors, which may still sit in the default namespace) and
+//   deletes the deterministic metadata id. This keeps re-ingestion idempotent
+//   and removes vectors when a thesis is edited or deleted.
 
 using System.Text;
 using System.Text.RegularExpressions;
@@ -68,9 +66,6 @@ namespace server.Services.AI
         /// <summary>Namespace of the per-thesis metadata vector (thesis_{id}_meta).</summary>
         private string MetadataNamespace => _config.MetadataNamespace;
 
-        /// <summary>Namespace of body chunks (thesis_{id}_chunk_*).</summary>
-        private string BodyNamespace => _config.BodyNamespace;
-
         // ────────────────────────── RETRIEVAL ──────────────────────────
 
         public async Task<List<Chunk>> RetrieveRelevantChunksAsync(
@@ -85,7 +80,7 @@ namespace server.Services.AI
             }
 
             // Planner-supplied years win; otherwise detect them in the query
-            // text itself. Phi-4-mini often omits yearFrom/yearTo despite the
+            // text itself. Small models often omit yearFrom/yearTo despite the
             // few-shot examples, and the agent's guaranteed fallback passes no
             // options at all — without this, "published in 2019" would only
             // match on topic similarity (the year is not part of the embedding
@@ -102,31 +97,22 @@ namespace server.Services.AI
             var filter = BuildFilter(options);
             var index = _pineconeClient.Index(IndexName);
 
-            // 2. Query BOTH namespaces with the same vector/filter: the
-            //    metadata namespace holds the abstract-level vector, the body
-            //    namespace holds full-text section chunks. Merging by score
-            //    lets a citation come from whichever is the better match.
-            var matches = new List<(float Score, Metadata? Metadata)>();
-            foreach (var ns in new[] { MetadataNamespace, BodyNamespace })
+            // 2. Query the metadata namespace — the ONLY namespace that holds
+            //    vectors (one per thesis: title/author/year/abstract).
+            var request = new QueryRequest
             {
-                var request = new QueryRequest
-                {
-                    Vector = queryVector,
-                    TopK = topK,
-                    IncludeMetadata = true,
-                    IncludeValues = false,
-                    Namespace = ns,
-                };
-                if (filter is not null) request.Filter = filter;
+                Vector = queryVector,
+                TopK = topK,
+                IncludeMetadata = true,
+                IncludeValues = false,
+                Namespace = MetadataNamespace,
+            };
+            if (filter is not null) request.Filter = filter;
 
-                var response = await index.QueryAsync(request, cancellationToken: cancellationToken);
-                if (response?.Matches is null)
-                {
-                    _logger.LogInformation("Pinecone returned no matches from namespace {Namespace}", ns);
-                    continue;
-                }
-                matches.AddRange(response.Matches.Select(m => (m.Score ?? 0f, m.Metadata)));
-            }
+            var response = await index.QueryAsync(request, cancellationToken: cancellationToken);
+            List<(float Score, Metadata? Metadata)> matches = response?.Matches?
+                .Select(m => (m.Score ?? 0f, m.Metadata))
+                .ToList() ?? new List<(float Score, Metadata? Metadata)>();
 
             if (matches.Count == 0)
             {
@@ -144,10 +130,7 @@ namespace server.Services.AI
                 {
                     var metadata = match.Metadata;
                     return new Chunk(
-                        // Body chunks store their excerpt under "text"
-                        // (namespace full-text-chunks); the metadata vector and
-                        // legacy vectors store it under "abstract".
-                        Text: GetString(metadata, "text") ?? GetString(metadata, "abstract") ?? string.Empty,
+                        Text: GetString(metadata, "abstract") ?? string.Empty,
                         Title: GetString(metadata, "title"),
                         Url: GetString(metadata, "url"),
                         Authors: GetString(metadata, "authors"),
@@ -160,22 +143,9 @@ namespace server.Services.AI
                 .ToList();
 
             _logger.LogInformation(
-                "Pinecone returned {Total} merged matches across namespaces, {Kept} passed the {Threshold} score threshold",
+                "Pinecone returned {Total} matches, {Kept} passed the {Threshold} score threshold",
                 matches.Count, chunks.Count, threshold);
 
-
-            _logger.LogInformation(
-    "Pinecone returned {Total} merged matches across namespaces, {Kept} passed the {Threshold} score threshold",
-    matches.Count, chunks.Count, threshold);
-
-// Raw retrieved text, one log entry per chunk
-for (var i = 0; i < chunks.Count; i++)
-{
-    var c = chunks[i];
-    _logger.LogInformation(
-        "Chunk {Rank} | score={Score} | thesis={ThesisId} | title={Title}\n{Text}",
-        i + 1, c.RelevanceScore, c.ThesisId, c.Title, c.Text);
-}
             return chunks;
         }
 
@@ -287,12 +257,12 @@ for (var i = 0; i < chunks.Count; i++)
 
             try
             {
-                // Same embedding recipe as body chunks (Title/Authors/Year
-                // header above the text) so author/year questions match the
-                // metadata vector too. The explicit OpenAIEmbedding type
-                // triggers the implicit ClientResult -> model conversion.
+                // One embedding call: Title/Authors/Year header above the
+                // abstract so author/year questions match. The explicit
+                // OpenAIEmbedding type triggers the implicit ClientResult ->
+                // model conversion.
                 OpenAIEmbedding embeddingResult = await _embeddingClient.GenerateEmbeddingAsync(
-                    BuildEmbeddingText(metadataChunk, isBody: false), cancellationToken: cancellationToken);
+                    BuildMetadataEmbeddingText(metadataChunk), cancellationToken: cancellationToken);
                 var embedding = embeddingResult.ToFloats().ToArray();
 
                 var uploadedAt = DateTime.UtcNow.ToString("o");
@@ -313,9 +283,7 @@ for (var i = 0; i < chunks.Count; i++)
 
                 var index = _pineconeClient.Index(IndexName);
                 // Upserting the same id REPLACES the previous vector — this is
-                // what makes catalog edits refresh metadata without a delete.
-                // The metadata vector lives in its own namespace, separate from
-                // body chunks.
+                // what makes re-ingestion refresh metadata without a delete.
                 await index.UpsertAsync(
                     new UpsertRequest
                     {
@@ -341,96 +309,15 @@ for (var i = 0; i < chunks.Count; i++)
             }
         }
 
-        public async Task<int> UpsertAbstractsAsync(
-            Guid thesisId,
-            IReadOnlyList<Chunk> chunks,
-            CancellationToken cancellationToken = default)
-        {
-            var valid = chunks
-                .Where(c => !string.IsNullOrWhiteSpace(c.Text))
-                .ToList();
-
-            if (valid.Count == 0)
-            {
-                _logger.LogWarning("Cannot upsert thesis {ThesisId}: no chunk has text content", thesisId);
-                return 0;
-            }
-
-            try
-            {
-                // 1. Batch-embed all chunk texts (EmbeddingBatchSize per call).
-                //    The embedded string carries a Title/Authors/Publication
-                //    year header so author and year questions can match — the
-                //    stored "text" metadata below stays the raw excerpt.
-                var texts = valid.Select(c => BuildEmbeddingText(c, isBody: true)).ToList();
-                var embeddings = await EmbedBatchAsync(texts, cancellationToken);
-
-                // 2. Build vectors with full metadata. Body chunks live in the
-                //    body namespace and store their excerpt under "text" —
-                //    NOT "abstract" (that key belongs to the metadata vector's
-                //    thesis abstract; mixing them made chapter text cite as a
-                //    fake abstract).
-                var uploadedAt = DateTime.UtcNow.ToString("o");
-                var vectors = new List<Vector>(valid.Count);
-                for (var i = 0; i < valid.Count; i++)
-                {
-                    var chunk = valid[i];
-                    var metadata = new Metadata
-                    {
-                        ["text"] = chunk.Text!,
-                        ["thesis_id"] = chunk.ThesisId ?? thesisId.ToString(),
-                        ["chunk_index"] = i,
-                        ["kind"] = "body",
-                        ["uploaded_at"] = uploadedAt,
-                    };
-
-                    if (!string.IsNullOrEmpty(chunk.Title)) metadata["title"] = chunk.Title;
-                    if (!string.IsNullOrEmpty(chunk.Url)) metadata["url"] = chunk.Url;
-                    if (!string.IsNullOrEmpty(chunk.Authors)) metadata["authors"] = chunk.Authors;
-                    if (!string.IsNullOrEmpty(chunk.PublicationYear)) metadata["publication_year"] = chunk.PublicationYear;
-                    if (!string.IsNullOrEmpty(chunk.Journal)) metadata["journal"] = chunk.Journal;
-
-                    vectors.Add(new Vector
-                    {
-                        Id = $"thesis_{thesisId}_chunk_{i}",
-                        Values = embeddings[i],
-                        Metadata = metadata,
-                    });
-                }
-
-                // 3. Bulk upsert (batched to keep requests within Pinecone limits).
-                var index = _pineconeClient.Index(IndexName);
-                var upserted = 0;
-                foreach (var batch in vectors.Chunk(Math.Clamp(_config.MaxUpsertBatchSize, 1, 1000)))
-                {
-                    var response = await index.UpsertAsync(
-                        new UpsertRequest { Namespace = BodyNamespace, Vectors = batch },
-                        cancellationToken: cancellationToken);
-                    upserted += (int)(response?.UpsertedCount ?? 0);
-                }
-
-                _logger.LogInformation(
-                    "Thesis {ThesisId}: {Upserted}/{Total} body vectors upserted into {Index}/{Namespace}",
-                    thesisId, upserted, vectors.Count, IndexName, BodyNamespace);
-
-                return upserted;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to upsert abstract chunks for thesis {ThesisId} into index {Index}", thesisId, IndexName);
-                return 0;
-            }
-        }
-
         /// <summary>
         /// What actually gets embedded: a short metadata header above the raw
-        /// text. Author names and publication years never appear inside
-        /// abstract/chapter text, so embedding the text alone made
-        /// "studies authored by X" unmatchable. The header fixes new
-        /// ingestions; the stored "text"/"abstract" metadata key keeps the raw
-        /// excerpt so citations and prompt excerpts are unaffected.
+        /// abstract. Author names and publication years never appear inside
+        /// abstract text, so embedding the text alone made "studies authored
+        /// by X" unmatchable. The header fixes ingestions; the stored
+        /// "abstract" metadata key keeps the raw excerpt so citations and
+        /// prompt excerpts are unaffected.
         /// </summary>
-        private static string BuildEmbeddingText(Chunk chunk, bool isBody)
+        private static string BuildMetadataEmbeddingText(Chunk chunk)
         {
             var sb = new StringBuilder();
             if (!string.IsNullOrEmpty(chunk.Title))
@@ -439,32 +326,8 @@ for (var i = 0; i < chunks.Count; i++)
                 sb.Append("Authors: ").AppendLine(chunk.Authors);
             if (!string.IsNullOrEmpty(chunk.PublicationYear))
                 sb.Append("Publication year: ").AppendLine(chunk.PublicationYear);
-            // Body chunks are chapter excerpts, not abstracts — labeling them
-            // "Abstract:" taught the model that chapter text IS an abstract.
-            sb.Append(isBody ? "Excerpt: " : "Abstract: ").Append(chunk.Text);
+            sb.Append("Abstract: ").Append(chunk.Text);
             return sb.ToString();
-        }
-
-        /// <summary>Embeds texts in batches of EmbeddingBatchSize (max 16 per Azure OpenAI request).</summary>
-        private async Task<float[][]> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken)
-        {
-            var results = new float[texts.Count][];
-            var batchSize = Math.Clamp(_config.EmbeddingBatchSize, 1, 16);
-
-            for (var offset = 0; offset < texts.Count; offset += batchSize)
-            {
-                var batch = texts.Skip(offset).Take(batchSize).ToList();
-                var collection = await _embeddingClient.GenerateEmbeddingsAsync(batch, cancellationToken: cancellationToken);
-
-                var i = 0;
-                foreach (var embedding in collection.Value)
-                {
-                    results[offset + i] = embedding.ToFloats().ToArray();
-                    i++;
-                }
-            }
-
-            return results;
         }
 
         // ────────────────────────── DELETION ──────────────────────────
@@ -473,9 +336,9 @@ for (var i = 0; i < chunks.Count; i++)
         {
             var index = _pineconeClient.Index(IndexName);
 
-            // 1. Filter delete across every namespace: body chunks, the
-            //    metadata vector, and any legacy vectors still sitting in the
-            //    pre-split default namespace.
+            // 1. Filter delete across every namespace: the metadata vector and
+            //    any legacy full-text chunks still sitting in the pre-split
+            //    default namespace.
             foreach (var ns in DistinctNamespaces())
             {
                 try
@@ -494,8 +357,8 @@ for (var i = 0; i < chunks.Count; i++)
                 }
             }
 
-            // 2. Prefix scan catches vectors without thesis_id metadata
-            //    (current body namespace + legacy default namespace).
+            // 2. Prefix scan catches legacy body vectors (thesis_{id}_chunk_*)
+            //    without thesis_id metadata in the default namespace.
             var removedByIds = await DeleteByPrefixAsync(thesisId, cancellationToken);
 
             // 3. Remove the metadata vector by its deterministic id.
@@ -517,23 +380,13 @@ for (var i = 0; i < chunks.Count; i++)
             return removedByIds;
         }
 
-        /// <inheritdoc />
-        public async Task<int> DeleteBodyVectorsAsync(Guid thesisId, CancellationToken cancellationToken = default)
-        {
-            // Prefix-only: thesis_{id}_chunk_* never matches the metadata
-            // vector's id (thesis_{id}_meta), so the already-citable metadata
-            // chunk survives a body re-ingest. Scans the body namespace AND
-            // the legacy default namespace (pre-split body vectors).
-            return await DeleteByPrefixAsync(thesisId, cancellationToken);
-        }
-
         /// <summary>
-        /// All namespaces that may hold thesis vectors: metadata, body, and
-        /// the pre-split default namespace — deduplicated so a configured
+        /// All namespaces that may hold thesis vectors: the metadata namespace
+        /// and the pre-split default namespace — deduplicated so a configured
         /// default metadata namespace is not scanned twice.
         /// </summary>
         private string[] DistinctNamespaces() =>
-            new[] { MetadataNamespace, BodyNamespace, LegacyNamespace }
+            new[] { MetadataNamespace, LegacyNamespace }
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
 
@@ -546,9 +399,8 @@ for (var i = 0; i < chunks.Count; i++)
 
         /// <summary>
         /// Lists vector IDs by the deterministic "thesis_{id}_chunk_" prefix
-        /// (paginated, scan-capped) and deletes them in one request. Scans the
-        /// body namespace plus the legacy default namespace. Shared by the
-        /// full-thesis delete and the body-only delete.
+        /// (paginated, scan-capped) and deletes them in one request. Catches
+        /// legacy full-text chunks from the pre-metadata-only pipeline.
         /// </summary>
         private async Task<int> DeleteByPrefixAsync(Guid thesisId, CancellationToken cancellationToken)
         {

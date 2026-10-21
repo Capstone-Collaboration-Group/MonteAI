@@ -119,7 +119,15 @@ namespace server.Tools
 
             var projectClient = new Azure.AI.Projects.AIProjectClient(
                 new Uri(projectEndpoint),
-                new DefaultAzureCredential());
+                // Mirrors Program.cs: locally there is no IMDS endpoint, and a
+                // bare DefaultAzureCredential probes it (5 retries of timeouts)
+                // long enough to starve the az-login fallback the live gate
+                // depends on.
+                new DefaultAzureCredential(new DefaultAzureCredentialOptions
+                {
+                    ExcludeManagedIdentityCredential = true,
+                    TenantId = "99a566cc-af0d-4dca-818d-8753b8a8fb8d"
+                }));
 
             var backend = new FoundryAgentBackend(
                 projectClient,
@@ -272,7 +280,7 @@ namespace server.Tools
 
             var messages = new List<ChatMessage>
             {
-                new UserChatMessage(AgentPrompts.BuildAnswerUserPrompt(userQuery, sourcesBlock, [])),
+                new UserChatMessage(AgentPrompts.BuildAnswerUserPrompt(userQuery, sourcesBlock, [], hasSources: true)),
             };
 
             var call = new LlmCall(

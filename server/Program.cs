@@ -48,6 +48,39 @@ try
         Environment.Exit(await server.Tools.PromptCheckRunner.RunAsync(args));
     }
 
+    // One-off full-text purge — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --purge-fulltext
+    // Flushes the legacy full-text-chunks Pinecone namespace, removes legacy
+    // body-chunk vectors from the default namespace, and deletes lingering
+    // ingest staging blobs. Run BEFORE `dotnet ef database update` for the
+    // RemoveIngestStagingUrl migration (the purge reads that column via raw
+    // SQL). Safe to re-run (idempotent).
+    if (args.Contains("--purge-fulltext", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.FullTextPurgeRunner.RunAsync(args));
+    }
+
+    // Read-only index inventory — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --diagnose-index ["query 1" "query 2" ...]
+    // Reports Pinecone namespace counts, metadata-field audit (incl. the
+    // Firestore abstract store), SQL status counts, and raw scoreboards for
+    // sample queries (nothing is written).
+    if (args.Contains("--diagnose-index", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.IndexDiagnosticRunner.RunAsync(args));
+    }
+
+    // One-off abstract-store repair — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --repair-abstracts
+    // Rewrites thesis_abstracts docs that still carry the dotted-key bug's
+    // LITERAL "abstracts.<n>" fields into the nested "abstracts" map every
+    // reader expects (and deletes the literals). Idempotent. WRITES Firestore
+    // — follow with --reingest-all to rebuild the metadata vectors.
+    if (args.Contains("--repair-abstracts", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.RepairAbstractsRunner.RunAsync(args));
+    }
+
     Log.Information("Starting MonteAI Server Application...");
 
     var builder = WebApplication.CreateBuilder(args);
@@ -319,17 +352,9 @@ try
     builder.Services.AddSingleton<server.Infrastructure.IAgentConcurrencyGate, server.Infrastructure.AgentConcurrencyGate>();
     builder.Services.AddSingleton<server.Infrastructure.ISemanticAnswerCache, server.Infrastructure.SemanticAnswerCache>();
 
-    // Full-text ingestion queue + worker (also outside the Scrutor scan: the
-    // queue is shared state, and the worker is a hosted service). The queue
-    // must be registered BEFORE anything that resolves IThesisService in a
-    // scope the worker creates.
-    builder.Services.AddSingleton<server.Infrastructure.IThesisIngestionQueue, server.Infrastructure.ThesisIngestionQueue>();
-    builder.Services.AddHostedService<server.Infrastructure.ThesisIngestionWorker>();
-
-    // Outbound email (MailKit SMTP). Same posture as the ingestion queue:
-    // handlers call IEmailService.Queue(...) and EmailWorker drains it, so a
-    // slow mail server never blocks a response. Enabled defaults to false —
-    // see EmailOptions.
+    // Outbound email (MailKit SMTP). Handlers call IEmailService.Queue(...)
+    // and EmailWorker drains it, so a slow mail server never blocks a
+    // response. Enabled defaults to false — see EmailOptions.
     builder.Services.Configure<EmailOptions>(
         builder.Configuration.GetSection(EmailOptions.SectionName));
     builder.Services.AddSingleton<server.Infrastructure.IEmailQueue, server.Infrastructure.EmailQueue>();
@@ -402,6 +427,17 @@ try
 
 
     var app = builder.Build();
+
+    // Bulk metadata-only re-ingest — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --reingest-all
+    // Re-runs ThesisService.IngestAsync for every Approved/Indexed thesis
+    // (creates thesis_{id}_meta, sweeps legacy *_chunk_* leftovers). Uses the
+    // full DI container, so it is wired AFTER builder.Build(). Pending rows
+    // are skipped — those need an admin's approval in the desktop panel.
+    if (args.Contains("--reingest-all", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.ReingestAllRunner.RunAsync(app.Services, args));
+    }
 
 
     if (app.Environment.IsDevelopment())
