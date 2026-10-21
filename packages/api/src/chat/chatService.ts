@@ -221,10 +221,19 @@ export class LiveChatService implements ChatService {
 
   async updateChatSession(sessionId: string, dto: UpdateChatSessionDto): Promise<boolean> {
     try {
-      const { data } = await this.client.put<boolean>(`/chat/sessions/${sessionId}/update`, dto);
-      return data;
+      await this.client.put(`/chat/sessions/${sessionId}/update`, dto);
+      return true;
     } catch (err) {
       return handle404(err, false)
+    }
+  }
+
+  async setSessionPinned(sessionId: string, pinned: boolean): Promise<boolean> {
+    try {
+      await this.client.put(`/chat/sessions/${sessionId}/pin`, { pinned });
+      return true;
+    } catch (err) {
+      throw LiveChatService.toFriendlyError(err);
     }
   }
 

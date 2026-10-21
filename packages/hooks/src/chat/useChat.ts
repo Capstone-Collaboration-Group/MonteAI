@@ -54,6 +54,31 @@ export function useDeleteChatSession(chatService: ChatService) {
   });
 }
 
+export function useUpdateChatSession(chatService: ChatService) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ sessionId, title }: { sessionId: string; title: string }) =>
+      chatService.updateChatSession(sessionId, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.all });
+    },
+  });
+}
+
+export function useSetChatSessionPinned(chatService: ChatService) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ sessionId, pinned }: { sessionId: string; pinned: boolean }) =>
+      chatService.setSessionPinned(sessionId, pinned),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.all });
+      queryClient.invalidateQueries({ queryKey: chatKeys.session(variables.sessionId) });
+    },
+  });
+}
+
 export function useSendChatMessage(chatService: ChatService) {
   const queryClient = useQueryClient();
 

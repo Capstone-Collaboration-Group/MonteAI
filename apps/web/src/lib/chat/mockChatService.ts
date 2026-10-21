@@ -28,6 +28,7 @@ export const mockChatService: ChatService = {
             id: crypto.randomUUID(),
             userId: dto.userId,
             title: dto.title,
+            pinned: false,
             createdAt: now,
             lastChatDate: now,
             messages: [],

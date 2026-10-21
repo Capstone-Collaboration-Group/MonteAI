@@ -27,6 +27,7 @@ export interface ChatService {
   createSession(dto: CreateChatSessionDto): Promise<ChatSessionResponseDto>;
   getSession(sessionId: string): Promise<ChatSessionResponseDto | null>;
   updateChatSession(sessionId: string, dto: UpdateChatSessionDto ): Promise<boolean>;
+  setSessionPinned(sessionId: string, pinned: boolean): Promise<boolean>;
   deleteSession(sessionId: string): Promise<void>;
   sendMessage(sessionId: string, dto: CreateChatMessageDto): Promise<ChatMessageResponseDto>;
   /**

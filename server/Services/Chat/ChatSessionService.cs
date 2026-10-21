@@ -84,6 +84,11 @@ namespace server.Services.Chat
             return result;
         }
 
+        public Task<bool> SetPinnedAsync(Guid id, bool pinned)
+        {
+            return _chatSessionRepo.SetPinnedAsync(id, pinned);
+        }
+
         public async Task<bool> TouchAsync(Guid id)
         {
             var session = await _chatSessionRepo.GetChatSessionByIdAsync(id);
