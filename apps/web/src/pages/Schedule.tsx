@@ -1,9 +1,25 @@
 import { SchedulePage } from "@monteai/ui";
+import { useUserProfile } from "@monteai/hooks";
 import { scheduleService } from "../lib/scheduleService";
+import { facultyService } from "../lib/facultyService";
+import { programHeadService } from "../lib/programHeadService";
+import { adminService } from "../lib/adminService";
+import { profileService } from "../lib/authService";
 
-// Schedules are view-only on the web for every role, Admin included
-// (SchedulePage defaults canEdit to false). Creating and editing defense
-// schedules lives exclusively in the desktop admin panel.
 export default function Schedule() {
-  return <SchedulePage scheduleService={scheduleService} />;
+  const { profile, isLoading } = useUserProfile(profileService);
+
+  if (isLoading || !profile) {
+    return <p>Loading...</p>;
+  }
+
+  return (
+    <SchedulePage
+      scheduleService={scheduleService}
+      canEdit={profile.role === "Admin"}
+      facultyService={facultyService}
+      programHeadService={programHeadService}
+      adminService={adminService}
+    />
+  );
 }

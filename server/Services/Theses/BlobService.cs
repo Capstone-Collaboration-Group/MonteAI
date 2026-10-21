@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
-using server.Models.DTOs.Backup;
 using server.Services.Interfaces;
 
 namespace server.Services
@@ -55,36 +54,6 @@ namespace server.Services
             await blobClient.DeleteAsync();
             _logger.LogInformation("Deleted blob: {BlobName}", blobName);
         }
-        public async Task<IReadOnlyList<BackupManifestThesisFileDto>> ListPdfBlobsAsync(
-            CancellationToken cancellationToken = default)
-        {
-            var files = new List<BackupManifestThesisFileDto>();
-
-            await foreach (var item in _container.GetBlobsAsync(cancellationToken: cancellationToken))
-            {
-                // Thesis PDFs only — the same container also holds ingest
-                // staging text and other non-PDF artifacts.
-                if (!item.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                files.Add(new BackupManifestThesisFileDto
-                {
-                    BlobName = item.Name,
-                    SizeBytes = item.Properties?.ContentLength ?? 0,
-                    LastModified = item.Properties?.LastModified,
-                });
-            }
-
-            _logger.LogInformation("Listed {Count} PDF blob(s) for backup inventory", files.Count);
-            return files;
-        }
-
-        public async Task CopyPdfAsync(string blobName, Stream destination, CancellationToken cancellationToken = default)
-        {
-            var blobClient = _container.GetBlobClient(blobName);
-            await blobClient.DownloadToAsync(destination, cancellationToken);
-        }
-
         public string GenerateSasUrl(string blobUrl, int expiryMinutes)
         {
             var blobName = GetBlobNameFromUrl(blobUrl);
@@ -103,19 +72,6 @@ namespace server.Services
             sasBuilder.SetPermissions(BlobSasPermissions.Read);
 
             return blobClient.GenerateSasUri(sasBuilder).ToString();
-        }
-
-        public string GenerateContainerSasUrl(int expiryMinutes)
-        {
-            var sasBuilder = new BlobSasBuilder
-            {
-                BlobContainerName = _container.Name,
-                Resource = "c",
-                ExpiresOn = DateTimeOffset.UtcNow.AddMinutes(expiryMinutes),
-            };
-            sasBuilder.SetPermissions(BlobSasPermissions.Read);
-
-            return _container.GenerateSasUri(sasBuilder).ToString();
         }
 
         // Extracts the stored blob name from a full blob URL. Uri.AbsolutePath is

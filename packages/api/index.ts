@@ -20,4 +20,3 @@ export * from "./src/notification";
 export * from "./src/student";
 export * from "./src/review";
 export * from "./src/user";
-export * from "./src/backup";
