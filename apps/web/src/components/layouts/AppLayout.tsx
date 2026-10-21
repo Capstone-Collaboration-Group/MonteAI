@@ -1,5 +1,6 @@
 // layouts/AppLayout.tsx
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Outlet, NavLink, useNavigate, useLocation, matchPath } from "react-router-dom";
 import { ConfirmDialog, Sidebar, NotificationBell, toast } from "@monteai/ui";
 import {
@@ -269,17 +270,20 @@ function AppSidebar({
         )}
       </Sidebar.Nav>
 
-      <ConfirmDialog
-        open={deletingSession !== null}
-        title="Delete this chat?"
-        description={`This permanently deletes "${deletingSession?.title ?? ""}" and its messages. This action cannot be undone.`}
-        confirmLabel="Delete chat"
-        loading={deleteSession.isPending}
-        onConfirm={confirmDeleteSession}
-        onCancel={() => {
-          if (!deleteSession.isPending) setDeletingSession(null);
-        }}
-      />
+      {createPortal(
+        <ConfirmDialog
+          open={deletingSession !== null}
+          title="Delete this chat?"
+          description={`This permanently deletes "${deletingSession?.title ?? ""}" and its messages. This action cannot be undone.`}
+          confirmLabel="Delete chat"
+          loading={deleteSession.isPending}
+          onConfirm={confirmDeleteSession}
+          onCancel={() => {
+            if (!deleteSession.isPending) setDeletingSession(null);
+          }}
+        />,
+        document.body
+      )}
 
       {/* 3. Make the Footer dynamic and add the logout trigger */}
       <Sidebar.Footer className={`flex items-center gap-2.5 px-1 ${collapsed ? "justify-center" : "justify-between"}`}>
