@@ -227,4 +227,12 @@ export class LiveChatService implements ChatService {
       return handle404(err, false)
     }
   }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    try {
+      await this.client.delete(`/chat/sessions/${sessionId}/delete`);
+    } catch (err) {
+      throw LiveChatService.toFriendlyError(err);
+    }
+  }
 }

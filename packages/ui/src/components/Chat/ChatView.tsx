@@ -8,7 +8,7 @@
 // thesis viewer when a thesisId is present.
 
 import { useRef, useEffect } from "react";
-import { ArrowUp, BookOpen } from "lucide-react";
+import { ArrowUp, BookOpen, Trash2 } from "lucide-react";
 import type { ChatMessageResponseDto, ChatSourceDto } from "@monteai/types";
 import { ChatMessageSkeleton } from "./skeletons";
 
@@ -22,6 +22,8 @@ export interface ChatViewProps {
   streamStatus?: string | null;
   /** Terminal send failure shown as a banner above the input bar. */
   error?: string | null;
+  onDeleteSession?: () => void;
+  isDeletingSession?: boolean;
   onInputChange: (value: string) => void;
   onSend: () => void;
 }
@@ -33,6 +35,8 @@ export function ChatView({
   streamingMessageId,
   streamStatus,
   error,
+  onDeleteSession,
+  isDeletingSession = false,
   onInputChange,
   onSend,
 }: ChatViewProps) {
@@ -48,6 +52,21 @@ export function ChatView({
 
   return (
     <div className="flex h-full flex-col">
+      {onDeleteSession && (
+        <div className="flex shrink-0 justify-end border-b border-outline-variant/70 px-3 py-2 sm:px-6">
+          <button
+            type="button"
+            onClick={onDeleteSession}
+            disabled={isDeletingSession || isSending}
+            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-error transition-colors hover:bg-error/10 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Delete this chat"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete chat
+          </button>
+        </div>
+      )}
+
       {/* ── Message list ── */}
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto flex max-w-2xl flex-col gap-4">

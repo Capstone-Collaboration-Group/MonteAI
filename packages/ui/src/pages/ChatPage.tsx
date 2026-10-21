@@ -19,8 +19,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatService } from "@monteai/api";
 import type { ChatMessageResponseDto } from "@monteai/types";
+import { useDeleteChatSession } from "@monteai/hooks";
 import { ChatView } from "../components/Chat/ChatView";
 import { ChatPageSkeleton } from "../components/Chat/skeletons";
+import { ConfirmDialog } from "../components/common";
+import { toast } from "../components/Toaster";
 
 const FALLBACK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // dev fallback when no user is signed in (mock mode)
 
@@ -42,6 +45,8 @@ interface ChatPageProps {
   userId?: string | null;
   /** Notifies the host app that a session was created or received a message (e.g. to refresh a sessions sidebar). */
   onSessionActivity?: () => void;
+  /** Called after the current session is deleted so the host can leave its route. */
+  onSessionDeleted?: (sessionId: string) => void;
 }
 
 export function ChatPage({
@@ -50,6 +55,7 @@ export function ChatPage({
   initialPrompt,
   userId,
   onSessionActivity,
+  onSessionDeleted,
 }: ChatPageProps) {
   const [messages, setMessages] = useState<ChatMessageResponseDto[]>([]);
   const [input, setInput] = useState("");
@@ -62,6 +68,8 @@ export function ChatPage({
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   /** Terminal send failure, shown as a banner until the next send. */
   const [sendError, setSendError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const deleteSession = useDeleteChatSession(chatService);
   const hasAutoSent = useRef(false);
 
   // Fetch the selected session's messages. The API returns them latest-first;
@@ -197,6 +205,24 @@ export function ChatPage({
     ]
   );
 
+  const activeSessionId = sessionId ?? localSessionId;
+
+  const confirmDeleteSession = async () => {
+    if (!activeSessionId || deleteSession.isPending) return;
+
+    try {
+      await deleteSession.mutateAsync(activeSessionId);
+      setConfirmingDelete(false);
+      setMessages([]);
+      setLocalSessionId(null);
+      onSessionActivity?.();
+      onSessionDeleted?.(activeSessionId);
+      toast.success("Chat deleted");
+    } catch (err) {
+      toast.error(toUserFacingError(err));
+    }
+  };
+
   // Auto-send initial prompt when navigating from another page
   useEffect(() => {
     if (!initialPrompt || hasAutoSent.current) return;
@@ -209,15 +235,28 @@ export function ChatPage({
   }
 
   return (
-    <ChatView
-      messages={messages}
-      input={input}
-      isSending={isSending}
-      streamingMessageId={streamingAssistantId}
-      streamStatus={streamStatus}
-      error={sendError}
-      onInputChange={setInput}
-      onSend={() => send(input)}
-    />
+    <>
+      <ChatView
+        messages={messages}
+        input={input}
+        isSending={isSending}
+        streamingMessageId={streamingAssistantId}
+        streamStatus={streamStatus}
+        error={sendError}
+        onDeleteSession={activeSessionId ? () => setConfirmingDelete(true) : undefined}
+        isDeletingSession={deleteSession.isPending}
+        onInputChange={setInput}
+        onSend={() => send(input)}
+      />
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this chat?"
+        description="This permanently deletes the conversation and its messages. This action cannot be undone."
+        confirmLabel="Delete chat"
+        loading={deleteSession.isPending}
+        onConfirm={confirmDeleteSession}
+        onCancel={() => setConfirmingDelete(false)}
+      />
+    </>
   );
 }

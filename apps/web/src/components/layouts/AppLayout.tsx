@@ -1,10 +1,11 @@
 // layouts/AppLayout.tsx
 import { useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation, matchPath } from "react-router-dom";
-import { Sidebar, NotificationBell } from "@monteai/ui";
+import { ConfirmDialog, Sidebar, NotificationBell, toast } from "@monteai/ui";
 import {
   Search,
   MessageCircle,
+  Trash2,
   Plus,
   LogOut,
   Settings,
@@ -18,7 +19,14 @@ import {
 import CdmLogo from "../../assets/cdm-logo.png";
 
 // Import your global hooks and initialized services
-import { useUserProfile, useAuth, useChatSessions, queryClient } from "@monteai/hooks";
+import {
+  useUserProfile,
+  useAuth,
+  useChatSessions,
+  useDeleteChatSession,
+  queryClient,
+} from "@monteai/hooks";
+import type { ChatSessionResponseDto } from "@monteai/types";
 import { profileService } from "../../lib/authService";
 import { chatService } from "../../lib/chat/chatService";
 import { notificationService } from "../../lib/notificationService";
@@ -60,10 +68,29 @@ function AppSidebar({
     isLoading: sessionsLoading,
     isError: sessionsError,
   } = useChatSessions(chatService, user?.uid);
+  const [deletingSession, setDeletingSession] =
+    useState<ChatSessionResponseDto | null>(null);
+  const deleteSession = useDeleteChatSession(chatService);
 
   // Extract /chat/:sessionId so the open conversation can be highlighted
   const activeSessionId =
     matchPath("/chat/:sessionId", location.pathname)?.params.sessionId ?? null;
+
+  const confirmDeleteSession = async () => {
+    if (!deletingSession || deleteSession.isPending) return;
+
+    try {
+      await deleteSession.mutateAsync(deletingSession.id);
+      toast.success("Chat deleted");
+      if (activeSessionId === deletingSession.id) {
+        navigate("/home");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't delete this chat.");
+    } finally {
+      setDeletingSession(null);
+    }
+  };
 
   // 3. Handle secure sign out
   const handleLogout = async () => {
@@ -214,13 +241,24 @@ function AppSidebar({
           )
         ) : chatSessions && chatSessions.length > 0 ? (
           chatSessions.map((session) => (
-            <Sidebar.Item
-              key={session.id}
-              icon={<MessageCircle className="h-4 w-4" />}
-              label={session.title}
-              active={session.id === activeSessionId}
-              onClick={() => { onClose(); navigate(`/chat/${session.id}`); }}
-            />
+            <div key={session.id} className="group relative">
+              <Sidebar.Item
+                icon={<MessageCircle className="h-4 w-4" />}
+                label={session.title}
+                active={session.id === activeSessionId}
+                className="pr-10"
+                onClick={() => { onClose(); navigate(`/chat/${session.id}`); }}
+              />
+              <button
+                type="button"
+                title={`Delete ${session.title}`}
+                aria-label={`Delete chat: ${session.title}`}
+                onClick={() => setDeletingSession(session)}
+                className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-on-surface-variant opacity-0 transition-opacity hover:bg-error/10 hover:text-error focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           ))
         ) : (
           !collapsed && (
@@ -230,6 +268,18 @@ function AppSidebar({
           )
         )}
       </Sidebar.Nav>
+
+      <ConfirmDialog
+        open={deletingSession !== null}
+        title="Delete this chat?"
+        description={`This permanently deletes "${deletingSession?.title ?? ""}" and its messages. This action cannot be undone.`}
+        confirmLabel="Delete chat"
+        loading={deleteSession.isPending}
+        onConfirm={confirmDeleteSession}
+        onCancel={() => {
+          if (!deleteSession.isPending) setDeletingSession(null);
+        }}
+      />
 
       {/* 3. Make the Footer dynamic and add the logout trigger */}
       <Sidebar.Footer className={`flex items-center gap-2.5 px-1 ${collapsed ? "justify-center" : "justify-between"}`}>

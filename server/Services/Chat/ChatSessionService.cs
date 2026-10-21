@@ -95,8 +95,12 @@ namespace server.Services.Chat
 
         public async Task<bool> DeleteAsync(Guid id)
         {
+            await _chatMessageRepo.DeleteMessagesBySessionIdAsync(id);
             var result = await _chatSessionRepo.DeleteChatSessionAsync(id);
-            _logger.LogInformation("Chat Session With Id: {Id} Is deleted", id);
+            if (result)
+            {
+                _logger.LogInformation("Chat session {Id} and its messages were deleted", id);
+            }
             return result;
         }
 

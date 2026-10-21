@@ -126,6 +126,14 @@ export const mockChatService: ChatService = {
     return true;
   },
 
+  async deleteSession(sessionId: string) {
+    await delay(300);
+
+    if (!sessionsMap.delete(sessionId)) {
+      throw new Error(`Chat session '${sessionId}' not found.`);
+    }
+  },
+
   async sendMessage(
     sessionId: string,
     dto: CreateChatMessageDto
