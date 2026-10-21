@@ -12,6 +12,7 @@ import {
 } from "@monteai/ui";
 import { useMyThesis, useUserProfile } from "@monteai/hooks";
 import type { AuthUser, ThesisResponseDto } from "@monteai/types";
+import { formatPhtDate } from "@monteai/utils";
 import { profileService } from "../lib/authService";
 import { thesisService } from "../lib/thesisService";
 import { ThesisSubmissionModal } from "../components/ThesisSubmissionModal";
@@ -40,13 +41,7 @@ function toLifecycleStatus(status?: string): ThesisLifecycleStatus {
 
 function formatDate(iso?: string): string {
   if (!iso) return "";
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatPhtDate(iso);
 }
 
 interface Milestone {
