@@ -57,9 +57,8 @@ export type ThesisStatus = "pending" | "approved" | "scheduled" | "rejected" | "
  * Catalog row actions. Moderation actions (approve/reject/revision/schedule)
  * are reviewer powers; "edit"/"delete" are full-CRUD management actions that
  * desktop only passes for Admin sessions (web/mobile stay read-only).
- * "reindex" re-runs full-text ingestion for an already-indexed thesis
- * (admin-only, desktop) — e.g. after the chapter filter changed what gets
- * vectorized.
+ * "reindex" re-runs metadata-only ingestion for an already-indexed thesis
+ * (admin-only, desktop) — e.g. after an edit changed the abstract or authors.
  */
 export type ThesisActionType =
   | "approve"
@@ -125,62 +124,21 @@ export function toThesisSummary(dto: ThesisResponseDto): ThesisSummary {
   };
 }
 
-export interface ThesisChunk {
-  chunkIndex:      number;
-  text:            string;
-  title?:          string;
-  url?:            string;
-  authors?:        string;   
-  publicationYear?: string;
-  journal?:        string;
-}
-
+/**
+ * Metadata-only ingestion payload (POST /thesis/ingest). The server resolves
+ * authors/year/abstract itself (Firestore → research group → SubmittedAt)
+ * and synchronously upserts ONE vector per thesis (thesis_{id}_meta) — no
+ * PDF text, no chunks.
+ */
 export interface IngestThesisDto {
   thesisId: string;
-  chunks:   ThesisChunk[];
 }
 
 export interface IngestThesisResponseDto  {
   thesisId: string;
+  /** Always 1 on success — one metadata vector per thesis. */
   vectorCount: number;
   status: 'Indexed' | 'Failed';
-}
-
-/**
- * Full-text async ingestion payload (POST /thesis/ingest/full).
- * The desktop pipeline extracts EVERY page of the PDF and sends the raw
- * text; the server re-runs its own chapter filter (Ch1/3/4/5 only), upserts
- * the page-2 metadata vector synchronously, then chunks/embeds the body in a
- * background worker (202 Queued). When no chapter headings are detectable —
- * or the admin confirmed metadata-only — only the metadata vector is upserted
- * (202 MetadataOnly).
- */
-export interface IngestFullThesisDto {
-  thesisId: string;
-  /** Complete extracted text of the PDF (all pages); optional when metadataOnly. */
-  fullText: string;
-  /** Title-page metadata (from PDF pages 1-2). */
-  title?: string;
-  authors?: string;
-  publicationYear?: string;
-  /**
-   * The desktop found no chapter headings and the admin confirmed
-   * metadata-only indexing. The server is authoritative either way — this
-   * flag only skips staging/queueing.
-   */
-  metadataOnly?: boolean;
-}
-
-export interface IngestFullThesisResponseDto {
-  thesisId: string;
-  /**
-   * "Queued" = metadata vector upserted, body ingestion pending;
-   * "MetadataOnly" = metadata vector upserted, no body chunks by design;
-   * "Failed".
-   */
-  status: 'Queued' | 'MetadataOnly' | 'Failed';
-  /** Vectors already upserted synchronously (the metadata vector: 0 or 1). */
-  vectorCount: number;
 }
 
 export interface ThesisVersion { 

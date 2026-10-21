@@ -6,8 +6,6 @@ import type {
     UpdateThesisDto,
     IngestThesisDto,
     IngestThesisResponseDto,
-    IngestFullThesisDto,
-    IngestFullThesisResponseDto,
     CreateAnnotationDto,
     ResolveAnnotationDto,
     ThesisVersion,
@@ -271,40 +269,15 @@ export const mockThesisService: ThesisService = {
         if (!existing) {
             return { thesisId: dto.thesisId, vectorCount: 0, status: "Failed" } as IngestThesisResponseDto;
         }
-        thesesMap.set(dto.thesisId, {
-            ...existing,
-            pineconeStatus: "Indexed",
-            indexedAt: new Date().toISOString(),
-        });
-        return { thesisId: dto.thesisId, vectorCount: dto.chunks.length, status: "Indexed" } as IngestThesisResponseDto;
-    },
-
-    async ingestFullThesis(dto: IngestFullThesisDto) {
-        await delay(300);
-        const existing = thesesMap.get(dto.thesisId);
-        // Metadata-only requests may omit the text (mirrors the live controller).
-        if (!existing || (!dto.metadataOnly && !dto.fullText.trim())) {
-            return { thesisId: dto.thesisId, vectorCount: 0, status: "Failed" } as IngestFullThesisResponseDto;
-        }
-        // Server-authoritative chapter check, mirrored from ThesisSectionFilter:
-        // without a "CHAPTER n" heading only the metadata vector is indexed.
-        const hasHeadings =
-            /\bCHAPTER\s+(?:[1-9]|10|I{1,3}|IV|V|VI{0,3}|IX|X|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)\b/i
-                .test(dto.fullText);
-        const metadataOnly = dto.metadataOnly || !hasHeadings;
-        // Mirrors the live pipeline: metadata vector lands immediately (the
-        // mock has no background worker, so the row jumps straight to Indexed).
+        // Mirrors the live pipeline: the row is approved and the single
+        // metadata vector lands synchronously.
         thesesMap.set(dto.thesisId, {
             ...existing,
             status: "Approved",
             pineconeStatus: "Indexed",
             indexedAt: new Date().toISOString(),
         });
-        return {
-            thesisId: dto.thesisId,
-            vectorCount: 1,
-            status: metadataOnly ? "MetadataOnly" : "Queued",
-        } as IngestFullThesisResponseDto;
+        return { thesisId: dto.thesisId, vectorCount: 1, status: "Indexed" } as IngestThesisResponseDto;
     },
 
     async updateThesis(thesisId, dto: UpdateThesisDto) {
