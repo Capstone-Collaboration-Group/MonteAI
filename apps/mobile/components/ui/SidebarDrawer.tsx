@@ -37,6 +37,7 @@ interface NavItem {
 export interface DrawerRecentChat {
   id: string;
   title: string;
+  pinned: boolean;
 }
 
 interface SidebarDrawerProps {
@@ -193,9 +194,8 @@ export function SidebarDrawer({
             );
           })}
 
-          {/* Recent section */}
+          {/* Pinned and recent chat sessions */}
           <View style={s.recentSection}>
-            <Text style={[s.recentHeading, { color: body }]}>RECENT</Text>
             {recentChats ? (
               recentLoading ? (
                 <View style={s.recentLoadingRow}>
@@ -205,26 +205,54 @@ export function SidebarDrawer({
               ) : recentChats.length === 0 ? (
                 <Text style={[s.recentEmpty, { color: body }]}>No conversations yet</Text>
               ) : (
-                recentChats.map((chat) => (
-                  <Pressable
-                    key={chat.id}
-                    style={s.recentItem}
-                    onPress={() => {
-                      // Navigate to the chat tab and open this session —
-                      // works from any tab. The timestamp keeps the param
-                      // unique so every tap is handled.
-                      router.navigate({
-                        pathname: '/(tabs)/chat',
-                        params: { open: `s:${chat.id}:${Date.now()}` },
-                      });
-                      onClose();
-                    }}
-                    accessibilityRole="button">
-                    <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>
-                      {chat.title}
-                    </Text>
-                  </Pressable>
-                ))
+                <>
+                  {recentChats.some((chat) => chat.pinned) && (
+                    <>
+                      <Text style={[s.recentHeading, { color: body }]}>PINNED</Text>
+                      {recentChats.filter((chat) => chat.pinned).map((chat) => (
+                        <Pressable
+                          key={chat.id}
+                          style={s.recentItem}
+                          onPress={() => {
+                            router.navigate({
+                              pathname: '/(tabs)/chat',
+                              params: { open: `s:${chat.id}:${Date.now()}` },
+                            });
+                            onClose();
+                          }}
+                          accessibilityRole="button">
+                          <MaterialIcons name="push-pin" size={16} color={body} />
+                          <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>
+                            {chat.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </>
+                  )}
+                  {recentChats.some((chat) => !chat.pinned) && (
+                    <>
+                      <Text style={[s.recentHeading, { color: body }]}>RECENTS</Text>
+                      {recentChats.filter((chat) => !chat.pinned).map((chat) => (
+                        <Pressable
+                          key={chat.id}
+                          style={s.recentItem}
+                          onPress={() => {
+                            router.navigate({
+                              pathname: '/(tabs)/chat',
+                              params: { open: `s:${chat.id}:${Date.now()}` },
+                            });
+                            onClose();
+                          }}
+                          accessibilityRole="button">
+                          <MaterialIcons name="chat-bubble-outline" size={16} color={body} />
+                          <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>
+                            {chat.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </>
+                  )}
+                </>
               )
             ) : (
               LEGACY_RECENT.map((item) => (
@@ -305,8 +333,8 @@ const s = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: Spacing.xs,
   },
-  recentItem: { paddingVertical: Spacing.sm, borderRadius: Radius.sm },
-  recentText: { fontSize: FontSize.sm },
+  recentItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.sm },
+  recentText: { flex: 1, fontSize: FontSize.sm },
   recentLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
   recentEmpty: { fontSize: FontSize.sm, paddingVertical: Spacing.sm },
   footer: {

@@ -17,16 +17,16 @@ The project is ambitious and has a real local need behind it. The engineering sc
 
 ### 1. The evaluation can't validate the claims
 
-- [ ] - **Perception surveys can't measure performance efficiency, security, or accuracy.** Students can't judge resource utilization, TOTP robustness, or retrieval correctness through a Likert item. You need objective evidence alongside the survey:
-- [ ]  - **Retrieval quality:** a gold set of queries (say 50-100) with labeled relevant theses, scored with Recall@k, MRR, or nDCG.
-- [ ]  - **Answer quality:** RAGAS (faithfulness, answer relevance, context precision/recall). Your own literature cites it (Aytar, Hemmat, Neupane), so the panel will expect it.
-- [ ]  - **Citation accuracy:** the percentage of citations that point to a real retrieved thesis that supports the claim.
-- [ ]  - **Out-of-scope behavior:** how the system responds when no relevant thesis exists.
-- [ ]  - **Performance:** load testing (k6, JMeter, or Locust) with p50/p95 latency and concurrent-user behavior.
+- [x] - **Perception surveys can't measure performance efficiency, security, or accuracy.** Students can't judge resource utilization, TOTP robustness, or retrieval correctness through a Likert item. You need objective evidence alongside the survey:
+- [x]  - **Retrieval quality:** a gold set of queries (say 50-100) with labeled relevant theses, scored with Recall@k, MRR, or nDCG.
+- [x]  - **Answer quality:** RAGAS (faithfulness, answer relevance, context precision/recall). Your own literature cites it (Aytar, Hemmat, Neupane), so the panel will expect it.
+- [x]  - **Citation accuracy:** the percentage of citations that point to a real retrieved thesis that supports the claim.
+- [x]  - **Out-of-scope behavior:** how the system responds when no relevant thesis exists.
+- [x]  - **Performance:** load testing (k6, JMeter, or Locust) with p50/p95 latency and concurrent-user behavior.
 - [x]  - **Security:** an OWASP ASVS or ZAP scan, TOTP flow testing, rate-limit testing, and RBAC bypass attempts.
-- [ ] - **Your testing phases stop at "unit testing" and "acceptance testing."** Integration, system, performance, and security testing are missing, yet you evaluate those qualities.
-- [ ] - **No success thresholds.** "Fast and reliable response times" (Objective 2) is undefined. Set targets such as p95 < X seconds, faithfulness >= Y, and availability >= Z.
-- [ ] - **No baseline or comparator.** "Improves the quality and efficiency of thesis research" can't be shown without comparing against something. A small task-based comparison (find three related studies using the library process versus MonteAI, measuring time and relevance) would turn an opinion into evidence.
+- [x] - **Your testing phases stop at "unit testing" and "acceptance testing."** Integration, system, performance, and security testing are missing, yet you evaluate those qualities.
+- [x] - **No success thresholds.** "Fast and reliable response times" (Objective 2) is undefined. Set targets such as p95 < X seconds, faithfulness >= Y, and availability >= Z.
+- [x] - **No baseline or comparator.** "Improves the quality and efficiency of thesis research" can't be shown without comparing against something. A small task-based comparison (find three related studies using the library process versus MonteAI, measuring time and relevance) would turn an opinion into evidence.
 
 ### 2. "Agentic" is in your title but not in your design
 
@@ -55,10 +55,10 @@ Related gaps:
 
 ### 6. Legal, ethical, and IP gaps (no section covers any of these)
 
-- [ ] - **Data Privacy Act of 2012 (RA 10173).** You collect student emails, queries, and TOTP secrets. Address consent, retention, data-processing agreements, and a privacy notice.
-- [ ] - **Copyright and authorship of the theses.** Do the students who wrote them, or the institution, consent to digitization and AI processing? Is there an institutional policy? Is view-only enforceable?
-- [ ] - **Survey ethics:** informed consent, anonymity, and an ethics review or endorsement.
-- [ ] - **Academic integrity:** could MonteAI make it easier to copy past CDM theses? Does it include any similarity safeguard?
+- [x] - **Data Privacy Act of 2012 (RA 10173).** You collect student emails, queries, and TOTP secrets. Address consent, retention, data-processing agreements, and a privacy notice.
+- [x] - **Copyright and authorship of the theses.** Do the students who wrote them, or the institution, consent to digitization and AI processing? Is there an institutional policy? Is view-only enforceable?
+- [x] - **Survey ethics:** informed consent, anonymity, and an ethics review or endorsement.
+- [x] - **Academic integrity:** could MonteAI make it easier to copy past CDM theses? Does it include any similarity safeguard?
 
 ### 7. The sampling and statistical design has errors
 
@@ -68,7 +68,7 @@ Related gaps:
 - [ ] - **Respondents must actually use the system.** There is no evaluation protocol covering how they access it, for how long, what tasks they do, or how they are onboarded. The Android-only app also excludes iPhone users unless the web version is the fallback.
 - [x] - **The staff and IT expert counts are unstated.** How many Research Department staff are there? How many IT experts, and what are their selection criteria? Expert evaluators usually need to be purposively selected.
 - [x] - **The instrument validation is vague.** "Validated" needs substance: the number and qualifications of validators, a Content Validity Index, a pilot test, and Cronbach's alpha. Prefer adapting established instruments such as SUS and prior ISO 25010 questionnaires. The questionnaires themselves belong in the appendices.
-- [ ] - **Weighted mean alone is thin.** Add standard deviation, reliability coefficients, and a test for differences among the three respondent groups (Kruskal-Wallis or ANOVA).
+- [x] - **Weighted mean alone is thin.** Add standard deviation, reliability coefficients, and a test for differences among the three respondent groups (Kruskal-Wallis or ANOVA).
 - [ ] - **The Likert interval formula is garbled** (the division symbol is missing). It should read (4 - 1) / 4 = 0.75. Also, your problem statement says "acceptability," but the verbal scale only says "Agree"; map scores to acceptability labels.
 - [x] - **Research design.** This is a system development study, so consider framing it as developmental or applied research with a descriptive evaluation phase. Pure "quantitative descriptive" will draw the question.
 

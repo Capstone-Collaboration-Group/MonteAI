@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
-  Platform,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import { Text, TextInput } from '@/components/ui/ScaledText';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
@@ -67,6 +68,10 @@ export default function ChatScreen() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [sessionMenuVisible, setSessionMenuVisible] = useState(false);
+  const [renameVisible, setRenameVisible] = useState(false);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [sessionActionBusy, setSessionActionBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const { recentChats, loading: chatsLoading, refresh } = useDrawerChats();
 
@@ -77,11 +82,90 @@ export default function ChatScreen() {
   const primary = useThemeColor({}, 'primary');
   const onPrimary = useThemeColor({}, 'onPrimary');
   const outline = useThemeColor({}, 'outlineVariant');
+  const insets = useSafeAreaInsets();
 
   const startNewChat = useCallback(() => {
     setSession(null);
     setMessages([WELCOME_MSG]);
+    setSessionMenuVisible(false);
   }, []);
+
+  const toggleSessionPinned = async () => {
+    if (!session || sessionActionBusy) return;
+    setSessionMenuVisible(false);
+    setSessionActionBusy(true);
+    try {
+      const pinned = !session.pinned;
+      const updated = await chatService.setSessionPinned(session.id, pinned);
+      if (!updated) throw new Error('Could not update the pinned chat.');
+      setSession({ ...session, pinned });
+      await refresh(true);
+    } catch (error) {
+      Alert.alert(
+        'Could not update chat',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setSessionActionBusy(false);
+    }
+  };
+
+  const saveSessionTitle = async () => {
+    if (!session || sessionActionBusy) return;
+    const title = renameTitle.trim();
+    if (!title) {
+      Alert.alert('Chat name required', 'Enter a name for this conversation.');
+      return;
+    }
+
+    setSessionActionBusy(true);
+    try {
+      const updated = await chatService.updateChatSession(session.id, { title });
+      if (!updated) throw new Error('Could not rename this chat.');
+      setSession({ ...session, title });
+      setRenameVisible(false);
+      await refresh(true);
+    } catch (error) {
+      Alert.alert(
+        'Could not rename chat',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setSessionActionBusy(false);
+    }
+  };
+
+  const deleteSession = async () => {
+    if (!session || sessionActionBusy) return;
+
+    setSessionActionBusy(true);
+    try {
+      await chatService.deleteSession(session.id);
+      setSession(null);
+      setMessages([WELCOME_MSG]);
+      await refresh(true);
+    } catch (error) {
+      Alert.alert(
+        'Could not delete chat',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setSessionActionBusy(false);
+    }
+  };
+
+  const confirmDeleteSession = () => {
+    if (!session) return;
+    setSessionMenuVisible(false);
+    Alert.alert(
+      'Delete chat?',
+      `This permanently deletes "${session.title}" and its messages. This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void deleteSession() },
+      ]
+    );
+  };
 
   const handleSelectSession = useCallback(
     async (id: string) => {
@@ -215,9 +299,118 @@ export default function ChatScreen() {
               title="MonteAI"
               leftIcon="menu"
               onLeftPress={openDrawer}
-              rightIcons={[{ icon: 'share' }, { icon: 'expand-more' }]}
+              rightIcons={
+                session
+                  ? [{ icon: 'more-vert', onPress: () => setSessionMenuVisible(true) }]
+                  : []
+              }
             />
           </SafeAreaView>
+
+          <Modal
+            visible={sessionMenuVisible && !!session}
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={() => setSessionMenuVisible(false)}>
+            <View style={s.menuOverlay}>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => setSessionMenuVisible(false)}
+                accessibilityLabel="Close chat actions"
+              />
+              <View
+                style={[
+                  s.sessionMenu,
+                  { backgroundColor: surface, borderColor: outline, top: insets.top + 58 },
+                ]}>
+                <Pressable
+                  style={s.sessionMenuItem}
+                  onPress={() => void toggleSessionPinned()}
+                  disabled={sessionActionBusy}
+                  accessibilityRole="button">
+                  <MaterialIcons name="push-pin" size={20} color={primary} />
+                  <Text style={[s.sessionMenuText, { color: heading }]}>
+                    {session?.pinned ? 'Unpin chat' : 'Pin chat'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={s.sessionMenuItem}
+                  onPress={() => {
+                    if (!session) return;
+                    setSessionMenuVisible(false);
+                    setRenameTitle(session.title);
+                    setRenameVisible(true);
+                  }}
+                  disabled={sessionActionBusy}
+                  accessibilityRole="button">
+                  <MaterialIcons name="edit" size={20} color={body} />
+                  <Text style={[s.sessionMenuText, { color: heading }]}>Rename</Text>
+                </Pressable>
+                <Pressable
+                  style={s.sessionMenuItem}
+                  onPress={confirmDeleteSession}
+                  disabled={sessionActionBusy || sending}
+                  accessibilityRole="button">
+                  <MaterialIcons name="delete-outline" size={20} color="#c62828" />
+                  <Text style={[s.sessionMenuText, { color: '#c62828' }]}>Delete</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
+
+          <Modal
+            visible={renameVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => {
+              if (!sessionActionBusy) setRenameVisible(false);
+            }}>
+            <View style={s.renameOverlay}>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => {
+                  if (!sessionActionBusy) setRenameVisible(false);
+                }}
+                accessibilityLabel="Close rename dialog"
+              />
+              <View style={[s.renameDialog, { backgroundColor: surface, borderColor: outline }]}>
+                <Text style={[s.renameHeading, { color: heading }]}>Rename chat</Text>
+                <Text style={[s.renameDescription, { color: body }]}>
+                  Choose a name for this conversation.
+                </Text>
+                <TextInput
+                  value={renameTitle}
+                  onChangeText={setRenameTitle}
+                  maxLength={100}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => void saveSessionTitle()}
+                  placeholder="Chat name"
+                  placeholderTextColor={body}
+                  style={[s.renameInput, { color: heading, borderColor: outline }]}
+                />
+                <View style={s.renameActions}>
+                  <Pressable
+                    onPress={() => setRenameVisible(false)}
+                    disabled={sessionActionBusy}
+                    style={[s.renameButton, { borderColor: outline }]}>
+                    <Text style={[s.renameButtonText, { color: body }]}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void saveSessionTitle()}
+                    disabled={sessionActionBusy}
+                    style={[s.renameButton, { backgroundColor: primary, borderColor: primary }]}>
+                    {sessionActionBusy ? (
+                      <ActivityIndicator size="small" color={onPrimary} />
+                    ) : (
+                      <Text style={[s.renameButtonText, { color: onPrimary }]}>Save</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
 
           <ScrollView
             ref={scrollRef}
@@ -375,4 +568,61 @@ const s = StyleSheet.create({
   input: { flex: 1, fontSize: FontSize.md, maxHeight: 80 },
   sendBtn: { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   disclaimer: { fontSize: 11, textAlign: 'center', marginTop: Spacing.xs, opacity: 0.6 },
+  menuOverlay: { flex: 1, backgroundColor: 'transparent' },
+  sessionMenu: {
+    position: 'absolute',
+    right: Spacing.md,
+    width: 200,
+    paddingVertical: Spacing.xs,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.md,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  sessionMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  sessionMenuText: { fontSize: FontSize.sm, fontWeight: '500' },
+  renameOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    padding: Spacing.xl,
+  },
+  renameDialog: {
+    width: '100%',
+    maxWidth: 420,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+  },
+  renameHeading: { fontSize: FontSize.lg, fontWeight: '700' },
+  renameDescription: { fontSize: FontSize.sm, marginTop: Spacing.xs },
+  renameInput: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: FontSize.md,
+    marginTop: Spacing.lg,
+  },
+  renameActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, marginTop: Spacing.lg },
+  renameButton: {
+    minWidth: 84,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  renameButtonText: { fontSize: FontSize.sm, fontWeight: '600' },
 });

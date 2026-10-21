@@ -26,6 +26,7 @@ function buildSeed(): ChatSessionResponseDto[] {
       id: "session-1",
       userId: "user-1",
       title: "Getting Started",
+      pinned: true,
       createdAt: "2025-01-10T08:00:00.000Z",
       lastChatDate: "2025-01-10T08:15:00.000Z",
       messages: [
@@ -49,6 +50,7 @@ function buildSeed(): ChatSessionResponseDto[] {
       id: "session-2",
       userId: "user-2",
       title: "Research Assistance",
+      pinned: false,
       createdAt: "2025-02-01T09:30:00.000Z",
       lastChatDate: "2025-02-01T09:35:00.000Z",
       messages: [
@@ -90,6 +92,7 @@ export const mockChatService: ChatService = {
       id,
       userId: dto.userId,
       title: dto.title,
+      pinned: false,
       createdAt: now,
       lastChatDate: now,
       messages: [],
@@ -124,6 +127,26 @@ export const mockChatService: ChatService = {
     });
 
     return true;
+  },
+
+  async setSessionPinned(sessionId: string, pinned: boolean) {
+    await delay(300);
+
+    const existing = sessionsMap.get(sessionId);
+    if (!existing) {
+      return false;
+    }
+
+    sessionsMap.set(sessionId, { ...existing, pinned });
+    return true;
+  },
+
+  async deleteSession(sessionId: string) {
+    await delay(300);
+
+    if (!sessionsMap.delete(sessionId)) {
+      throw new Error(`Chat session '${sessionId}' not found.`);
+    }
   },
 
   async sendMessage(

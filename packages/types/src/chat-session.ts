@@ -15,6 +15,7 @@ export interface ChatSessionResponseDto {
   title: string;
   createdAt: string;
   lastChatDate: string;
+  pinned: boolean;
   messages: ChatMessageResponseDto[];
 }
 

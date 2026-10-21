@@ -20,6 +20,8 @@ namespace server.Services.Interfaces
         // UpdateAsync
         Task<bool> UpdateAsync(UpdateChatSessionDto chatSession, Guid sessionId);
 
+        Task<bool> SetPinnedAsync(Guid id, bool pinned);
+
         // TouchAsync — bump LastChatDate after new activity in a session
         Task<bool> TouchAsync(Guid id);
 

@@ -45,6 +45,16 @@ namespace server.Repositories
             return true;
         }
 
+        public async Task<bool> SetPinnedAsync(Guid id, bool pinned)
+        {
+            var existing = await _db.ChatSessions.FindAsync(id);
+            if (existing == null) return false;
+
+            existing.Pinned = pinned;
+            await _db.SaveChangesAsync();
+            return true;
+        }
+
         public async Task<bool> DeleteChatSessionAsync(Guid id)
         {
             var result = await _db.ChatSessions.FindAsync(id);

@@ -42,6 +42,43 @@ export function useCreateChatSession(chatService: ChatService) {
   });
 }
 
+export function useDeleteChatSession(chatService: ChatService) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (sessionId: string) => chatService.deleteSession(sessionId),
+    onSuccess: (_data, sessionId) => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.all });
+      queryClient.removeQueries({ queryKey: chatKeys.session(sessionId) });
+    },
+  });
+}
+
+export function useUpdateChatSession(chatService: ChatService) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ sessionId, title }: { sessionId: string; title: string }) =>
+      chatService.updateChatSession(sessionId, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.all });
+    },
+  });
+}
+
+export function useSetChatSessionPinned(chatService: ChatService) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ sessionId, pinned }: { sessionId: string; pinned: boolean }) =>
+      chatService.setSessionPinned(sessionId, pinned),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.all });
+      queryClient.invalidateQueries({ queryKey: chatKeys.session(variables.sessionId) });
+    },
+  });
+}
+
 export function useSendChatMessage(chatService: ChatService) {
   const queryClient = useQueryClient();
 

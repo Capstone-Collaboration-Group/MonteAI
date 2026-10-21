@@ -167,6 +167,9 @@ namespace server.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
+                    b.Property<bool>("Pinned")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(256)

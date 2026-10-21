@@ -307,6 +307,20 @@ namespace server.Controllers
             return Ok(new { Message = "Chat Session Title Updated" });
         }
 
+        [HttpPut("sessions/{id}/pin")]
+        public async Task<IActionResult> SetChatSessionPinned(
+            [FromRoute] Guid id,
+            [FromBody] UpdateChatSessionPinnedDto updateDto)
+        {
+            var ownershipError = await CheckOwnershipAsync(id);
+            if (ownershipError != null) return ownershipError;
+
+            var result = await _chatSessionService.SetPinnedAsync(id, updateDto.Pinned);
+            if (!result) return StatusCode(500, new { Message = "Failed to update chat session pin." });
+
+            return Ok(new { Message = updateDto.Pinned ? "Chat Session Pinned" : "Chat Session Unpinned" });
+        }
+
         [HttpDelete("sessions/{id}/delete")]
         public async Task<IActionResult> DeleteChatSession([FromRoute] Guid id)
         {

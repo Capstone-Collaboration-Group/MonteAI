@@ -1,4 +1,4 @@
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { ChatPage } from "@monteai/ui";
 import { useAuth, useQueryClient, chatKeys } from "@monteai/hooks";
 import { chatService } from "../lib/chat/chatService";
@@ -6,6 +6,7 @@ import { chatService } from "../lib/chat/chatService";
 export default function Chat() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -22,6 +23,7 @@ export default function Chat() {
       onSessionActivity={() =>
         queryClient.invalidateQueries({ queryKey: chatKeys.all })
       }
+      onSessionDeleted={() => navigate("/home", { replace: true })}
     />
   );
 }

@@ -32,6 +32,13 @@ namespace server.Models.DTOs.ChatSession
 
         public DateTime LastChatDate { get; set; }
 
+        public bool Pinned { get; set; }
+
         public List<ChatMessageResponseDto> Messages { get; set; } = new();
+    }
+
+    public class UpdateChatSessionPinnedDto
+    {
+        public bool Pinned { get; set; }
     }
 }

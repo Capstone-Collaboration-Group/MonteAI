@@ -1,10 +1,14 @@
 // layouts/AppLayout.tsx
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Outlet, NavLink, useNavigate, useLocation, matchPath } from "react-router-dom";
-import { Sidebar, NotificationBell } from "@monteai/ui";
+import { ConfirmDialog, Sidebar, NotificationBell, toast } from "@monteai/ui";
 import {
   Search,
   MessageCircle,
+  MoreVertical,
+  Pin,
+  Trash2,
   Plus,
   LogOut,
   Settings,
@@ -18,7 +22,16 @@ import {
 import CdmLogo from "../../assets/cdm-logo.png";
 
 // Import your global hooks and initialized services
-import { useUserProfile, useAuth, useChatSessions, queryClient } from "@monteai/hooks";
+import {
+  useUserProfile,
+  useAuth,
+  useChatSessions,
+  useDeleteChatSession,
+  useSetChatSessionPinned,
+  useUpdateChatSession,
+  queryClient,
+} from "@monteai/hooks";
+import type { ChatSessionResponseDto } from "@monteai/types";
 import { profileService } from "../../lib/authService";
 import { chatService } from "../../lib/chat/chatService";
 import { notificationService } from "../../lib/notificationService";
@@ -60,10 +73,143 @@ function AppSidebar({
     isLoading: sessionsLoading,
     isError: sessionsError,
   } = useChatSessions(chatService, user?.uid);
+  const [deletingSession, setDeletingSession] =
+    useState<ChatSessionResponseDto | null>(null);
+  const [renamingSession, setRenamingSession] =
+    useState<ChatSessionResponseDto | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [openSessionMenu, setOpenSessionMenu] = useState<{
+    sessionId: string;
+    left: number;
+    top: number;
+  } | null>(null);
+  const deleteSession = useDeleteChatSession(chatService);
+  const updateSession = useUpdateChatSession(chatService);
+  const setSessionPinned = useSetChatSessionPinned(chatService);
 
   // Extract /chat/:sessionId so the open conversation can be highlighted
   const activeSessionId =
     matchPath("/chat/:sessionId", location.pathname)?.params.sessionId ?? null;
+
+  const confirmDeleteSession = async () => {
+    if (!deletingSession || deleteSession.isPending) return;
+
+    try {
+      await deleteSession.mutateAsync(deletingSession.id);
+      toast.success("Chat deleted");
+      if (activeSessionId === deletingSession.id) {
+        navigate("/home");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't delete this chat.");
+    } finally {
+      setDeletingSession(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!openSessionMenu) return;
+
+    const closeMenu = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest("[data-chat-session-menu]")) return;
+      setOpenSessionMenu(null);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenSessionMenu(null);
+    };
+    const closeOnScroll = () => setOpenSessionMenu(null);
+
+    document.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", closeOnScroll, true);
+    };
+  }, [openSessionMenu]);
+
+  const handleTogglePinned = async (session: ChatSessionResponseDto) => {
+    setOpenSessionMenu(null);
+    try {
+      const updated = await setSessionPinned.mutateAsync({
+        sessionId: session.id,
+        pinned: !session.pinned,
+      });
+      if (!updated) {
+        toast.error("Couldn't update the pinned chat.");
+        return;
+      }
+      toast.success(session.pinned ? "Chat unpinned" : "Chat pinned");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't update the pinned chat.");
+    }
+  };
+
+  const handleRenameSession = async () => {
+    if (!renamingSession || updateSession.isPending) return;
+    const title = renameTitle.trim();
+    if (!title) {
+      toast.error("Chat name cannot be empty.");
+      return;
+    }
+
+    try {
+      const updated = await updateSession.mutateAsync({
+        sessionId: renamingSession.id,
+        title,
+      });
+      if (!updated) {
+        toast.error("Couldn't rename this chat.");
+        return;
+      }
+      toast.success("Chat renamed");
+      setRenamingSession(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't rename this chat.");
+    }
+  };
+
+  const pinnedSessions = chatSessions?.filter((session) => session.pinned) ?? [];
+  const recentSessions = chatSessions?.filter((session) => !session.pinned) ?? [];
+  const menuSession = chatSessions?.find(
+    (session) => session.id === openSessionMenu?.sessionId
+  );
+  const renderSession = (session: ChatSessionResponseDto) => (
+    <div key={session.id} className="group relative">
+      <Sidebar.Item
+        icon={session.pinned ? <Pin className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+        label={session.title}
+        active={session.id === activeSessionId}
+        className="pr-10"
+        onClick={() => { onClose(); navigate(`/chat/${session.id}`); }}
+      />
+      <button
+        type="button"
+        title={`Options for ${session.title}`}
+        aria-label={`Options for chat: ${session.title}`}
+        aria-haspopup="menu"
+        aria-expanded={openSessionMenu?.sessionId === session.id}
+        data-chat-session-menu
+        onClick={(event) => {
+          if (openSessionMenu?.sessionId === session.id) {
+            setOpenSessionMenu(null);
+            return;
+          }
+          const rect = event.currentTarget.getBoundingClientRect();
+          setOpenSessionMenu({
+            sessionId: session.id,
+            left: Math.max(8, Math.min(rect.right - 192, window.innerWidth - 200)),
+            top: Math.min(rect.bottom + 4, window.innerHeight - 150),
+          });
+        }}
+        className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-on-surface-variant opacity-0 transition-opacity hover:bg-surface-container-high focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+    </div>
+  );
 
   // 3. Handle secure sign out
   const handleLogout = async () => {
@@ -197,7 +343,6 @@ function AppSidebar({
         </NavLink>
       </Sidebar.Nav>
 
-      <Sidebar.SidebarSectionLabel>Recents</Sidebar.SidebarSectionLabel>
       <Sidebar.Nav className="gap-0.5">
         {sessionsLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
@@ -213,15 +358,24 @@ function AppSidebar({
             </p>
           )
         ) : chatSessions && chatSessions.length > 0 ? (
-          chatSessions.map((session) => (
-            <Sidebar.Item
-              key={session.id}
-              icon={<MessageCircle className="h-4 w-4" />}
-              label={session.title}
-              active={session.id === activeSessionId}
-              onClick={() => { onClose(); navigate(`/chat/${session.id}`); }}
-            />
-          ))
+          <>
+            {pinnedSessions.length > 0 && (
+              <>
+                <p className="px-3 pb-1.5 pt-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
+                  Pinned
+                </p>
+                {pinnedSessions.map(renderSession)}
+              </>
+            )}
+            {recentSessions.length > 0 && (
+              <>
+                <p className="px-3 pb-1.5 pt-2 text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">
+                  Recents
+                </p>
+                {recentSessions.map(renderSession)}
+              </>
+            )}
+          </>
         ) : (
           !collapsed && (
             <p className="px-3 py-2 text-xs text-on-surface-variant">
@@ -230,6 +384,97 @@ function AppSidebar({
           )
         )}
       </Sidebar.Nav>
+
+      {openSessionMenu && createPortal(
+        <div
+          role="menu"
+          aria-label="Chat actions"
+          data-chat-session-menu
+          style={{ position: "fixed", left: openSessionMenu.left, top: openSessionMenu.top }}
+          className="z-[70] w-48 rounded-lg border border-outline-variant bg-surface p-1 shadow-xl"
+        >
+          {menuSession && (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void handleTogglePinned(menuSession)}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container-high"
+                >
+                  <Pin className="h-4 w-4" />
+                  {menuSession.pinned ? "Unpin chat" : "Pin chat"}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenSessionMenu(null);
+                    setRenameTitle(menuSession.title);
+                    setRenamingSession(menuSession);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container-high"
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenSessionMenu(null);
+                    setDeletingSession(menuSession);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-error hover:bg-error/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              </>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {createPortal(
+        <ConfirmDialog
+          open={deletingSession !== null}
+          title="Delete this chat?"
+          description={`This permanently deletes "${deletingSession?.title ?? ""}" and its messages. This action cannot be undone.`}
+          confirmLabel="Delete chat"
+          loading={deleteSession.isPending}
+          onConfirm={confirmDeleteSession}
+          onCancel={() => {
+            if (!deleteSession.isPending) setDeletingSession(null);
+          }}
+        />,
+        document.body
+      )}
+
+      {createPortal(
+        <ConfirmDialog
+          open={renamingSession !== null}
+          title="Rename chat"
+          description="Choose a name for this conversation."
+          confirmLabel="Save name"
+          loading={updateSession.isPending}
+          onConfirm={handleRenameSession}
+          onCancel={() => {
+            if (!updateSession.isPending) setRenamingSession(null);
+          }}
+        >
+          <input
+            autoFocus
+            maxLength={100}
+            value={renameTitle}
+            onChange={(event) => setRenameTitle(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void handleRenameSession();
+            }}
+            aria-label="Chat name"
+            className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary"
+          />
+        </ConfirmDialog>,
+        document.body
+      )}
 
       {/* 3. Make the Footer dynamic and add the logout trigger */}
       <Sidebar.Footer className={`flex items-center gap-2.5 px-1 ${collapsed ? "justify-center" : "justify-between"}`}>
