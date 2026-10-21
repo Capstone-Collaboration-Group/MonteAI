@@ -1,7 +1,6 @@
 // packages/ui/src/components/Thesis/ThesisStatusTimeline.tsx
 import { CheckCircle, Circle } from "lucide-react";
 import type { ThesisResponseDto, ViewerRole } from "@monteai/types";
-import { formatPhtDate, formatPhtTime } from "@monteai/utils";
 import { HamburgerButton } from "../common/Hamburger";
 
 interface TimelineStep {
@@ -13,7 +12,15 @@ interface TimelineStep {
 }
 
 function formatDateTime(iso: string) {
-  return { date: formatPhtDate(iso), time: formatPhtTime(iso) };
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }),
+    time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+  };
 }
 
 function buildTimeline(thesis: ThesisResponseDto): TimelineStep[] {
