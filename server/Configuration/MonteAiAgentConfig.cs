@@ -87,9 +87,10 @@ namespace server.Configuration
 
         /// <summary>
         /// Maximum number of deduplicated sources attached to one answer.
-        /// Part of the ~1000-token/query budget: each source block costs
-        /// ~150 tokens (see BuildSourcesBlock excerpt cap). Sized to hold
-        /// several DISTINCT studies. Default: 6.
+        /// Planner observations stay ~150 tokens/source (600-char Snippet),
+        /// while the SYNTHESIS sources block now carries FullExcerpt (up to
+        /// 4000 chars ≈ 1000 tokens/source) so methodology sentences at the
+        /// end of abstracts reach the synthesizer. Default: 6.
         /// </summary>
         public int MaxSources { get; set; } = 6;
 

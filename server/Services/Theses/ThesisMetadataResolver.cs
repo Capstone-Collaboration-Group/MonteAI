@@ -2,12 +2,11 @@
 //
 // The single authority for "who wrote this thesis and when" — used twice:
 //
-//   INGEST (ThesisService.IngestFullAsync / ProcessQueuedIngestionAsync):
-//   title-page extraction is preferred, but when it fails (the common case —
-//   title pages rarely carry machine-readable "Authors:" labels) the
-//   resolver supplies the Firestore/group values so EVERY vector lands with
-//   authors + year already embedded ("Authors: …" header) and stored
-//   (metadata["authors"] / ["publication_year"]).
+//   INGEST (ThesisService.IngestAsync): the server-side metadata resolution
+//   replaces the old desktop title-page extraction, so the one metadata
+//   vector per thesis always lands with authors + year already embedded
+//   ("Authors: …" header) and stored (metadata["authors"] /
+//   ["publication_year"]).
 //
 //   READ (AgentToolbox, MonteAiAgentService, DeterministicResponder): fills
 //   citations whose vectors predate that fix, so the synthesizer gets

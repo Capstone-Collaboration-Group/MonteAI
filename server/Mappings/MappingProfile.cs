@@ -13,7 +13,6 @@ using server.Models.DTOs.Submission;
 using server.Models.DTOs.Thesis;
 using server.Models.DTOs.User;
 using server.Models.Entities;
-using server.Models.Retrieval;
 
 namespace server.Mappings
 {
@@ -36,9 +35,6 @@ namespace server.Mappings
             CreateMap<SubmitThesisDto, Thesis>();
             CreateMap<UpdateThesisDto, Thesis>();
             CreateMap<UpdateThesisStatusDto, Thesis>();
-            CreateMap<ThesisChunkDto, Chunk>()
-                .ForCtorParam(nameof(Chunk.ThesisId), opt => opt.MapFrom(_ => (string?)null))
-                .ForCtorParam(nameof(Chunk.RelevanceScore), opt => opt.MapFrom(_ => (string?)null));
 
             //ThesisVersion Mappings
             CreateMap<ThesisVersion, ThesisVersionResponseDto>();

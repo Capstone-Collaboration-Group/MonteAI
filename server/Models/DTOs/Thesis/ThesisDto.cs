@@ -86,69 +86,29 @@ namespace server.Models.DTOs.Thesis
         public string? PublicationYear { get; set; }
 
     }
-    public class ThesisChunkDto
-    {
-        public int ChunkIndex { get; set; }
-        public string Text { get; set; } = string.Empty;  // maps to Chunk.Text
-        public string? Title { get; set; }
-        public string? Url { get; set; }
-        public string? Authors { get; set; }
-        public string? PublicationYear { get; set; }
-        public string? Journal { get; set; }
-    }
+
+    // ── Metadata-only ingestion (POST /thesis/ingest) ────────────────────────
+    // Approve/reindex sends ONLY the thesis id. The server resolves title,
+    // authors, year and abstract from SQL/Firestore/research-group data and
+    // synchronously upserts ONE metadata vector per thesis — no full text, no
+    // staging, no background body-chunk job.
 
     public class IngestThesisDto
     {
         public Guid ThesisId { get; set; }
-        public List<ThesisChunkDto> Chunks { get; set; } = [];
     }
+
     public class IngestThesisResponseDto
     {
-        public Guid ThesisId { get; set;}
-        public int VectorCount { get ;set;}
-        public string Status { get; set;} = string.Empty;
-    }
-
-    // ── Full-text async ingestion (POST /thesis/ingest/full) ────────────────
-    // The desktop pipeline extracts EVERY page of the PDF and sends the raw
-    // text here. The server synchronously upserts one metadata vector (so the
-    // thesis is citable immediately), stages the full text to blob storage,
-    // enqueues the body chunking/embedding for a background worker, and
-    // returns 202 Accepted — concurrent approvals never block each other.
-
-    public class IngestFullThesisDto
-    {
-        public Guid ThesisId { get; set; }
-
-        /// <summary>Complete extracted text of the PDF (all pages).</summary>
-        public string FullText { get; set; } = string.Empty;
-
-        /// <summary>Title-page metadata (from PDF pages 1-2).</summary>
-        public string? Title { get; set; }
-        public string? Authors { get; set; }
-        public string? PublicationYear { get; set; }
-
-        /// <summary>
-        /// The desktop found no chapter headings and the admin confirmed
-        /// metadata-only indexing. The server still re-runs its own section
-        /// filter (it is authoritative); this flag only skips staging/queueing
-        /// when the user explicitly chose metadata-only.
-        /// </summary>
-        public bool MetadataOnly { get; set; }
-    }
-
-    public class IngestFullThesisResponseDto
-    {
         public Guid ThesisId { get; set; }
 
         /// <summary>
-        /// "Queued" = metadata vector upserted, body ingestion pending;
-        /// "MetadataOnly" = metadata vector upserted, no body chunks by design;
+        /// "Indexed" = metadata vector upserted, thesis citable;
         /// "Failed".
         /// </summary>
         public string Status { get; set; } = string.Empty;
 
-        /// <summary>Vectors already upserted synchronously (the metadata vector: 0 or 1).</summary>
+        /// <summary>Vectors upserted (the metadata vector: 0 or 1).</summary>
         public int VectorCount { get; set; }
     }
 }

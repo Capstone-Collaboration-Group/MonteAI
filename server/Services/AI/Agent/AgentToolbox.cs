@@ -36,8 +36,10 @@ namespace server.Services.AI.Agent
         private readonly IThesisMetadataResolver _metadataResolver;
         private readonly ILogger<AgentToolbox> _logger;
 
-        /// <summary>Characters of a source's text included in prompt observations — keeps the context window small while giving the synthesizer real body passages (full-text ingestion).</summary>
+        /// <summary>Characters of a source's text included in prompt observations — keeps the context window small while still showing the synthesizer each source's title/authors/year/abstract (metadata-only ingestion).</summary>
         private const int SnippetLength = 600;
+        /// <summary>Cap for the synthesis-only full excerpt — comfortably above the longest abstract in the corpus.</summary>
+        private const int FullExcerptLength = 4000;
 
         /// <summary>Hard cap per tool observation so one call cannot blow up the prompt.</summary>
         private const int MaxObservationLength = 4000;
@@ -163,6 +165,10 @@ namespace server.Services.AI.Agent
                 Authors = null,
                 PublicationYear = t.SubmittedAt?.Year.ToString(),
                 Snippet = Truncate(t.Abstract, SnippetLength),
+                // Legacy rows keep raw text; GUID rows point at Firestore (the
+                // abstract itself is not in SQL) — leave null so the synthesis
+                // block falls back to Snippet instead of a bare GUID.
+                FullExcerpt = Guid.TryParse(t.Abstract, out _) ? null : Truncate(t.Abstract, FullExcerptLength),
                 Score = null,
                 Url = t.FilePath,
             }).ToList();
@@ -220,6 +226,7 @@ namespace server.Services.AI.Agent
                 Authors = null,
                 PublicationYear = thesis.SubmittedAt?.Year.ToString(),
                 Snippet = Truncate(thesis.Abstract, SnippetLength),
+                FullExcerpt = Guid.TryParse(thesis.Abstract, out _) ? null : Truncate(thesis.Abstract, FullExcerptLength),
                 Score = null,
                 Url = thesis.FilePath,
             };
@@ -251,6 +258,7 @@ namespace server.Services.AI.Agent
             Authors = chunk.Authors,
             PublicationYear = chunk.PublicationYear,
             Snippet = Truncate(chunk.Text, SnippetLength),
+            FullExcerpt = Truncate(chunk.Text, FullExcerptLength),
             Score = double.TryParse(chunk.RelevanceScore, out var score) ? score : null,
             Url = chunk.Url,
         };

@@ -26,6 +26,20 @@ namespace server.Models.DTOs.ChatMessage
         /// <summary>Retrieved text snippet that grounded the answer (already truncated for prompt/UI use).</summary>
         public string? Snippet { get; set; }
 
+        /// <summary>
+        /// FULL retrieved text (title/author/year header + complete abstract,
+        /// capped at 4000 chars) — consumed ONLY by the synthesizer's sources
+        /// block (BuildSourcesBlock). The 600-char Snippet cut abstracts off
+        /// before their methodology sentences ("descriptive quantitative …
+        /// weighted mean … convenience sampling" sit at the END), so the
+        /// synthesizer concluded "no explicit indication" while Pinecone held
+        /// the full abstract. JsonIgnore: never persisted to SourcesJson nor
+        /// streamed in the SSE sources event — the UI keeps the short Snippet
+        /// tooltip and planner observations stay token-budgeted.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string? FullExcerpt { get; set; }
+
         /// <summary>Cosine similarity score for vector matches (null for keyword/SQL lookups).</summary>
         public double? Score { get; set; }
 
