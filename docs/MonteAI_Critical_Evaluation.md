@@ -24,7 +24,7 @@ The project is ambitious and has a real local need behind it. The engineering sc
 - [ ]  - **Out-of-scope behavior:** how the system responds when no relevant thesis exists.
 - [ ]  - **Performance:** load testing (k6, JMeter, or Locust) with p50/p95 latency and concurrent-user behavior.
 - [x]  - **Security:** an OWASP ASVS or ZAP scan, TOTP flow testing, rate-limit testing, and RBAC bypass attempts.
-- [ ] - **Your testing phases stop at "unit testing" and "acceptance testing."** Integration, system, performance, and security testing are missing, yet you evaluate those qualities.
+- [x] - **Your testing phases stop at "unit testing" and "acceptance testing."** Integration, system, performance, and security testing are missing, yet you evaluate those qualities.
 - [ ] - **No success thresholds.** "Fast and reliable response times" (Objective 2) is undefined. Set targets such as p95 < X seconds, faithfulness >= Y, and availability >= Z.
 - [ ] - **No baseline or comparator.** "Improves the quality and efficiency of thesis research" can't be shown without comparing against something. A small task-based comparison (find three related studies using the library process versus MonteAI, measuring time and relevance) would turn an opinion into evidence.
 
@@ -68,7 +68,7 @@ Related gaps:
 - [ ] - **Respondents must actually use the system.** There is no evaluation protocol covering how they access it, for how long, what tasks they do, or how they are onboarded. The Android-only app also excludes iPhone users unless the web version is the fallback.
 - [x] - **The staff and IT expert counts are unstated.** How many Research Department staff are there? How many IT experts, and what are their selection criteria? Expert evaluators usually need to be purposively selected.
 - [x] - **The instrument validation is vague.** "Validated" needs substance: the number and qualifications of validators, a Content Validity Index, a pilot test, and Cronbach's alpha. Prefer adapting established instruments such as SUS and prior ISO 25010 questionnaires. The questionnaires themselves belong in the appendices.
-- [ ] - **Weighted mean alone is thin.** Add standard deviation, reliability coefficients, and a test for differences among the three respondent groups (Kruskal-Wallis or ANOVA).
+- [x] - **Weighted mean alone is thin.** Add standard deviation, reliability coefficients, and a test for differences among the three respondent groups (Kruskal-Wallis or ANOVA).
 - [ ] - **The Likert interval formula is garbled** (the division symbol is missing). It should read (4 - 1) / 4 = 0.75. Also, your problem statement says "acceptability," but the verbal scale only says "Agree"; map scores to acceptability labels.
 - [x] - **Research design.** This is a system development study, so consider framing it as developmental or applied research with a descriptive evaluation phase. Pure "quantitative descriptive" will draw the question.
 
