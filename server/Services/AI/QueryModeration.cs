@@ -103,7 +103,7 @@ namespace server.Services.AI
     "gunggong", "kupal", "pokpok", "kantot", "jakol", "burat", "pekpek",
     "puke", "walanghiya", "inutil", "ungas", "siraulo", "ulol", "gago",
     "puta", "pota", "tanga", "bobo", "tite", "titi", "leche", "dick", "cock",
-    "pussy", "piss", "cum", "tits", "ass", "fag", "coon", "kys", "esmiringhoy",
+    "pussy", "piss", "tits", "ass", "fag", "coon", "kys", "esmiringhoy",
     "ponyeta", "kantot", "bilat", "engot", "ogag", "gaga", "ratbu", "tete", "teti", "tae",
     "kiki", "tinil", "timang", "hudas", "poki",
 
