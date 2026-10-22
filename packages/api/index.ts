@@ -2,6 +2,7 @@
 
 export * from "./src/annotation"
 export * from "./src/admin"
+export * from "./src/analytics"
 export * from "./src/client";
 export * from "./src/auth/tokenStorage";
 export * from "./src/otp";

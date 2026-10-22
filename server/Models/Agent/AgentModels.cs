@@ -34,11 +34,18 @@ namespace server.Models.Agent
     public record ToolExecutionResult(string Observation, IReadOnlyList<ChatSourceDto> Sources);
 
     /// <summary>The final outcome of one agent run.</summary>
+    /// <param name="UsedLlm">
+    /// True when the run really invoked the LLM (planner and/or synthesizer).
+    /// False for the zero-cost paths: harmful/out-of-scope refusals,
+    /// deterministic fast-path answers and semantic-cache hits. ChatController
+    /// turns this into exactly ONE daily-quota usage tick per LLM-answered query.
+    /// </param>
     public record AgentChatResult(
         string Answer,
         IReadOnlyList<ChatSourceDto> Sources,
         IReadOnlyList<ToolInvocation> Trace,
-        bool UsedFallback);
+        bool UsedFallback,
+        bool UsedLlm = false);
 
     /// <summary>
     /// Events emitted by the streaming agent. Order per request:

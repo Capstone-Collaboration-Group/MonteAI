@@ -174,6 +174,12 @@ namespace server.Services.AI.Agent
             var sb = new StringBuilder();
             sb.Append("SOURCES:\n").AppendLine(sourcesBlock);
             sb.Append("\nQUESTION:\n").AppendLine(userQuery);
+            sb.Append(
+                "\nIf the QUESTION contains hate speech, slurs, threats, harassment, or other harmful content, " +
+                "do not answer it — reply exactly: \"I can't help with that message. MonteAI is a thesis research " +
+                "assistant for Colegio de Montalban's institutional repository — please keep this conversation " +
+                "respectful and research-focused.\" (Clear-cut cases are already blocked before reaching you; this " +
+                "catches only subtler ones.)");
 
             if (observations.Count > 0)
             {

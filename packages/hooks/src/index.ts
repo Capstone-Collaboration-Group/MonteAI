@@ -22,3 +22,4 @@ export * from "./panelist/usePanelistPool";
 export * from "./announcement/useAnnouncement";
 export * from "./notification/useNotifications";
 export * from "./research-group/useResearchGroup";
+export * from "./analytics/useAnalytics";

@@ -1,28 +1,40 @@
 // pages/Home.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, MessageSquare, ChevronDown, Clock } from "lucide-react";
+import { ArrowRight, MessageSquare, ChevronDown } from "lucide-react";
 import { Card } from "@monteai/ui";
+import { chatService } from "../lib/chat/chatService";
 
-const suggestions = [
-  {
-    tag: "Resume",
-    title: "Can you look for studies about gamification?",
-    meta: "New chat · Apr 28",
-  },
-  {
-    tag: "Suggested",
-    title: "Can you look for related studies about IoT-based smart irrigation.",
-  },
-  {
-    tag: "Suggested",
-    title: "Can you look for studies about student benefits on cloud platforms?",
-  },
+/** Static fallback — used until the analytics suggestions fetch answers (or if it fails). */
+const FALLBACK_SUGGESTIONS = [
+  "Can you look for studies about gamification?",
+  "Can you look for related studies about IoT-based smart irrigation?",
+  "Can you look for studies about student benefits on cloud platforms?",
 ];
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>(FALLBACK_SUGGESTIONS);
   const navigate = useNavigate();
+
+  // Dynamic suggestions = top query strings from the analytics store.
+  // Fails soft: the static fallbacks stay in place when the call rejects.
+  useEffect(() => {
+    let active = true;
+    chatService
+      .getQuerySuggestions(3)
+      .then((list) => {
+        if (!active) return;
+        const cleaned = (list ?? []).map((s) => s?.trim()).filter(Boolean);
+        if (cleaned.length > 0) setSuggestions(cleaned);
+      })
+      .catch(() => {
+        /* keep FALLBACK_SUGGESTIONS */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const goToChat = (initialPrompt: string) => {
     if (!initialPrompt.trim()) return;
@@ -94,20 +106,18 @@ export default function Home() {
           </div>
         </form>
 
-        {/* Suggestion cards */}
+        {/* Suggestion cards — top queries from analytics (static fallback). */}
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {suggestions.map((s) => (
+          {suggestions.map((title) => (
             <Card
-              key={s.title}
-              onClick={() => goToChat(s.title)}
+              key={title}
+              onClick={() => goToChat(title)}
               className="cursor-pointer transition hover:-translate-y-0.5 hover:border-primary"
             >
               <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-medium text-on-surface-variant">
-                {s.tag === "Resume" && <Clock className="h-3 w-3" />}
-                {s.tag}
+                Suggested
               </span>
-              <p className="text-sm text-on-surface">{s.title}</p>
-              {s.meta && <p className="mt-2 text-xs text-on-surface-variant">{s.meta}</p>}
+              <p className="text-sm text-on-surface">{title}</p>
             </Card>
           ))}
         </div>

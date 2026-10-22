@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatService } from "@monteai/api";
-import type { ChatMessageResponseDto } from "@monteai/types";
+import type { ChatMessageResponseDto, ChatSourceDto } from "@monteai/types";
 import { useDeleteChatSession } from "@monteai/hooks";
 import { ChatView } from "../components/Chat/ChatView";
 import { ChatPageSkeleton } from "../components/Chat/skeletons";
@@ -26,6 +26,16 @@ import { ConfirmDialog } from "../components/common";
 import { toast } from "../components/Toaster";
 
 const FALLBACK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // dev fallback when no user is signed in (mock mode)
+
+/** Static empty-state suggestions — used until the analytics fetch answers (or if it fails). */
+const DEFAULT_SUGGESTIONS = [
+  "Can you look for studies about gamification?",
+  "Can you look for related studies about IoT-based smart irrigation?",
+  "Can you look for studies about student benefits on cloud platforms?",
+];
+
+/** Follow-up sent by the "Expand" button — the agent blends context into it. */
+const EXPAND_PROMPT = "Expand your previous answer with more detail and examples.";
 
 /** Prefers the server-provided message (rate limit, breaker, etc.) over a generic fallback. */
 function toUserFacingError(err: unknown): string {
@@ -69,8 +79,29 @@ export function ChatPage({
   /** Terminal send failure, shown as a banner until the next send. */
   const [sendError, setSendError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  /** Empty-state suggestion cards — top analytics queries, static fallback until they load. */
+  const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
   const deleteSession = useDeleteChatSession(chatService);
   const hasAutoSent = useRef(false);
+
+  // Fetch the top query strings once for the empty-state suggestion cards.
+  // Fails soft: the static fallbacks stay in place when the call rejects.
+  useEffect(() => {
+    let active = true;
+    chatService
+      .getQuerySuggestions(6)
+      .then((list) => {
+        if (!active) return;
+        const cleaned = (list ?? []).map((s) => s?.trim()).filter(Boolean);
+        if (cleaned.length > 0) setSuggestions(cleaned);
+      })
+      .catch(() => {
+        /* keep DEFAULT_SUGGESTIONS */
+      });
+    return () => {
+      active = false;
+    };
+  }, [chatService]);
 
   // Fetch the selected session's messages. The API returns them latest-first;
   // reverse so the conversation reads chronologically and the view
@@ -207,6 +238,17 @@ export function ChatPage({
 
   const activeSessionId = sessionId ?? localSessionId;
 
+  /** "Cite" — formats the message's sources as APA 7 references (server-side). */
+  const handleRequestCitations = useCallback(
+    (sources: ChatSourceDto[]) => chatService.formatCitations(sources),
+    [chatService]
+  );
+
+  /** "Expand" — sends a context-dependent follow-up asking for more detail. */
+  const handleExpand = useCallback(() => {
+    send(EXPAND_PROMPT);
+  }, [send]);
+
   const confirmDeleteSession = async () => {
     if (!activeSessionId || deleteSession.isPending) return;
 
@@ -243,6 +285,10 @@ export function ChatPage({
         streamingMessageId={streamingAssistantId}
         streamStatus={streamStatus}
         error={sendError}
+        suggestions={suggestions}
+        onSelectSuggestion={(text) => send(text)}
+        onRequestCitations={handleRequestCitations}
+        onExpand={handleExpand}
         onDeleteSession={activeSessionId ? () => setConfirmingDelete(true) : undefined}
         isDeletingSession={deleteSession.isPending}
         onInputChange={setInput}
