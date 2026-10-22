@@ -62,14 +62,14 @@ Related gaps:
 
 ### 7. The sampling and statistical design has errors
 
-- [ ] - **Slovin plus convenience sampling is incoherent.** Slovin assumes random sampling. Convenience sampling cannot "ensure the sample is representative," and the manuscript says exactly that. Acknowledge the limitation or use stratified sampling by program and year level.
-- [ ] - **The sample size is never computed.** With N = 5,813 and e = 0.05, n = 5813 / (1 + 5813 x 0.0025) = about 374.2, so about 375. The formula is also garbled ("n = N1 + Ne2"). Write it as n = N / (1 + Ne^2).
-- [ ] - **The population doesn't match the purpose.** MonteAI is for thesis and capstone students, but your population is all 5,813 enrolled students. First-year students who never do research can't meaningfully evaluate it. Consider restricting to students enrolled in research or capstone courses.
-- [ ] - **Respondents must actually use the system.** There is no evaluation protocol covering how they access it, for how long, what tasks they do, or how they are onboarded. The Android-only app also excludes iPhone users unless the web version is the fallback.
+- [x] - **Slovin plus convenience sampling is incoherent.** Slovin assumes random sampling. Convenience sampling cannot "ensure the sample is representative," and the manuscript says exactly that. Acknowledge the limitation or use stratified sampling by program and year level.
+- [x] - **The sample size is never computed.** With N = 5,813 and e = 0.05, n = 5813 / (1 + 5813 x 0.0025) = about 374.2, so about 375. The formula is also garbled ("n = N1 + Ne2"). Write it as n = N / (1 + Ne^2).
+- [x] - **The population doesn't match the purpose.** MonteAI is for thesis and capstone students, but your population is all 5,813 enrolled students. First-year students who never do research can't meaningfully evaluate it. Consider restricting to students enrolled in research or capstone courses.
+- [x] - **Respondents must actually use the system.** There is no evaluation protocol covering how they access it, for how long, what tasks they do, or how they are onboarded. The Android-only app also excludes iPhone users unless the web version is the fallback.
 - [x] - **The staff and IT expert counts are unstated.** How many Research Department staff are there? How many IT experts, and what are their selection criteria? Expert evaluators usually need to be purposively selected.
 - [x] - **The instrument validation is vague.** "Validated" needs substance: the number and qualifications of validators, a Content Validity Index, a pilot test, and Cronbach's alpha. Prefer adapting established instruments such as SUS and prior ISO 25010 questionnaires. The questionnaires themselves belong in the appendices.
 - [x] - **Weighted mean alone is thin.** Add standard deviation, reliability coefficients, and a test for differences among the three respondent groups (Kruskal-Wallis or ANOVA).
-- [ ] - **The Likert interval formula is garbled** (the division symbol is missing). It should read (4 - 1) / 4 = 0.75. Also, your problem statement says "acceptability," but the verbal scale only says "Agree"; map scores to acceptability labels.
+- [x] - **The Likert interval formula is garbled** (the division symbol is missing). It should read (4 - 1) / 4 = 0.75. Also, your problem statement says "acceptability," but the verbal scale only says "Agree"; map scores to acceptability labels.
 - [x] - **Research design.** This is a system development study, so consider framing it as developmental or applied research with a descriptive evaluation phase. Pure "quantitative descriptive" will draw the question.
 
 ### 8. Misuse of ISO/IEC 25010

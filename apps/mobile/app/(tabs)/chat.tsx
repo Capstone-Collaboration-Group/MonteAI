@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Text, TextInput } from '@/components/ui/ScaledText';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -21,7 +22,11 @@ import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { chatService } from '@/lib/chatService';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
-import type { ChatSessionResponseDto, ChatSourceDto } from '@monteai/types';
+import type {
+  ApaCitationDto,
+  ChatSessionResponseDto,
+  ChatSourceDto,
+} from '@monteai/types';
 
 interface Message {
   id: string;
@@ -39,6 +44,16 @@ const WELCOME_MSG: Message = {
   role: 'ai',
   text: 'Hello! I\'m MonteAI, your research assistant. How can I help you today?',
 };
+
+/** Empty-state suggestion pills — static fallback until the analytics fetch answers. */
+const DEFAULT_SUGGESTIONS = [
+  'Can you look for studies about gamification?',
+  'Can you look for related studies about IoT-based smart irrigation?',
+  'Can you look for studies about student benefits on cloud platforms?',
+];
+
+/** Follow-up sent by the "Expand" button — the agent blends context into it. */
+const EXPAND_PROMPT = 'Expand your previous answer with more detail and examples.';
 
 function toMessage(role: string, text: string, id: string, sources?: ChatSourceDto[] | null): Message {
   return { id, role: role === 'user' ? 'user' : 'ai', text, sources };
@@ -74,6 +89,33 @@ export default function ChatScreen() {
   const [sessionActionBusy, setSessionActionBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const { recentChats, loading: chatsLoading, refresh } = useDrawerChats();
+  /** Empty-state suggestion pills — top analytics queries, static fallback until they load. */
+  const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
+  /** Assistant message whose APA citation sheet is open. */
+  const [citeMessage, setCiteMessage] = useState<Message | null>(null);
+  const [citations, setCitations] = useState<ApaCitationDto[]>([]);
+  const [citeLoading, setCiteLoading] = useState(false);
+  /** Key of the last copied citation — row index ("c0") or "all". */
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Fetch the top query strings once for the empty-state suggestion pills.
+  // Fails soft: the static fallbacks stay in place when the call rejects.
+  useEffect(() => {
+    let active = true;
+    chatService
+      .getQuerySuggestions(4)
+      .then((list) => {
+        if (!active) return;
+        const cleaned = (list ?? []).map((t) => t?.trim()).filter(Boolean);
+        if (cleaned.length > 0) setSuggestions(cleaned);
+      })
+      .catch(() => {
+        /* keep DEFAULT_SUGGESTIONS */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'onSurface');
@@ -210,8 +252,9 @@ export default function ChatScreen() {
     }
   }, [open, handleSelectSession, startNewChat]);
 
-  async function handleSend() {
-    const text = input.trim().slice(0, MAX_INPUT_LENGTH);
+  /** Sends `rawText` — shared by the input bar, suggestion pills, and Expand. */
+  async function sendText(rawText: string) {
+    const text = rawText.trim().slice(0, MAX_INPUT_LENGTH);
     if (!text || sending || loadingHistory) return;
 
     if (!userId) {
@@ -284,6 +327,44 @@ export default function ChatScreen() {
       setSending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
+  }
+
+  async function handleSend() {
+    await sendText(input);
+  }
+
+  /** "Cite" — formats the message's sources as APA 7 references (server-side). */
+  async function openCite(msg: Message) {
+    if (!msg.sources?.length || citeLoading) return;
+    setCiteMessage(msg);
+    setCitations([]);
+    setCopiedKey(null);
+    setCiteLoading(true);
+    try {
+      setCitations(await chatService.formatCitations(msg.sources));
+    } catch (error) {
+      setCiteMessage(null);
+      Alert.alert(
+        'Could not format citations',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setCiteLoading(false);
+    }
+  }
+
+  async function copyCitation(text: string, key: string) {
+    await Clipboard.setStringAsync(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((cur) => (cur === key ? null : cur)), 1500);
+  }
+
+  function copyAllCitations() {
+    if (!citations.length) return;
+    void copyCitation(
+      citations.map((c) => c.citation).join('\n\n'),
+      'all'
+    );
   }
 
     return (
@@ -412,6 +493,82 @@ export default function ChatScreen() {
             </View>
           </Modal>
 
+          {/* APA citation sheet (the "Cite" action) */}
+          <Modal
+            visible={!!citeMessage}
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={() => setCiteMessage(null)}>
+            <View style={s.citeOverlay}>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => {
+                  if (!citeLoading) setCiteMessage(null);
+                }}
+                accessibilityLabel="Close citations"
+              />
+              <View style={[s.citeDialog, { backgroundColor: surface, borderColor: outline }]}>
+                <Text style={[s.citeHeading, { color: heading }]}>APA 7th edition citations</Text>
+                {citeLoading ? (
+                  <View style={s.citeLoadingRow}>
+                    <ActivityIndicator size="small" color={primary} />
+                    <Text style={[s.citeDescription, { color: body }]}>Formatting citations…</Text>
+                  </View>
+                ) : null}
+                {!citeLoading && citations.length === 0 ? (
+                  <Text style={[s.citeDescription, { color: body }]}>No citations available.</Text>
+                ) : null}
+                {!citeLoading
+                  ? citations.map((citation, index) => {
+                      const key = `c${index}`;
+                      return (
+                        <View key={`${citation.thesisId ?? 'source'}-${index}`} style={s.citeRow}>
+                          <Text style={[s.citeText, { color: heading }]} selectable>
+                            {citation.citation}
+                          </Text>
+                          <Pressable
+                            hitSlop={8}
+                            onPress={() => void copyCitation(citation.citation, key)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Copy this citation">
+                            <MaterialIcons
+                              name={copiedKey === key ? 'check' : 'content-copy'}
+                              size={18}
+                              color={copiedKey === key ? '#2e7d32' : body}
+                            />
+                          </Pressable>
+                        </View>
+                      );
+                    })
+                  : null}
+                <View style={s.citeActions}>
+                  <Pressable
+                    onPress={() => setCiteMessage(null)}
+                    disabled={citeLoading}
+                    style={[s.citeButton, { borderColor: outline }]}>
+                    <Text style={[s.citeButtonText, { color: body }]}>Close</Text>
+                  </Pressable>
+                  {!citeLoading && citations.length > 0 ? (
+                    <Pressable
+                      onPress={copyAllCitations}
+                      style={[s.citeButton, { backgroundColor: primary, borderColor: primary }]}>
+                      <MaterialIcons
+                        name={copiedKey === 'all' ? 'check' : 'content-copy'}
+                        size={16}
+                        color={onPrimary}
+                        style={s.actionIcon}
+                      />
+                      <Text style={[s.citeButtonText, { color: onPrimary }]}>
+                        {copiedKey === 'all' ? 'Copied' : 'Copy all'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          </Modal>
+
           <ScrollView
             ref={scrollRef}
             style={s.scroll}
@@ -468,12 +625,26 @@ export default function ChatScreen() {
                       })}
                     </View>
                   ) : null}
-                  {msg.role === 'ai' && msg.status ? (
+                  {msg.role === 'ai' && !msg.status && msg.text && msg.id !== 'welcome' ? (
                     <View style={s.actions}>
-                      <Pressable style={[s.actionBtn, { borderColor: outline }]}>
-                        <Text style={[s.actionText, { color: heading }]}>Cite</Text>
-                      </Pressable>
-                      <Pressable style={[s.actionBtn, { borderColor: outline }]}>
+                      {msg.sources && msg.sources.length > 0 ? (
+                        <Pressable
+                          style={[s.actionBtn, { borderColor: outline }]}
+                          onPress={() => void openCite(msg)}
+                          disabled={citeLoading}
+                          accessibilityRole="button"
+                          accessibilityLabel="Show APA citations">
+                          <MaterialIcons name="format-quote" size={14} color={heading} style={s.actionIcon} />
+                          <Text style={[s.actionText, { color: heading }]}>Cite</Text>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        style={[s.actionBtn, { borderColor: outline }]}
+                        onPress={() => void sendText(EXPAND_PROMPT)}
+                        disabled={sending}
+                        accessibilityRole="button"
+                        accessibilityLabel="Expand this answer">
+                        <MaterialIcons name="unfold-more" size={14} color={heading} style={s.actionIcon} />
                         <Text style={[s.actionText, { color: heading }]}>Expand</Text>
                       </Pressable>
                     </View>
@@ -481,6 +652,23 @@ export default function ChatScreen() {
                 </View>
               </View>
             ))}
+            {/* Empty-state suggestion pills — top queries from analytics (static fallback). */}
+            {messages.length === 1 && !sending && suggestions.length > 0 ? (
+              <View style={s.suggestions}>
+                {suggestions.map((text) => (
+                  <Pressable
+                    key={text}
+                    style={[s.suggestionPill, { backgroundColor: surface, borderColor: outline }]}
+                    onPress={() => void sendText(text)}
+                    accessibilityRole="button">
+                    <MaterialIcons name="auto-awesome" size={14} color={primary} style={s.actionIcon} />
+                    <Text style={[s.suggestionText, { color: heading }]} numberOfLines={2}>
+                      {text}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             {loadingHistory && (
               <View style={s.typingRow}>
                 <ActivityIndicator size="small" color={primary} />
@@ -551,8 +739,52 @@ const s = StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   status: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
-  actionBtn: { borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
+  actionIcon: { marginRight: 4 },
   actionText: { fontSize: FontSize.sm, fontWeight: '500' },
+  suggestions: { gap: Spacing.sm },
+  suggestionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  suggestionText: { flex: 1, fontSize: FontSize.sm, lineHeight: 20 },
+  citeOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    padding: Spacing.xl,
+  },
+  citeDialog: {
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '75%',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  citeHeading: { fontSize: FontSize.lg, fontWeight: '700', marginBottom: Spacing.xs },
+  citeDescription: { fontSize: FontSize.sm },
+  citeLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  citeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, paddingVertical: Spacing.xs },
+  citeText: { flex: 1, fontSize: FontSize.sm, lineHeight: 20 },
+  citeActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, marginTop: Spacing.md },
+  citeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 84,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  citeButtonText: { fontSize: FontSize.sm, fontWeight: '600' },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   typingText: { fontSize: FontSize.sm },
   inputWrap: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm },

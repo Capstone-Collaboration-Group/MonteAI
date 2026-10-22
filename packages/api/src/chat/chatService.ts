@@ -26,6 +26,9 @@ import type {
   UpdateChatSessionDto,
   ChatMessageResponseDto,
   ChatSourceDto,
+  ApaCitationDto,
+  ApaCitationResponseDto,
+  AnalyticsSuggestionsDto,
 } from "@monteai/types";
 import type { ChatService, ChatStreamHandlers } from "./types";
 import { handle404 } from "@monteai/utils";
@@ -240,6 +243,36 @@ export class LiveChatService implements ChatService {
   async deleteSession(sessionId: string): Promise<void> {
     try {
       await this.client.delete(`/chat/sessions/${sessionId}/delete`);
+    } catch (err) {
+      throw LiveChatService.toFriendlyError(err);
+    }
+  }
+
+  /**
+   * Top query strings from the analytics store. Kept tolerant: a failed
+   * fetch returns [] so chat surfaces fall back to their static prompts
+   * instead of showing an error for a decorative feature.
+   */
+  async getQuerySuggestions(limit = 6): Promise<string[]> {
+    try {
+      const { data } = await this.client.get<AnalyticsSuggestionsDto>(
+        "/analytics/suggestions",
+        { params: { limit } }
+      );
+      return data?.suggestions ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async formatCitations(sources: ChatSourceDto[]): Promise<ApaCitationDto[]> {
+    if (!sources.length) return [];
+    try {
+      const { data } = await this.client.post<ApaCitationResponseDto>(
+        "/chat/citations/apa",
+        { sources }
+      );
+      return data?.citations ?? [];
     } catch (err) {
       throw LiveChatService.toFriendlyError(err);
     }

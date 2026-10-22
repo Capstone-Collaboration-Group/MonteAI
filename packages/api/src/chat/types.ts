@@ -7,6 +7,7 @@ import type {
   ChatMessageResponseDto,
   ChatSourceDto,
   UpdateChatSessionDto,
+  ApaCitationDto,
 } from "@monteai/types";
 
 /**
@@ -40,4 +41,15 @@ export interface ChatService {
     dto: CreateChatMessageDto,
     handlers?: ChatStreamHandlers
   ): Promise<ChatMessageResponseDto>;
+  /**
+   * Most frequent chat/catalog queries (GET /analytics/suggestions) — the
+   * suggestion cards on the chat empty state and the home page. Callers
+   * fall back to static prompts when this rejects.
+   */
+  getQuerySuggestions(limit?: number): Promise<string[]>;
+  /**
+   * APA 7th-edition references for a message's sources
+   * (POST /chat/citations/apa) — the "Cite" button's copyable strings.
+   */
+  formatCitations(sources: ChatSourceDto[]): Promise<ApaCitationDto[]>;
 }

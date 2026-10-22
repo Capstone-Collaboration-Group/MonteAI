@@ -25,6 +25,8 @@ namespace server.Data
         public DbSet<Notification> Notifications { get; set; }
 
         public DbSet<ThesisVersion> ThesisVersions { get; set; }
+
+        public DbSet<ActivityLog> ActivityLogs { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -398,6 +400,29 @@ namespace server.Data
                 // CreatedAt is stamped in code (DateTime.UtcNow) — no
                 // GETUTCDATE() default so the SQLite test schema matches.
                 entity.HasIndex(e => new { e.UserId, e.IsRead, e.CreatedAt });
+            });
+
+            modelBuilder.Entity<ActivityLog>(entity =>
+            {
+                entity.ToTable("ActivityLogs");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id)
+                      .ValueGeneratedOnAdd(); // SQL Server identity
+                entity.Property(e => e.Type)
+                      .HasMaxLength(30)
+                      .IsRequired();
+                entity.Property(e => e.Query)
+                      .HasMaxLength(500);
+                entity.Property(e => e.NormalizedQuery)
+                      .HasMaxLength(500);
+                entity.Property(e => e.UserId)
+                      .HasMaxLength(128);
+                // Dashboard windows ("last 30 days") and per-kind rollups.
+                entity.HasIndex(e => new { e.Type, e.OccurredAt });
+                // Suggestion grouping key.
+                entity.HasIndex(e => e.NormalizedQuery);
+                // Most-accessed-thesis rollups.
+                entity.HasIndex(e => e.ThesisId);
             });
         }
 

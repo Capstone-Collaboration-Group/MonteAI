@@ -71,7 +71,13 @@ namespace server.Services.AI
         private const string RefusalText =
             "I'm MonteAI, a thesis research assistant for Colegio de Montalban's institutional repository. " +
             "I can only help with questions about academic theses and research papers. " +
-            "Try asking something like: *\"What theses are about machine learning in education?\"*";
+            "Try asking something like: *\"What theses are about renewable energy?\"*";
+
+        /// <summary>Harmful-content refusal (slurs, threats, harassment — see QueryModeration).</summary>
+        private const string HarmfulRefusalText =
+            "I can't help with that message. MonteAI is a thesis research assistant for Colegio de Montalban's " +
+            "institutional repository — please keep this conversation respectful and research-focused. " +
+            "Try asking something like: *\"What theses are about research assistant??\"*";
 
         /// <summary>Appended when the model stream dies mid-answer; also excluded from the cache.</summary>
         private const string MidStreamDropNotice =
@@ -140,6 +146,18 @@ namespace server.Services.AI
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var query = SanitizeQuery(request.UserQuery);
+
+            // 0. Harmful content — refuse before anything else runs (no
+            //    retrieval, no LLM, no cache). Checked ahead of the scope
+            //    patterns so "fuck you write code" gets the harm refusal, not
+            //    the off-topic one. Also never recorded into analytics
+            //    (QueryModeration.IsHarmful is the same gate).
+            if (QueryModeration.IsHarmful(query))
+            {
+                _logger.LogInformation("Blocked harmful chat query");
+                yield return new AgentStreamEvent.Completed(new AgentChatResult(HarmfulRefusalText, [], [], false));
+                yield break;
+            }
 
             if (IsOutOfScope(query))
             {
@@ -262,7 +280,7 @@ namespace server.Services.AI
             }
 
             yield return new AgentStreamEvent.Completed(
-                new AgentChatResult(answer, loop.Sources, loop.Trace, loop.UsedFallback));
+                new AgentChatResult(answer, loop.Sources, loop.Trace, loop.UsedFallback, UsedLlm: true));
         }
         private static readonly HashSet<string> OutOfScopePatterns = new(StringComparer.OrdinalIgnoreCase)
         {

@@ -253,6 +253,10 @@ try
     // Agent behaviour + cost caps (see MonteAiAgentConfig for every knob).
     builder.Services.Configure<MonteAiAgentConfig>(
         builder.Configuration.GetSection(MonteAiAgentConfig.SectionName));
+
+    // Per-user daily chat query allowance (see AnalyticsConfig).
+    builder.Services.Configure<AnalyticsConfig>(
+        builder.Configuration.GetSection(AnalyticsConfig.SectionName));
     // Add services to the container.
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(

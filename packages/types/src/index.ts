@@ -2,8 +2,10 @@
 
 export * from "./admin";
 export * from "./announcement";
+export * from "./analytics";
 export * from "./chat-message";
 export * from "./chat-session";
+export * from "./citation";
 export * from "./faculty";
 export * from "./panelist-schedule";
 export * from "./program-head";

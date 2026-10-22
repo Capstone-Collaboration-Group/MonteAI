@@ -3,6 +3,7 @@ using Azure.Storage.Sas;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using server.Models.DTOs.Thesis;
+using server.Models.Entities;
 using server.Services.Interfaces;
 
 /**SUMMARY
@@ -19,11 +20,13 @@ namespace server.Controllers
         private readonly ILogger<ThesisController> _logger;
         private readonly IThesisService _service;
         private readonly IBlobService _blobService;
-        public ThesisController(ILogger<ThesisController> logger, IThesisService service, IBlobService blobService)
+        private readonly IAnalyticsService _analytics;
+        public ThesisController(ILogger<ThesisController> logger, IThesisService service, IBlobService blobService, IAnalyticsService analytics)
         {
             _logger = logger;
             _service = service;
             _blobService = blobService;
+            _analytics = analytics;
         }
 
         private const long MaxUploadBytes = 25 * 1024 * 1024;
@@ -54,6 +57,15 @@ namespace server.Controllers
                 string.Equals(mode, "semantic", StringComparison.OrdinalIgnoreCase),
                 studentId,
                 cancellationToken);
+
+            // Query & Activity Monitoring — feeds "most searched topics" and
+            // the chat suggestion cards. Never fails the search itself.
+            await _analytics.RecordAsync(
+                ActivityLogTypes.CatalogSearch,
+                query: query.Trim(),
+                userId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+                ct: cancellationToken);
+
             return Ok(results);
         }
 
@@ -133,6 +145,13 @@ namespace server.Controllers
         {
             var result = await _service.GetByIdAsync(id);
             if (result == null) return NotFound();
+
+            // Most-accessed-thesis analytics (viewer opens + chat source clicks).
+            await _analytics.RecordAsync(
+                ActivityLogTypes.ThesisView,
+                thesisId: id,
+                userId: User.FindFirstValue(ClaimTypes.NameIdentifier));
+
             return Ok(result);
         }
 
@@ -279,7 +298,12 @@ namespace server.Controllers
             return Ok(new { Message = $"Thesis {id} Deleted Successfully" });
         }
 
+        // Students/users are NOT allowed to download thesis documents (the
+        // in-app PDF viewer uses the separate versions/{id}/download-url
+        // endpoint). Admin-only — and no analytics: download statistics are
+        // intentionally never collected or displayed on the dashboard.
         [HttpGet("{id}/download-url")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetDownloadUrl(Guid id)
         {
             try
@@ -288,6 +312,7 @@ namespace server.Controllers
                 _logger.LogInformation("Endpoint is called and the Url is is: {url}", url);
                 if (string.IsNullOrEmpty(url)) return NotFound();
                 _logger.LogInformation("Thesis with id: {id} Fetched Url: {Url}", id, url);
+
                 return Ok(new { url });
             }
             catch (Exception ex)
