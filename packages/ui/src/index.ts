@@ -1,4 +1,5 @@
 export * from "./components/Toaster";
+export * from "./components/toast";
 export * from "./components/Button";
 export * from "./components/Card";
 export * from "./components/Input";

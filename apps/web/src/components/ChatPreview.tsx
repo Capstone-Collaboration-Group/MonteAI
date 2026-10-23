@@ -173,7 +173,7 @@ export default function ChatPreview() {
                     </p>
                     <div className="mt-2 space-y-2">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
-                        Referenced CDM Manuscripts:
+                        Sources:
                       </p>
                       <ul className="flex flex-col gap-2">
                         {current.sources.map((study) => (
