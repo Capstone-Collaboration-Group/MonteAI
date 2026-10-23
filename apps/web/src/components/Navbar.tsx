@@ -17,20 +17,9 @@ const itemVariants = {
   exit: { opacity: 0, y: 10 },
 };
 
-const underlineVariants = {
-  initial: { width: 0, x: 0, opacity: 0 },
-  animate: (width: number, x: number) => ({
-    width,
-    x,
-    opacity: 1,
-    transition: { type: "spring", stiffness: 500, damping: 30 },
-  }),
-  exit: { width: 0, opacity: 0 },
-};
-
 export default function Navbar() {
   const location = useLocation();
-  const navRef = useRef<HTMLNavElement>(null);
+  const navRef = useRef<HTMLElement>(null);
   const [underlineStyle, setUnderlineStyle] = useState({ width: 0, x: 0 });
 
   // Calculate underline position for active item
@@ -68,9 +57,9 @@ export default function Navbar() {
           {/* Animated underline indicator */}
           <motion.div
             className="absolute bottom-0 left-0 h-0.5 bg-primary rounded-full pointer-events-none"
-            initial={false}
-            animate={underlineStyle}
-            variants={underlineVariants}
+            initial={{ width: 0, x: 0, opacity: 0 }}
+            animate={{ ...underlineStyle, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
             style={{ transformOrigin: "left center" }}
           />
 

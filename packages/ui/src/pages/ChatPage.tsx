@@ -23,7 +23,7 @@ import { useDeleteChatSession } from "@monteai/hooks";
 import { ChatView } from "../components/Chat/ChatView";
 import { ChatPageSkeleton } from "../components/Chat/skeletons";
 import { ConfirmDialog } from "../components/common";
-import { toast } from "../components/Toaster";
+import { toast } from "../components/toast";
 
 const FALLBACK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // dev fallback when no user is signed in (mock mode)
 

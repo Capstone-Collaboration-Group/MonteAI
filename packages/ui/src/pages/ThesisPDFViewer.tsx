@@ -27,7 +27,7 @@ import {
   useDeleteThesisVersion,
 } from "@monteai/hooks";
 import { getApiErrorMessage } from "@monteai/utils";
-import { toast } from "../components/Toaster";
+import { toast } from "../components/toast";
 import { ThesisPDFViewerLayout } from "../components/Thesis";
 
 export type { ViewerRole } from "@monteai/types";
