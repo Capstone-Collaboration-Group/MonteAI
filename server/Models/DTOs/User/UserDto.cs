@@ -31,6 +31,16 @@ namespace server.Models.DTOs.User
         [MaxLength(20)]
         public string Role { get; set; } = null!; // "Student" | "Faculty" | "Admin" | "ProgramHead"
 
+        public bool PrivacyNoticeAccepted { get; set; }
+
+        [MaxLength(32)]
+        public string? PrivacyNoticeVersion { get; set; }
+
+        public bool TermsAccepted { get; set; }
+
+        [MaxLength(32)]
+        public string? TermsVersion { get; set; }
+
         // ── Student-specific ──────────────────────────────
         public string? StudentNumber { get; set; }
         public Guid? GroupId { get; set; }

@@ -14,6 +14,9 @@ namespace server.Controllers
     [Authorize]
     public class AuthController : ControllerBase
     { 
+        private const string CurrentPrivacyNoticeVersion = "2026-10-23";
+        private const string CurrentTermsVersion = "2026-10-23";
+
         private readonly ILogger<AuthController> _logger;
         private readonly IStudentService _studentService;
         private readonly IFacultyService _facultyService;
@@ -49,6 +52,12 @@ namespace server.Controllers
         {
             if (string.IsNullOrEmpty(dto.Id))
                 return BadRequest(new { Message = "Firebase UID is required." });
+            if (!dto.PrivacyNoticeAccepted ||
+                !string.Equals(dto.PrivacyNoticeVersion, CurrentPrivacyNoticeVersion, StringComparison.Ordinal))
+                return BadRequest(new { Message = "Please accept the current privacy notice before registering." });
+            if (!dto.TermsAccepted ||
+                !string.Equals(dto.TermsVersion, CurrentTermsVersion, StringComparison.Ordinal))
+                return BadRequest(new { Message = "Please accept the current terms and conditions before registering." });
 
             // Role-specific email domains: students use @student.pnm.edu.ph,
             // faculty use @pnm.edu.ph (the student domain does not satisfy

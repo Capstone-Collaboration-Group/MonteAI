@@ -26,6 +26,10 @@ namespace server.Services.User
             var student = _mapper.Map<Student>(dto);
             student.Id = firebaseUid;
             student.IsActive = true;
+            student.PrivacyNoticeVersion = dto.PrivacyNoticeVersion;
+            student.PrivacyNoticeAcceptedAt = DateTime.UtcNow;
+            student.TermsVersion = dto.TermsVersion;
+            student.TermsAcceptedAt = DateTime.UtcNow;
             student.CreatedAt = DateTime.UtcNow;
             student.UpdatedAt = DateTime.UtcNow;
 
