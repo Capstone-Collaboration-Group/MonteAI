@@ -100,6 +100,13 @@ namespace server.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateTime?>("PrivacyNoticeAcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PrivacyNoticeVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("RecoveryCodeHashes")
                         .HasColumnType("nvarchar(max)");
 
@@ -111,6 +118,13 @@ namespace server.Migrations
                     b.Property<string>("Suffix")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("TermsAcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TermsVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<bool>("TotpEnabled")
                         .ValueGeneratedOnAdd()
@@ -263,6 +277,13 @@ namespace server.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(1)");
 
+                    b.Property<DateTime?>("PrivacyNoticeAcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PrivacyNoticeVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("RecoveryCodeHashes")
                         .HasColumnType("nvarchar(max)");
 
@@ -274,6 +295,13 @@ namespace server.Migrations
                     b.Property<string>("Suffix")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("TermsAcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TermsVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<bool>("TotpEnabled")
                         .ValueGeneratedOnAdd()
@@ -410,6 +438,13 @@ namespace server.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(1)");
 
+                    b.Property<DateTime?>("PrivacyNoticeAcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PrivacyNoticeVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("ProgramHandled")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -426,6 +461,13 @@ namespace server.Migrations
                     b.Property<string>("Suffix")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("TermsAcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TermsVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<bool>("TotpEnabled")
                         .ValueGeneratedOnAdd()
@@ -612,6 +654,13 @@ namespace server.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<DateTime?>("PrivacyNoticeAcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PrivacyNoticeVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("Program")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -638,6 +687,13 @@ namespace server.Migrations
                     b.Property<string>("Suffix")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("TermsAcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TermsVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<bool>("TotpEnabled")
                         .ValueGeneratedOnAdd()

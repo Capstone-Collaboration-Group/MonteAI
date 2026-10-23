@@ -30,7 +30,12 @@ import {
   type User,
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import type { RegisterUserRequest, RegistrationRole } from "@monteai/types";
+import {
+  PRIVACY_NOTICE_VERSION,
+  TERMS_AND_CONDITIONS_VERSION,
+  type RegisterUserRequest,
+  type RegistrationRole,
+} from "@monteai/types";
 import {
   FACULTY_EMAIL_DOMAIN,
   STUDENT_EMAIL_DOMAIN,
@@ -39,6 +44,8 @@ import {
 import { useAuth } from "@monteai/hooks";
 import { Button } from "../Button";
 import { Input } from "../Input";
+import { PrivacyNotice } from "./PrivacyNotice";
+import { TermsAndConditions } from "./TermsAndConditions";
 import {
   clearPendingRegistration,
   getPendingRegistration,
@@ -161,6 +168,8 @@ export function RegistrationForm({
   const [resendIn, setResendIn] = useState(0);
   const [message, setMessage] = useState<Message>(null);
   const [accountExists, setAccountExists] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const completingRef = useRef(false);
@@ -184,11 +193,18 @@ export function RegistrationForm({
 
   const handleRoleChange = (role: RegistrationRole) => {
     setForm((prev) => ({ ...prev, role }));
+    setTermsAccepted(false);
     setMessage(null);
     setAccountExists(false);
   };
 
   const validate = (): string | null => {
+    if (!privacyAccepted) {
+      return "Please read and accept the privacy notice to create an account.";
+    }
+    if (!termsAccepted) {
+      return "Please read and accept the terms and conditions to create an account.";
+    }
     if (form.password.length < 8) {
       return "Password must be at least 8 characters long.";
     }
@@ -228,6 +244,10 @@ export function RegistrationForm({
       lastName: form.lastName.trim(),
       role: form.role,
       institute: form.institute,
+      privacyNoticeAccepted: true,
+      privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+      termsAccepted: true,
+      termsVersion: TERMS_AND_CONDITIONS_VERSION,
     };
     if (form.middleInitial) base.middleInitial = form.middleInitial;
     if (form.suffix.trim()) base.suffix = form.suffix.trim();
@@ -275,6 +295,22 @@ export function RegistrationForm({
         });
         return;
       }
+      if (
+        pending.payload.privacyNoticeAccepted !== true ||
+        pending.payload.privacyNoticeVersion !== PRIVACY_NOTICE_VERSION ||
+        pending.payload.termsAccepted !== true ||
+        pending.payload.termsVersion !== TERMS_AND_CONDITIONS_VERSION
+      ) {
+        hydrateForm(pending.payload);
+        setPrivacyAccepted(false);
+        setTermsAccepted(false);
+        setPhase("form");
+        setMessage({
+          type: "error",
+          text: "Please review and accept the current privacy notice and terms before completing registration.",
+        });
+        return;
+      }
       await register(pending.payload);
       clearPendingRegistration();
       setMessage({
@@ -288,7 +324,7 @@ export function RegistrationForm({
     } finally {
       completingRef.current = false;
     }
-  }, [register, onSuccess]);
+  }, [register, onSuccess, hydrateForm]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -867,6 +903,17 @@ export function RegistrationForm({
           </div>
         </Field>
       </div>
+
+      <PrivacyNotice
+        accepted={privacyAccepted}
+        onAcceptedChange={setPrivacyAccepted}
+      />
+
+      <TermsAndConditions
+        accepted={termsAccepted}
+        onAcceptedChange={setTermsAccepted}
+        role={form.role}
+      />
 
       {messageBox(message)}
 

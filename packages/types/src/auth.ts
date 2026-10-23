@@ -34,6 +34,9 @@ export type RefreshRequestDto = {
 // packages/types/src/auth.ts — additions
 export type RegistrationRole = "Student" | "Faculty";
 
+export const PRIVACY_NOTICE_VERSION = "2026-10-23";
+export const TERMS_AND_CONDITIONS_VERSION = "2026-10-23";
+
 /**
  * Payload for POST /auth/register. Mirrors the server's `RegisterUserDto`
  * (ASP.NET binds JSON case-insensitively). Student-only fields must be
@@ -58,6 +61,10 @@ export interface RegisterUserRequest {
   yearLevel?: number;
   /** Student only — single letter */
   section?: string;
+  privacyNoticeAccepted: boolean;
+  privacyNoticeVersion: string;
+  termsAccepted: boolean;
+  termsVersion: string;
 }
 
 export interface VerifyOTPDto {

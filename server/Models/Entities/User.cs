@@ -45,6 +45,16 @@ namespace server.Models.Entities
         [Required]
         public string? Role { get; set; }
         public bool? IsActive { get; set; }
+
+        [MaxLength(32)]
+        public string? PrivacyNoticeVersion { get; set; }
+
+        public DateTime? PrivacyNoticeAcceptedAt { get; set; }
+
+        [MaxLength(32)]
+        public string? TermsVersion { get; set; }
+
+        public DateTime? TermsAcceptedAt { get; set; }
        
         
         public DateTime CreatedAt { get; set; }
