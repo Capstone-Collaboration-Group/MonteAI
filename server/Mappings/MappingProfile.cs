@@ -31,7 +31,19 @@ namespace server.Mappings
                 // admin-archived/legacy theses without a group. Shared with the
                 // citation metadata resolver so vectors cite the same names.
                 .ForMember(dest => dest.Authors, opt => opt.MapFrom(src =>
-                    server.Services.Theses.ThesisAuthorNames.FromResearchGroup(src.ResearchGroup)));
+                    server.Services.Theses.ThesisAuthorNames.FromResearchGroup(src.ResearchGroup)))
+                // datetime2 columns come back from EF with Kind=Unspecified, so
+                // System.Text.Json serialized them without an offset and browsers
+                // parsed them as local time (timeline ~8h off). These five are
+                // written with DateTime.UtcNow — tag them Utc to emit the "Z".
+                // ScheduledAt is excluded: it is a Manila wall-clock built from
+                // the schedule's Date + StartTime, not a UTC instant.
+                .ForMember(dest => dest.SubmittedAt, opt => opt.MapFrom(src => AsUtc(src.SubmittedAt)))
+                .ForMember(dest => dest.ReviewedAt, opt => opt.MapFrom(src => AsUtc(src.ReviewedAt)))
+                .ForMember(dest => dest.ApprovedAt, opt => opt.MapFrom(src => AsUtc(src.ApprovedAt)))
+                .ForMember(dest => dest.RejectedAt, opt => opt.MapFrom(src => AsUtc(src.RejectedAt)))
+                .ForMember(dest => dest.IndexedAt, opt => opt.MapFrom(src => AsUtc(src.IndexedAt)))
+                .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => AsUtc(src.UpdatedAt)));
             CreateMap<SubmitThesisDto, Thesis>();
             CreateMap<UpdateThesisDto, Thesis>();
             CreateMap<UpdateThesisStatusDto, Thesis>();
@@ -158,6 +170,17 @@ namespace server.Mappings
             CreateMap<UpdateAnnouncementDto, Announcement>();
            
         }
+
+        // Restores DateTimeKind on datetime2 values EF hands back as
+        // Unspecified, so System.Text.Json emits the "Z" clients need to
+        // parse an instant (see the Thesis map above).
+        private static DateTime AsUtc(DateTime value)
+            => DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+        private static DateTime? AsUtc(DateTime? value)
+            => value.HasValue
+                ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                : null;
 
         // Accepts the wire formats the frontends send ("Faculty"/"ProgramHead"/"Admin"
         // and the lowercase pool values "faculty"/"program-head"/"admin"). Anything

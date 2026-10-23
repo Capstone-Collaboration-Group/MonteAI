@@ -253,10 +253,6 @@ try
     // Agent behaviour + cost caps (see MonteAiAgentConfig for every knob).
     builder.Services.Configure<MonteAiAgentConfig>(
         builder.Configuration.GetSection(MonteAiAgentConfig.SectionName));
-
-    // Per-user daily chat query allowance (see AnalyticsConfig).
-    builder.Services.Configure<AnalyticsConfig>(
-        builder.Configuration.GetSection(AnalyticsConfig.SectionName));
     // Add services to the container.
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(
@@ -363,6 +359,12 @@ try
         builder.Configuration.GetSection(EmailOptions.SectionName));
     builder.Services.AddSingleton<server.Infrastructure.IEmailQueue, server.Infrastructure.EmailQueue>();
     builder.Services.AddHostedService<server.Infrastructure.EmailWorker>();
+
+    // Scheduled full-copy backups (BackupScheduler writes data.zip + PDFs to
+    // Backup:Scheduled:OutputFolder). Disabled by default — see the "Backup"
+    // section in appsettings*.json.
+    builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
+    builder.Services.AddHostedService<server.Infrastructure.BackupScheduler>();
 
     // LLM backend + pool. ILlmBackend is registered explicitly (not via the
     // Scrutor scan) because the pool is a singleton and must not capture a
