@@ -17,7 +17,7 @@
 // accumulated responseText is split into complete "event: ...\ndata: ...\n\n"
 // frames as they arrive, so tokens render as they are generated.
 
-import { isAxiosError, type AxiosInstance, type AxiosProgressEvent } from "axios";
+import { isAxiosError, isCancel, type AxiosInstance, type AxiosProgressEvent } from "axios";
 import type {
   ChatSessionResponseDto,
   ChatSessionResponseListDto,
@@ -31,6 +31,7 @@ import type {
   AnalyticsSuggestionsDto,
 } from "@monteai/types";
 import type { ChatService, ChatStreamHandlers } from "./types";
+import { ChatStreamAbortedError } from "./errors";
 import { handle404 } from "@monteai/utils";
 
 /** Shape of the SSE "done" event payload. */
@@ -166,6 +167,9 @@ export class LiveChatService implements ChatService {
           // default 10s timeout for this request.
           timeout: 0,
           responseType: "text",
+          // Caller-provided AbortSignal lets the UI cancel mid-stream (Stop
+          // button). Axios rejects with a CanceledError when it fires.
+          signal: handlers.signal,
           onDownloadProgress: (progressEvent: AxiosProgressEvent) => {
             const xhr = (progressEvent.event as ProgressEvent | undefined)?.target as
               | XMLHttpRequest
@@ -180,6 +184,13 @@ export class LiveChatService implements ChatService {
       );
       data = response.data;
     } catch (err) {
+      // Caller aborted via the AbortSignal (Stop button / unmount). The
+      // server has already persisted whatever partial answer it generated,
+      // so surface a dedicated error the UI can recognize (and NOT show as
+      // a failure).
+      if (isCancel(err) || (err instanceof Error && err.name === "CanceledError")) {
+        throw new ChatStreamAbortedError();
+      }
       // Pre-stream failures (429 rate limit, 503 breaker, ownership 403/404).
       throw LiveChatService.toFriendlyError(err);
     }
