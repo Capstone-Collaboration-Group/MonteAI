@@ -4,10 +4,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Text, TextInput } from '@/components/ui/ScaledText';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
@@ -16,10 +15,13 @@ import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
+import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { BottomSheet } from '@/components/thesis/BottomSheet';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { thesisService } from '@/lib/thesisService';
 import { THESIS_PROGRAMS, type ThesisProgram, type ThesisResponseDto } from '@monteai/types';
+
+const PAGE_SIZE = 10;
 
 /**
  * Library tab — published-thesis catalog.
@@ -45,6 +47,7 @@ export default function LibraryScreen() {
   const [program, setProgram] = useState<ThesisProgram | null>(null);
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [shown, setShown] = useState(PAGE_SIZE);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
 
   const loadTheses = useCallback(async () => {
@@ -80,14 +83,22 @@ export default function LibraryScreen() {
     );
   }, [theses, search]);
 
+  // Client-side pagination — "Load More" reveals the next page.
+  const page = useMemo(() => visibleTheses.slice(0, shown), [visibleTheses, shown]);
+  const hasMore = shown < visibleTheses.length;
+
+  // Reset pagination whenever the result set changes (new search/filter).
+  useEffect(() => { setShown(PAGE_SIZE); }, [search, program]);
+
   const hasFilter = program !== null || search.trim().length > 0;
 
   return (
+    <TabScreenTransition>
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
       <SafeAreaView style={{ flex: 0 }} edges={['top']}>
-        <AppHeader title="MonteSkolar" onLeftPress={openDrawer} rightIcons={[{ icon: 'notifications-none' }]} />
+        <AppHeader title="MonteSkolar" onLeftPress={openDrawer} rightIcons={[{ icon: 'notifications-none', onPress: () => router.push('/notifications') }]} />
       </SafeAreaView>
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
         {/* Header */}
@@ -138,7 +149,7 @@ export default function LibraryScreen() {
             {hasFilter ? 'No theses match your filters' : 'No theses found'}
           </Text>
         ) : (
-          visibleTheses.map((t) => (
+          page.map((t) => (
             <Pressable
               key={t.id}
               onPress={() => router.push(`/thesis/${t.id}` as Href)}
@@ -167,8 +178,12 @@ export default function LibraryScreen() {
           ))
         )}
 
-        {!loading && visibleTheses.length > 0 && (
-          <Pressable style={s.loadMore}>
+        {!loading && hasMore && (
+          <Pressable
+            onPress={() => setShown((n) => n + PAGE_SIZE)}
+            accessibilityRole="button"
+            accessibilityLabel="Load more theses"
+            style={({ pressed }) => [s.loadMore, pressed && { opacity: 0.85 }]}>
             <Text style={[s.loadMoreText, { color: primary }]}>Load More</Text>
             <MaterialIcons name="expand-more" size={20} color={primary} />
           </Pressable>
@@ -208,6 +223,7 @@ export default function LibraryScreen() {
     </View>
       )}
     </DrawerProvider>
+    </TabScreenTransition>
   );
 }
 

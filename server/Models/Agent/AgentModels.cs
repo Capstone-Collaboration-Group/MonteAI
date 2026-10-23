@@ -34,19 +34,34 @@ namespace server.Models.Agent
     public record ToolExecutionResult(string Observation, IReadOnlyList<ChatSourceDto> Sources);
 
     /// <summary>The final outcome of one agent run.</summary>
+    /// <param name="UsedLlm">
+    /// True when the run really invoked the LLM (planner and/or synthesizer).
+    /// False for the zero-cost paths: harmful/out-of-scope refusals,
+    /// deterministic fast-path answers and semantic-cache hits. ChatController
+    /// turns this into exactly ONE daily-quota usage tick per LLM-answered query.
+    /// </param>
     public record AgentChatResult(
         string Answer,
         IReadOnlyList<ChatSourceDto> Sources,
         IReadOnlyList<ToolInvocation> Trace,
-        bool UsedFallback);
+        bool UsedFallback,
+        bool UsedLlm = false);
 
     /// <summary>
     /// Events emitted by the streaming agent. Order per request:
-    /// one <see cref="SourcesDiscovered"/> (may be empty), N <see cref="AnswerDelta"/>,
-    /// one <see cref="Completed"/>.
+    /// N <see cref="Status"/> (planning/tools progress), one
+    /// <see cref="SourcesDiscovered"/> (may be empty), another
+    /// <see cref="Status"/>, N <see cref="AnswerDelta"/>, one <see cref="Completed"/>.
     /// </summary>
     public abstract record AgentStreamEvent
     {
+        /// <summary>
+        /// Human-readable progress note ("planning", "searching", "writing").
+        /// Streamed while the non-synthesized phases run so the client sees
+        /// activity before the first answer token.
+        /// </summary>
+        public sealed record Status(string Message) : AgentStreamEvent;
+
         /// <summary>Emitted once retrieval is done, before the first answer token — lets the UI show citations while the answer streams.</summary>
         public sealed record SourcesDiscovered(IReadOnlyList<ChatSourceDto> Sources) : AgentStreamEvent;
 
@@ -70,5 +85,15 @@ namespace server.Models.Agent
 
         /// <summary>True when the planner decided no further tool calls are needed.</summary>
         public bool Final { get; init; }
+
+        /// <summary>
+        /// True when the planner knows it will need a SECOND tool after this
+        /// one. When false (the default — the field may be omitted), the loop
+        /// ends after this tool executes and goes straight to synthesis. This
+        /// collapses the old "confirm-planner" call (which in practice just
+        /// repeated {"final": true}) and halves the LLM cost of a normal
+        /// research turn.
+        /// </summary>
+        public bool NeedsMore { get; init; }
     }
 }

@@ -86,26 +86,29 @@ namespace server.Models.DTOs.Thesis
         public string? PublicationYear { get; set; }
 
     }
-    public class ThesisChunkDto
-    {
-        public int ChunkIndex { get; set; }
-        public string Text { get; set; } = string.Empty;  // maps to Chunk.Text
-        public string? Title { get; set; }
-        public string? Url { get; set; }
-        public string? Authors { get; set; }
-        public string? PublicationYear { get; set; }
-        public string? Journal { get; set; }
-    }
+
+    // ── Metadata-only ingestion (POST /thesis/ingest) ────────────────────────
+    // Approve/reindex sends ONLY the thesis id. The server resolves title,
+    // authors, year and abstract from SQL/Firestore/research-group data and
+    // synchronously upserts ONE metadata vector per thesis — no full text, no
+    // staging, no background body-chunk job.
 
     public class IngestThesisDto
     {
         public Guid ThesisId { get; set; }
-        public List<ThesisChunkDto> Chunks { get; set; } = [];
     }
+
     public class IngestThesisResponseDto
     {
-        public Guid ThesisId { get; set;}
-        public int VectorCount { get ;set;}
-        public string Status { get; set;} = string.Empty;
+        public Guid ThesisId { get; set; }
+
+        /// <summary>
+        /// "Indexed" = metadata vector upserted, thesis citable;
+        /// "Failed".
+        /// </summary>
+        public string Status { get; set; } = string.Empty;
+
+        /// <summary>Vectors upserted (the metadata vector: 0 or 1).</summary>
+        public int VectorCount { get; set; }
     }
 }

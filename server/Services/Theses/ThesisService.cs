@@ -1,7 +1,5 @@
 using AutoMapper;
 using Google.Cloud.Firestore;
-using Microsoft.Extensions.Options;
-using server.Configuration;
 using server.Models.DTOs.Thesis;
 using server.Services.Interfaces;
 using ThesisEntity = server.Models.Entities.Thesis;
@@ -9,23 +7,28 @@ using server.Repositories;
 using server.Repositories.Interfaces;
 using server.Models.Retrieval;
 using server.Models.Entities;
+using System.Text;
 
 
 // server/Services/Theses/ThesisService.cs
 //
 // Thesis lifecycle, including the INGESTION hop of the RAG pipeline:
 //
-//   Desktop (Electron)                        Server (this service)
-//   ─────────────────                         ─────────────────────
-//   approve thesis                          -> IngestAsync(chunks):
-//   download PDF via SAS URL                   1. load thesis from SQL (authoritative
-//   extract text (first 5 pages)                  Title/FilePath — client-sent URLs are
-//   isolate abstract + metadata                   ignored, SAS links expire in minutes)
-//   chunk abstract (512 words/50 overlap)      2. cap chunk count (protects embedding bill)
-//   POST /thesis/ingest                       3. DELETE old vectors for this thesis
-//                                               (idempotent re-ingestion, no stale data)
-//                                             4. batch-embed + bulk-upsert to Pinecone
-//                                             5. update SQL status/timestamps
+//   METADATA-ONLY INGESTION (single synchronous path):
+//   Desktop / admin archival                Server (this service)
+//   ──────────────────────                  ─────────────────────
+//   approve / reindex /                    -> IngestAsync(thesisId):
+//   admin archival upload                     1. load thesis from SQL (authoritative
+//                                               Title/FilePath)
+//                                             2. resolve authors/year (Firestore ->
+//                                               research group -> SubmittedAt) and
+//                                               the abstract (Firestore)
+//                                             3. DELETE old vectors for this thesis
+//                                               (idempotent re-ingestion, incl.
+//                                               legacy full-text chunks)
+//                                             4. embed + upsert ONE metadata vector
+//                                               (thesis_{id}_meta) — no body chunks
+//                                             5. SQL: Status=Approved → Indexed
 //
 //   Chat query time never touches this service — see MonteAiAgentService.
 
@@ -40,10 +43,10 @@ namespace server.Services.Theses
         private readonly IMapper _mapper;
         private readonly IPineconeService _pineconeService;
         private readonly IBlobService _blobService;
-        private readonly PineconeConfig _pineconeConfig;
         private readonly IStudentRepository _studentRepo;
         private readonly IThesisAbstractService _abstractService;
         private readonly FirestoreDb _firestore;
+        private readonly IThesisMetadataResolver _metadataResolver;
 
         public ThesisService(
             IThesisRepository repo,
@@ -56,7 +59,7 @@ namespace server.Services.Theses
             IBlobService blobService,
             IThesisAbstractService abstractService,
             FirestoreDb firestore,
-            IOptions<PineconeConfig> pineconeConfig)
+            IThesisMetadataResolver metadataResolver)
         {
             _thesisRepo = repo;
             _thesisVersionRepo = thesisVersionRepo;
@@ -68,7 +71,7 @@ namespace server.Services.Theses
             _blobService = blobService;
             _abstractService = abstractService;
             _firestore = firestore;
-            _pineconeConfig = pineconeConfig.Value;
+            _metadataResolver = metadataResolver;
         }
 
         public async Task<IEnumerable<ThesisResponseDto>> GetFirst20ThesisAsync(
@@ -256,17 +259,17 @@ namespace server.Services.Theses
             await _thesisVersionRepo.CreateThesisVersion(initialVersion);
 
             // ── Admin archival uploads land FULLY INDEXED ────────────────────
-            // The server chunks the abstract itself, reuses the ingestion hop
-            // (delete-then-upsert, chunk cap, SQL = source of truth for the
-            // blob URL) and lets IngestAsync mark the row "Indexed". Student
-            // submissions never enter this block — they stay "Pending" and go
-            // through the desktop approve pipeline as before.
+            // The server ingests the metadata vector itself (delete-then-
+            // upsert, SQL = source of truth for title/FilePath; authors/year
+            // already stored in Firestore during submit resolve through the
+            // metadata resolver) and lets IngestAsync mark the row "Indexed".
+            // Student submissions never enter this block — they stay "Pending"
+            // and go through the desktop approve pipeline as before.
             if (isAdmin)
             {
                 var ingestResult = await IngestAsync(new IngestThesisDto
                 {
                     ThesisId = result.Id,
-                    Chunks = BuildAdminChunks(result, submitDto.Abstract, authors, publicationYear),
                 });
 
                 if (ingestResult.Status == "Failed" || ingestResult.VectorCount == 0)
@@ -304,35 +307,6 @@ namespace server.Services.Theses
                 .ToList();
         }
 
-        // Chunks for the admin auto-index path. Url/ThesisId are set from SQL
-        // inside IngestAsync anyway — they're filled here so the DTO is
-        // self-describing if it is ever logged.
-        private static List<ThesisChunkDto> BuildAdminChunks(
-            ThesisEntity thesis,
-            string abstractText,
-            IReadOnlyList<string> authors,
-            string? publicationYear)
-        {
-            var texts = AbstractChunker.Chunk(abstractText);
-            var authorsMeta = authors.Count > 0 ? string.Join(", ", authors) : null;
-
-            var chunks = new List<ThesisChunkDto>(texts.Count);
-            for (var i = 0; i < texts.Count; i++)
-            {
-                chunks.Add(new ThesisChunkDto
-                {
-                    ChunkIndex = i,
-                    Text = texts[i],
-                    Title = thesis.Title,
-                    Url = thesis.FilePath,
-                    Authors = authorsMeta,
-                    PublicationYear = publicationYear,
-                });
-            }
-
-            return chunks;
-        }
-
         // Best-effort full teardown of an admin upload whose Pinecone upsert
         // failed: vectors, SQL row (+ cascaded version row) and the Firestore
         // document. The controller handles the blob on the thrown exception.
@@ -359,26 +333,18 @@ namespace server.Services.Theses
             }
         }
         /// <summary>
-        /// Ingestion hop of the RAG pipeline — see the file header for the flow.
-        /// Chunks arrive from the desktop pipeline; this method makes the
-        /// write idempotent (delete-then-upsert), authoritative (SQL overrides
-        /// client metadata), and bounded (chunk cap).
+        /// Ingestion hop of the RAG pipeline — METADATA-ONLY, synchronous.
+        /// See the file header for the flow. The SQL record is the source of
+        /// truth for Title/FilePath; authors/year resolve via the metadata
+        /// resolver (Firestore → research group → SubmittedAt) and the
+        /// abstract comes from the Firestore abstract store. Re-ingestion is
+        /// idempotent: old vectors (including any legacy full-text chunks)
+        /// are deleted before the single metadata vector is upserted.
         /// </summary>
         public async Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto)
         {
-            if (dto.Chunks is null || dto.Chunks.Count == 0)
-            {
-                _logger.LogWarning("Ingestion for thesis {ThesisId} contained no chunks", dto.ThesisId);
-                return new IngestThesisResponseDto
-                {
-                    ThesisId = dto.ThesisId,
-                    VectorCount = 0,
-                    Status = "Failed"
-                };
-            }
-
             var thesis = await _thesisRepo.GetThesisByIdAsync(dto.ThesisId);
-            if (thesis == null)
+            if (thesis is null)
             {
                 _logger.LogWarning("Ingestion rejected: thesis {ThesisId} does not exist in SQL", dto.ThesisId);
                 return new IngestThesisResponseDto
@@ -391,32 +357,31 @@ namespace server.Services.Theses
 
             try
             {
-                // Map DTOs -> chunks. The SQL record is the source of truth for
-                // the URL: chunk.Url becomes the permanent blob path, NEVER a
-                // SAS link (those expire within minutes and would break citations).
-                var chunks = dto.Chunks
-                    .Take(Math.Clamp(_pineconeConfig.MaxChunksPerIngest, 1, 256))
-                    .Select(c =>
-                    {
-                        var chunk = _mapper.Map<Chunk>(c);
-                        return chunk with
-                        {
-                            ThesisId = dto.ThesisId.ToString(),
-                            Url = thesis.FilePath,
-                        };
-                    })
-                    .ToList();
+                var resolved = await _metadataResolver.ResolveAsync(dto.ThesisId);
+                var abstractText = await _abstractService.GetLatestAsync(dto.ThesisId);
+
+                // Legacy rows keep the raw abstract text in the SQL column
+                // (non-GUID) — the store write failed at submit time. Use it
+                // when Firestore has nothing, so ingestion never embeds the
+                // placeholder for a thesis that DID provide an abstract.
+                if (string.IsNullOrWhiteSpace(abstractText) &&
+                    !string.IsNullOrWhiteSpace(thesis.Abstract) &&
+                    !Guid.TryParse(thesis.Abstract, out _))
+                {
+                    abstractText = thesis.Abstract;
+                }
+
+                var metaChunk = BuildMetadataChunk(
+                    thesis, thesis.Title, resolved.Authors, resolved.PublicationYear, abstractText);
 
                 // Idempotent re-ingestion: remove any vectors from a previous
-                // ingestion of this thesis before writing the new ones.
+                // ingestion of this thesis before writing the new one.
                 await _pineconeService.DeleteThesisVectorsAsync(dto.ThesisId);
 
-                // Batched embed (16/call) + bulk upsert (100/request).
-                var upsertedCount = await _pineconeService.UpsertAbstractsAsync(dto.ThesisId, chunks);
-
-                if (upsertedCount == 0)
+                var upserted = await _pineconeService.UpsertMetadataChunkAsync(dto.ThesisId, metaChunk);
+                if (upserted == 0)
                 {
-                    _logger.LogError("Thesis {ThesisId} ingestion failed — no vectors were upserted", dto.ThesisId);
+                    _logger.LogError("Metadata vector upsert failed for thesis {ThesisId}", dto.ThesisId);
                     return new IngestThesisResponseDto
                     {
                         ThesisId = dto.ThesisId,
@@ -425,27 +390,22 @@ namespace server.Services.Theses
                     };
                 }
 
-                if (upsertedCount < chunks.Count)
-                {
-                    _logger.LogWarning("Thesis {ThesisId} partially ingested — {Upserted}/{Total} chunks succeeded",
-                        dto.ThesisId, upsertedCount, chunks.Count);
-                }
-
-                // SQL is only marked Indexed when at least one vector landed.
-                await _thesisRepo.UpdateStatusAsync(dto.ThesisId, _mapper.Map<ThesisEntity>(new UpdateThesisStatusDto
-                {
-                    Status = "Indexed"
-                }));
+                // Approved stamps ApprovedAt; Indexed stamps IndexedAt and
+                // PineconeStatus=Indexed via the repository switch. Approving
+                // IS this endpoint — there is no separate moderation hop on
+                // this path.
+                await _thesisRepo.UpdateStatusAsync(dto.ThesisId, new ThesisEntity { Status = "Approved" });
+                await _thesisRepo.UpdateStatusAsync(dto.ThesisId, new ThesisEntity { Status = "Indexed" });
 
                 _logger.LogInformation(
-                    "Thesis {ThesisId} ingested — {Count} vectors upserted",
-                    dto.ThesisId, upsertedCount);
+                    "Thesis {ThesisId} ingested (metadata vector only, {Count} vector)",
+                    dto.ThesisId, upserted);
 
                 return new IngestThesisResponseDto
                 {
                     ThesisId = dto.ThesisId,
-                    VectorCount = upsertedCount,
-                    Status = upsertedCount == chunks.Count ? "Indexed" : "Partial"
+                    VectorCount = upserted,
+                    Status = "Indexed"
                 };
             }
             catch (Exception ex)
@@ -460,6 +420,37 @@ namespace server.Services.Theses
                 };
             }
         }
+
+        /// <summary>
+        /// Metadata vector body: the title/author/year block plus the abstract
+        /// when available. Upserting the same thesis_{id}_meta id REPLACES the
+        /// previous vector — this is how re-ingestion and catalog edits
+        /// refresh citation metadata.
+        /// </summary>
+        private static Chunk BuildMetadataChunk(
+            ThesisEntity thesis,
+            string? title,
+            string? authors,
+            string? publicationYear,
+            string? abstractText)
+        {
+            var sb = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(title)) sb.Append("Title: ").AppendLine(title);
+            if (!string.IsNullOrWhiteSpace(authors)) sb.Append("Authors: ").AppendLine(authors);
+            if (!string.IsNullOrWhiteSpace(publicationYear)) sb.Append("Publication year: ").AppendLine(publicationYear);
+            sb.Append("Abstract: ").Append(string.IsNullOrWhiteSpace(abstractText) ? "(abstract not yet available)" : abstractText);
+
+            return new Chunk(
+                Text: sb.ToString(),
+                Title: title ?? thesis.Title,
+                Url: thesis.FilePath,
+                Authors: authors,
+                PublicationYear: publicationYear,
+                Journal: null,
+                RelevanceScore: null,
+                ThesisId: thesis.Id.ToString());
+        }
+
         public async Task<string?> GetDownloadUrlAsync(Guid thesisId)
         {
             var thesis= await _thesisRepo.GetThesisByIdAsync(thesisId);
@@ -510,9 +501,11 @@ namespace server.Services.Theses
             return true;
         }
 
-        // Best-effort re-ingest after a catalog edit. Only theses that are
-        // already in the vector store are touched; failures log a warning
-        // instead of failing the save (the edit itself already landed).
+        // Best-effort metadata refresh after a catalog edit. Only theses that
+        // are already in the vector store are touched: the metadata vector is
+        // replaced in place (upserting the same thesis_{id}_meta id overwrites
+        // it). Failures log a warning instead of failing the save (the edit
+        // itself already landed).
         private async Task ReindexEditedThesisAsync(Guid thesisId)
         {
             try
@@ -528,31 +521,24 @@ namespace server.Services.Theses
                 var response = _mapper.Map<ThesisResponseDto>(thesis);
                 await _abstractService.ResolveAbstractsAsync(new[] { response });
 
-                if (string.IsNullOrWhiteSpace(response.Abstract))
+                var metaChunk = BuildMetadataChunk(
+                    thesis,
+                    response.Title,
+                    response.Authors is { Count: > 0 } ? string.Join(", ", response.Authors) : null,
+                    response.PublicationYear,
+                    response.Abstract);
+
+                var upserted = await _pineconeService.UpsertMetadataChunkAsync(thesisId, metaChunk);
+                if (upserted == 0)
                 {
                     _logger.LogWarning(
-                        "Thesis {ThesisId} was edited but its abstract could not be resolved — search results stay stale",
-                        thesisId);
-                    return;
-                }
-
-                var ingestResult = await IngestAsync(new IngestThesisDto
-                {
-                    ThesisId = thesisId,
-                    Chunks = BuildAdminChunks(
-                        thesis, response.Abstract, response.Authors ?? [], response.PublicationYear),
-                });
-
-                if (ingestResult.Status == "Failed")
-                {
-                    _logger.LogWarning(
-                        "Thesis {ThesisId} was edited but re-indexing failed — search results stay stale",
+                        "Thesis {ThesisId} was edited but its metadata vector could not be refreshed — citations stay stale",
                         thesisId);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Re-index after edit failed for thesis {ThesisId}", thesisId);
+                _logger.LogWarning(ex, "Metadata refresh after edit failed for thesis {ThesisId}", thesisId);
             }
         }
 

@@ -18,5 +18,7 @@ namespace server.Models.Entities
         public DateTime CreatedAt { get; set; }
 
         public DateTime LastChatDate { get; set; }
+
+        public bool Pinned { get; set; }
     }
 }

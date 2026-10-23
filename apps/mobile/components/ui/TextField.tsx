@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
+import { StyleSheet, type TextInputProps } from 'react-native';
+import { TextInput } from '@/components/ui/ScaledText';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Radius, Spacing } from '@/constants/theme';
 import { FormField, type FormFieldProps } from './FormField';

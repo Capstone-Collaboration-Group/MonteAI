@@ -1,9 +1,12 @@
 ﻿using AutoMapper;
+using Microsoft.EntityFrameworkCore;
+using server.Data;
 using server.Models.DTOs.PanelistSchedule;
 using server.Models.DTOs.Schedule;
 using server.Models.Entities;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
+using NotificationKinds = server.Models.Entities.NotificationKinds;
 
 namespace server.Services.Schedules
 {
@@ -14,19 +17,28 @@ namespace server.Services.Schedules
         private readonly IFacultyRepository _facultyRepo;
         private readonly IProgramHeadRepository _programHeadRepo;
         private readonly IAdminRepository _adminRepo;
+        private readonly AppDbContext _db;
+        private readonly INotificationService _notifications;
+        private readonly ILogger<ScheduleService> _logger;
 
         public ScheduleService(
             IScheduleRepository repo,
             IMapper mapper,
             IFacultyRepository facultyRepo,
             IProgramHeadRepository programHeadRepo,
-            IAdminRepository adminRepo)
+            IAdminRepository adminRepo,
+            AppDbContext db,
+            INotificationService notifications,
+            ILogger<ScheduleService> logger)
         {
             _repo = repo;
             _mapper = mapper;
             _facultyRepo = facultyRepo;
             _programHeadRepo = programHeadRepo;
             _adminRepo = adminRepo;
+            _db = db;
+            _notifications = notifications;
+            _logger = logger;
         }
 
         // PanelistId points at one of three role tables — resolve every id to a
@@ -113,6 +125,13 @@ namespace server.Services.Schedules
                 .ToList();
             var result = await _repo.CreateScheduleAsync(createSchedule);
 
+            if (result)
+                await NotifyDefenseAsync(
+                    createSchedule,
+                    NotificationKinds.DefenseScheduled,
+                    "Defense scheduled",
+                    details => $"You are scheduled for the thesis defense of {details}.");
+
             return result;
         }
         public async Task<bool> UpdateAsync(UpdateScheduleDto updateDto, Guid id)
@@ -122,6 +141,7 @@ namespace server.Services.Schedules
 
             _mapper.Map(updateDto, existing);
             
+            var addedPanelistIds = new List<string>();
             if(updateDto.Panelists != null)
             {
                 var incomingIds = updateDto.Panelists.Select(p => p.PanelistId).ToHashSet();
@@ -141,6 +161,7 @@ namespace server.Services.Schedules
                         PanelistId = incoming.PanelistId,
                         PanelistType = incoming.PanelistType
                     });
+                    addedPanelistIds.Add(incoming.PanelistId);
                 }
                 foreach (var kept in existing.Panelists.Where(p => incomingIds.Contains(p.PanelistId)))
                 {
@@ -151,6 +172,9 @@ namespace server.Services.Schedules
             } 
            
             var result = await _repo.UpdateScheduleAsync(existing);
+
+            if (result && addedPanelistIds.Count > 0)
+                await NotifyPanelistsAsync(existing, addedPanelistIds);
 
             return result;
         }
@@ -172,15 +196,102 @@ namespace server.Services.Schedules
             existing.StartTime = dto.StartTime;
             existing.EndingTime = dto.EndingTime;
 
-            return await _repo.UpdateScheduleAsync(existing);
+            var result = await _repo.UpdateScheduleAsync(existing);
+            if (result)
+                await NotifyDefenseAsync(
+                    existing,
+                    NotificationKinds.DefenseRescheduled,
+                    "Defense rescheduled",
+                    details => $"Your thesis defense for {details} has been rescheduled to a new date and time.");
+
+            return result;
         }
 
         public async Task<bool> DeleteAsync(Guid id )
         {
+            // Load BEFORE delete so recipients (group students + panelists)
+            // can still be resolved after the row is gone.
+            var existing = await _repo.GetScheduleByIdAsync(id);
+
             var result = await _repo.DeleteScheduleAsync(id);
+            if (result && existing != null)
+                await NotifyDefenseAsync(
+                    existing,
+                    NotificationKinds.DefenseCancelled,
+                    "Defense cancelled",
+                    details => $"Your thesis defense for {details} has been cancelled.");
+
             return result;
 
         }
 
+        // ── Notification helpers (best-effort: lookup failures log + skip,
+        //    never fail the schedule write) ─────────────────────────────
+        private async Task NotifyDefenseAsync(Schedule schedule, string type, string title, Func<string, string> bodyFactory)
+        {
+            try
+            {
+                var recipients = await GetDefenseRecipientsAsync(
+                    schedule.GroupId, schedule.Panelists.Select(p => p.PanelistId));
+                if (recipients.Count == 0) return;
+
+                var body = bodyFactory(await BuildDefenseDetailsAsync(schedule));
+                await _notifications.NotifyManyAsync(
+                    recipients, type, title, body,
+                    NotificationKinds.TargetSchedule, schedule.ScheduleId.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to build {Type} notification for schedule {ScheduleId} — skipped",
+                    type, schedule.ScheduleId);
+            }
+        }
+
+        private async Task NotifyPanelistsAsync(Schedule schedule, IEnumerable<string> panelistIds)
+        {
+            try
+            {
+                var recipients = panelistIds.Distinct().ToList();
+                if (recipients.Count == 0) return;
+
+                var details = await BuildDefenseDetailsAsync(schedule);
+                var body = $"You have been assigned as a panelist for the thesis defense of {details}.";
+                await _notifications.NotifyManyAsync(
+                    recipients, NotificationKinds.PanelistAssigned, "Assigned as panelist", body,
+                    NotificationKinds.TargetSchedule, schedule.ScheduleId.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to build panelist assignment notification for schedule {ScheduleId} — skipped",
+                    schedule.ScheduleId);
+            }
+        }
+
+        private async Task<List<string>> GetDefenseRecipientsAsync(Guid? groupId, IEnumerable<string>? panelistIds)
+        {
+            var ids = new List<string>();
+            if (groupId is Guid g)
+                ids.AddRange(await _db.Students
+                    .Where(s => s.GroupId == g)
+                    .Select(s => s.Id)
+                    .ToListAsync());
+            if (panelistIds is not null)
+                ids.AddRange(panelistIds);
+            return ids.Distinct().ToList();
+        }
+
+        /// <summary>"Group Name" on March 5, 2026, 9:00 AM–11:00 AM at Room 101</summary>
+        private async Task<string> BuildDefenseDetailsAsync(Schedule schedule)
+        {
+            var when = $"{schedule.Date:MMMM d, yyyy}, {schedule.StartTime:h:mm tt}–{schedule.EndingTime:h:mm tt}";
+            var group = schedule.GroupId is Guid g
+                ? await _db.ResearchGroups.FindAsync(g)
+                : null;
+            var groupName = group?.GroupName ?? "your research group";
+
+            return $"\"{groupName}\" on {when} at {schedule.RoomVenue}";
+        }
     }
 }

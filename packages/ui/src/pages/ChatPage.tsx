@@ -18,11 +18,32 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatService } from "@monteai/api";
-import type { ChatMessageResponseDto } from "@monteai/types";
+import type { ChatMessageResponseDto, ChatSourceDto } from "@monteai/types";
+import { useDeleteChatSession } from "@monteai/hooks";
 import { ChatView } from "../components/Chat/ChatView";
 import { ChatPageSkeleton } from "../components/Chat/skeletons";
+import { ConfirmDialog } from "../components/common";
+import { toast } from "../components/toast";
 
 const FALLBACK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // dev fallback when no user is signed in (mock mode)
+
+/** Static empty-state suggestions — used until the analytics fetch answers (or if it fails). */
+const DEFAULT_SUGGESTIONS = [
+  "Can you look for studies about gamification?",
+  "Can you look for related studies about IoT-based smart irrigation?",
+  "Can you look for studies about student benefits on cloud platforms?",
+];
+
+/** Follow-up sent by the "Expand" button — the agent blends context into it. */
+const EXPAND_PROMPT = "Expand your previous answer with more detail and examples.";
+
+/** Prefers the server-provided message (rate limit, breaker, etc.) over a generic fallback. */
+function toUserFacingError(err: unknown): string {
+  if (err instanceof Error && err.message && !err.message.startsWith("Request failed with status code")) {
+    return err.message;
+  }
+  return "MonteAI could not generate a response. Please try again.";
+}
 
 interface ChatPageProps {
   chatService: ChatService;
@@ -34,6 +55,8 @@ interface ChatPageProps {
   userId?: string | null;
   /** Notifies the host app that a session was created or received a message (e.g. to refresh a sessions sidebar). */
   onSessionActivity?: () => void;
+  /** Called after the current session is deleted so the host can leave its route. */
+  onSessionDeleted?: (sessionId: string) => void;
 }
 
 export function ChatPage({
@@ -42,6 +65,7 @@ export function ChatPage({
   initialPrompt,
   userId,
   onSessionActivity,
+  onSessionDeleted,
 }: ChatPageProps) {
   const [messages, setMessages] = useState<ChatMessageResponseDto[]>([]);
   const [input, setInput] = useState("");
@@ -50,7 +74,34 @@ export function ChatPage({
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
   /** Id of the assistant bubble currently being streamed into (drives the typing cursor). */
   const [streamingAssistantId, setStreamingAssistantId] = useState<string | null>(null);
+  /** Latest progress note from the agent ("Searching the repository…"), shown while waiting. */
+  const [streamStatus, setStreamStatus] = useState<string | null>(null);
+  /** Terminal send failure, shown as a banner until the next send. */
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  /** Empty-state suggestion cards — top analytics queries, static fallback until they load. */
+  const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
+  const deleteSession = useDeleteChatSession(chatService);
   const hasAutoSent = useRef(false);
+
+  // Fetch the top query strings once for the empty-state suggestion cards.
+  // Fails soft: the static fallbacks stay in place when the call rejects.
+  useEffect(() => {
+    let active = true;
+    chatService
+      .getQuerySuggestions(6)
+      .then((list) => {
+        if (!active) return;
+        const cleaned = (list ?? []).map((s) => s?.trim()).filter(Boolean);
+        if (cleaned.length > 0) setSuggestions(cleaned);
+      })
+      .catch(() => {
+        /* keep DEFAULT_SUGGESTIONS */
+      });
+    return () => {
+      active = false;
+    };
+  }, [chatService]);
 
   // Fetch the selected session's messages. The API returns them latest-first;
   // reverse so the conversation reads chronologically and the view
@@ -81,6 +132,8 @@ export function ChatPage({
       if (!content.trim() || isSending || isLoadingSession) return;
       setIsSending(true);
       setInput("");
+      setSendError(null);
+      setStreamStatus("Preparing your question…");
 
       try {
         let activeSessionId = sessionId ?? localSessionId;
@@ -125,31 +178,34 @@ export function ChatPage({
               activeSessionId,
               { role: "user", content },
               {
+                onStatus: (status) => setStreamStatus(status),
                 onSources: (sources) =>
                   setMessages((prev) =>
                     prev.map((m) => (m.id === placeholderId ? { ...m, sources } : m))
                   ),
-                onDelta: (text) =>
+                onDelta: (text) => {
+                  setStreamStatus(null);
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === placeholderId ? { ...m, content: m.content + text } : m
                     )
-                  ),
+                  );
+                },
               }
             );
             setMessages((prev) =>
               prev.map((m) => (m.id === placeholderId ? finalMessage : m))
             );
           } catch (err) {
-            console.error("Chat stream failed, falling back to blocking send:", err);
+            // Do NOT fall back to a blocking re-send: the stream endpoint has
+            // already persisted the user message, so a retry would duplicate
+            // it AND block for the full agent run. Surface the error instead.
+            console.error("Chat stream failed:", err);
             setMessages((prev) => prev.filter((m) => m.id !== placeholderId));
-            const assistantMessage = await chatService.sendMessage(activeSessionId, {
-              role: "user",
-              content,
-            });
-            setMessages((prev) => [...prev, assistantMessage]);
+            setSendError(toUserFacingError(err));
           } finally {
             setStreamingAssistantId(null);
+            setStreamStatus(null);
           }
         } else {
           // ── Blocking fallback ──
@@ -163,8 +219,10 @@ export function ChatPage({
         onSessionActivity?.();
       } catch (err) {
         console.error("Chat send failed:", err);
+        setSendError(toUserFacingError(err));
       } finally {
         setIsSending(false);
+        setStreamStatus(null);
       }
     },
     [
@@ -178,6 +236,35 @@ export function ChatPage({
     ]
   );
 
+  const activeSessionId = sessionId ?? localSessionId;
+
+  /** "Cite" — formats the message's sources as APA 7 references (server-side). */
+  const handleRequestCitations = useCallback(
+    (sources: ChatSourceDto[]) => chatService.formatCitations(sources),
+    [chatService]
+  );
+
+  /** "Expand" — sends a context-dependent follow-up asking for more detail. */
+  const handleExpand = useCallback(() => {
+    send(EXPAND_PROMPT);
+  }, [send]);
+
+  const confirmDeleteSession = async () => {
+    if (!activeSessionId || deleteSession.isPending) return;
+
+    try {
+      await deleteSession.mutateAsync(activeSessionId);
+      setConfirmingDelete(false);
+      setMessages([]);
+      setLocalSessionId(null);
+      onSessionActivity?.();
+      onSessionDeleted?.(activeSessionId);
+      toast.success("Chat deleted");
+    } catch (err) {
+      toast.error(toUserFacingError(err));
+    }
+  };
+
   // Auto-send initial prompt when navigating from another page
   useEffect(() => {
     if (!initialPrompt || hasAutoSent.current) return;
@@ -190,13 +277,32 @@ export function ChatPage({
   }
 
   return (
-    <ChatView
-      messages={messages}
-      input={input}
-      isSending={isSending}
-      streamingMessageId={streamingAssistantId}
-      onInputChange={setInput}
-      onSend={() => send(input)}
-    />
+    <>
+      <ChatView
+        messages={messages}
+        input={input}
+        isSending={isSending}
+        streamingMessageId={streamingAssistantId}
+        streamStatus={streamStatus}
+        error={sendError}
+        suggestions={suggestions}
+        onSelectSuggestion={(text) => send(text)}
+        onRequestCitations={handleRequestCitations}
+        onExpand={handleExpand}
+        onDeleteSession={activeSessionId ? () => setConfirmingDelete(true) : undefined}
+        isDeletingSession={deleteSession.isPending}
+        onInputChange={setInput}
+        onSend={() => send(input)}
+      />
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this chat?"
+        description="This permanently deletes the conversation and its messages. This action cannot be undone."
+        confirmLabel="Delete chat"
+        loading={deleteSession.isPending}
+        onConfirm={confirmDeleteSession}
+        onCancel={() => setConfirmingDelete(false)}
+      />
+    </>
   );
 }

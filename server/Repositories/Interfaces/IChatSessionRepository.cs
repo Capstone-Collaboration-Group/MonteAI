@@ -12,6 +12,8 @@ namespace server.Repositories.Interfaces
 
         Task<bool> UpdateChatSessionAsync(ChatSession chatSession);
 
+        Task<bool> SetPinnedAsync(Guid id, bool pinned);
+
         Task<bool> DeleteChatSessionAsync(Guid id);
     }
 }

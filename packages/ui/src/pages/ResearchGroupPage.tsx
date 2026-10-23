@@ -15,7 +15,7 @@ import {
   useStudents,
   useUpdateResearchGroup,
 } from "@monteai/hooks";
-import { toast } from "../components/Toaster";
+import { toast } from "sonner";
 import { ConfirmDialog } from "../components/common";
 import {
   ResearchGroupView,

@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 using server.Models.DTOs.User;
+using server.Services.Email;
 using server.Services.Interfaces;
+using server.Services.Theses;
 
 namespace server.Controllers
 {
@@ -16,19 +19,28 @@ namespace server.Controllers
         private readonly IFacultyService _facultyService;
         private readonly IProgramHeadService _programHeadService;
         private readonly IAdminService _adminService;
+        private readonly IMfaStore _mfaStore;
+        private readonly IFirebasePasswordService _passwordService;
+        private readonly IEmailService _email;
 
         public AuthController(
             ILogger<AuthController> logger,
             IStudentService studentService,
             IFacultyService facultyService,
             IProgramHeadService programHeadService,
-            IAdminService adminService)
+            IAdminService adminService,
+            IMfaStore mfaStore,
+            IFirebasePasswordService passwordService,
+            IEmailService email)
         {
             _logger = logger;
             _studentService = studentService;
             _facultyService = facultyService;
             _programHeadService = programHeadService;
             _adminService = adminService;
+            _mfaStore = mfaStore;
+            _passwordService = passwordService;
+            _email = email;
         }
 
         [HttpPost("register")]
@@ -111,6 +123,46 @@ namespace server.Controllers
             }
 
             return Ok(new ResolveLoginResponseDto { StudentNumber = studentNumber, Email = email });
+        }
+
+        //  Server-managed password change. Verifies the current password
+        //  against Firebase, writes the new one via the Admin SDK, then queues
+        //  the "password changed" security email. Per-user rate limited so this
+        //  endpoint can't be used to brute-force a current password.
+        [HttpPost("change-password")]
+        [Authorize]
+        [EnableRateLimiting("ChangePasswordLimit")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto dto)
+        {
+            var uid = User.FindFirstValue("user_id") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(uid))
+                return Unauthorized(new { Message = "No user ID found in token." });
+
+            if (string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.NewPassword))
+                return BadRequest(new { Message = "Current and new password are required." });
+            if (dto.NewPassword.Length < 6)
+                return BadRequest(new { Message = "New password must be at least 6 characters." });
+            if (string.Equals(dto.CurrentPassword, dto.NewPassword, StringComparison.Ordinal))
+                return BadRequest(new { Message = "New password must be different from the current password." });
+
+            var user = await _mfaStore.FindUserAsync(uid);
+            if (user?.Email is null)
+                return NotFound(new { Message = "No user profile found for this account." });
+            if (user.IsActive != true)
+                return Unauthorized(new { Message = "Your account is not active." });
+
+            if (!await _passwordService.VerifyCurrentPasswordAsync(user.Email, dto.CurrentPassword))
+                return Unauthorized(new { Message = "Current password is incorrect." });
+
+            await _passwordService.UpdatePasswordAsync(uid, dto.NewPassword);
+
+            // Security email — fire-and-forget into the background queue.
+            var content = EmailTemplates.PasswordChanged(
+                ThesisAuthorNames.FormatPersonName(user), DateTime.UtcNow);
+            _email.Queue(user.Email, content.Subject, content.Html, content.Text);
+
+            _logger.LogInformation("Password changed for UID {Uid}", uid);
+            return Ok(new { Message = "Password changed successfully." });
         }
 
         [HttpGet("me")]

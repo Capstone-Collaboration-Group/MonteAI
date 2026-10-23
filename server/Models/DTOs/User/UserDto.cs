@@ -109,6 +109,21 @@ namespace server.Models.DTOs.User
         public string StudentNumber { get; set; } = null!;
     }
 
+    // ── Server-managed password change ─────────────────────────────────
+    // POST /auth/change-password verifies the current password against
+    // Firebase, writes the new one via the Admin SDK, then queues the
+    // "password changed" security email.
+    public class ChangePasswordRequestDto
+    {
+        [Required]
+        public string CurrentPassword { get; set; } = null!;
+
+        // Firebase enforces a 6-character minimum.
+        [Required]
+        [MinLength(6, ErrorMessage = "New password must be at least 6 characters.")]
+        public string NewPassword { get; set; } = null!;
+    }
+
     public class ResolveLoginResponseDto
     {
         public string StudentNumber { get; set; } = null!;
@@ -134,5 +149,8 @@ namespace server.Models.DTOs.User
         public int? YearLevel { get; set; }
         public string? Position { get; set; }
         public string? ProgramHandled { get; set; }
+
+        // TOTP MFA state (safe to expose — never the secret or codes).
+        public bool TotpEnabled { get; set; }
     }
 }

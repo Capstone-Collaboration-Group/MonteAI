@@ -1,5 +1,6 @@
 import { Toaster, NotFound } from "@monteai/ui";
 import { AuthProvider, QueryClientProvider, queryClient } from "@monteai/hooks";
+import { MfaSessionProvider } from "./components/MfaSessionProvider";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import AppLayout from "./components/layouts/AppLayout";
 import LandingPage from "./pages/LandingPage";
@@ -8,6 +9,8 @@ import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import { auth } from "./lib/firebase";
 import About from "./pages/About";
+import Tutorial from "./pages/Tutorial";
+import DownloadApp from "./pages/DownloadApp";
 import Schedule from "./pages/Schedule";
 import Register from "./pages/Register";
 import SubmitThesis from "./pages/SubmitThesis";
@@ -27,12 +30,15 @@ function NotFoundPage() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider auth={auth}>
+      <MfaSessionProvider>
       <Toaster />
       <BrowserRouter>
         <Routes>
           {/* Public — no sidebar */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/about" element={<About />} />
+          <Route path="/tutorial" element={<Tutorial />} />
+          <Route path="/download-app" element={<DownloadApp />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           
@@ -55,6 +61,7 @@ const App = () => (
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
+      </MfaSessionProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

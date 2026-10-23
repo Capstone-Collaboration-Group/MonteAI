@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -8,6 +9,7 @@ import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DrawerProvider } from '@/components/ui/DrawerProvider';
+import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
 import { userService } from '@/lib/userService';
@@ -66,6 +68,7 @@ export default function ProfileScreen() {
   const ini = initials(profile?.firstName ?? session?.email);
 
   return (
+    <TabScreenTransition>
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>
       {(openDrawer) => (
     <View style={[s.root, { backgroundColor: background }]}>
@@ -152,6 +155,7 @@ export default function ProfileScreen() {
     </View>
       )}
     </DrawerProvider>
+    </TabScreenTransition>
   );
 }
 

@@ -5,9 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using server.Configuration;
+using server.Infrastructure;
 using server.Models.Agent;
 using server.Models.DTOs.ChatMessage;
 using server.Models.DTOs.ChatSession;
+using server.Models.Entities;
 using server.Services.Interfaces;
 
 // server/Controllers/ChatController.cs
@@ -19,7 +21,10 @@ using server.Services.Interfaces;
 //
 //   1. Validate payload + session OWNERSHIP (the authenticated Firebase uid
 //      must match the session's owner — closes the IDOR where any user could
-//      post into any session id).
+//      post into any session id) + DAILY QUERY QUOTA (rolling-window cap
+//      counted from llm_usage ticks — one per LLM-answered query, never
+//      refunded by session deletion — rejects with 429 before anything is
+//      persisted).
 //   2. Load conversation history (BEFORE persisting the new user message, so
 //      history = prior turns only) -> sent to the agent as memory.
 //   3. Persist the user message; bump the session's LastChatDate.
@@ -28,10 +33,15 @@ using server.Services.Interfaces;
 //   5. Persist the assistant message WITH its structured sources and return it.
 //
 //   The streaming variant emits Server-Sent Events:
+//     event: status   data: { "message": "Searching the repository…" }
 //     event: sources  data: [ { thesisId, title, authors, ... } ]
 //     event: delta    data: { "text": "...answer fragment..." }
 //     event: done     data: { "message": { persisted assistant message } }
 //     event: error    data: { "message": "..." }   (terminal failure only)
+//
+//   Headers + the first status frame are flushed BEFORE the pre-agent DB
+//   work, so the client gets a response in ~0ms instead of after the whole
+//   plan/tool phase (which used to leave the browser with no bytes at all).
 
 namespace server.Controllers
 {
@@ -45,6 +55,8 @@ namespace server.Controllers
         private readonly IChatSessionService _chatSessionService;
         private readonly IChatMessageService _chatMessageService;
         private readonly IMonteAiAgentService _monteAiAgentService;
+        private readonly IAnalyticsService _analytics;
+        private readonly IApaCitationFormatter _citationFormatter;
         private readonly MonteAiAgentConfig _agentConfig;
         private readonly ILogger<ChatController> _logger;
 
@@ -52,12 +64,16 @@ namespace server.Controllers
             IChatSessionService chatSessionService,
             IChatMessageService chatMessageService,
             IMonteAiAgentService monteAiAgentService,
+            IAnalyticsService analytics,
+            IApaCitationFormatter citationFormatter,
             IOptions<MonteAiAgentConfig> agentConfig,
             ILogger<ChatController> logger)
         {
             _chatSessionService = chatSessionService;
             _chatMessageService = chatMessageService;
             _monteAiAgentService = monteAiAgentService;
+            _analytics = analytics;
+            _citationFormatter = citationFormatter;
             _agentConfig = agentConfig.Value;
             _logger = logger;
         }
@@ -117,8 +133,19 @@ namespace server.Controllers
                 return BadRequest(new { Message = "Message content cannot be empty." });
             }
 
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
             var ownershipError = await CheckOwnershipAsync(id);
             if (ownershipError != null) return ownershipError;
+
+            // Rolling-window daily quota — refuse BEFORE persisting the user
+            // message or spinning up the agent. The body message is what the
+            // client's error translator surfaces to the user.
+            var quotaError = await _analytics.CheckDailyQuotaAsync(uid);
+            if (quotaError != null)
+            {
+                _logger.LogInformation("Daily query quota hit for user {UserId} on session {SessionId}", uid, id);
+                return StatusCode(StatusCodes.Status429TooManyRequests, new { Message = quotaError });
+            }
 
             try
             {
@@ -134,9 +161,24 @@ namespace server.Controllers
                 }
                 await _chatSessionService.TouchAsync(id);
 
+                // Query & Activity Monitoring — chat prompts feed "most
+                // searched topics" + the suggestion cards (never throws).
+                await _analytics.RecordAsync(
+                    ActivityLogTypes.ChatQuery,
+                    query: dto.Content,
+                    userId: uid);
+
                 // 3. Run the agent (plan -> tools -> grounded, cited answer).
                 var result = await _monteAiAgentService.GenerateResponseAsync(
                     new AgentChatRequest(dto.Content, history));
+
+                // Daily-quota meter: exactly +1 when the pipeline really ran the
+                // LLM (refusals/deterministic/cache answers are free). The tick
+                // row is never deleted with sessions — quota is not refundable.
+                if (result.UsedLlm)
+                {
+                    await _analytics.RecordLlmUsageAsync(uid);
+                }
 
                 // 4. Persist the assistant message together with its sources.
                 var aiMessage = await _chatMessageService.CreateAsync(
@@ -151,6 +193,11 @@ namespace server.Controllers
                 }
 
                 return Ok(new { Message = "Message successfully stored", userMessage, aiMessage });
+            }
+            catch (LlmUnavailableException ex)
+            {
+                _logger.LogWarning("Circuit breaker rejected agent run for session {SessionId}", id);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { Message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -175,17 +222,45 @@ namespace server.Controllers
                 return;
             }
 
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
             var ownershipError = await CheckOwnershipAsync(id, writeResponse: true);
             if (ownershipError != null) return; // response already written
+
+            // Rolling-window daily quota — reject BEFORE switching into SSE
+            // mode so the client gets a plain 429 with a friendly body message
+            // (its error translator reads message off the response body).
+            var quotaError = await _analytics.CheckDailyQuotaAsync(uid);
+            if (quotaError != null)
+            {
+                _logger.LogInformation("Daily query quota hit for user {UserId} on session {SessionId} (stream)", uid, id);
+                Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                await Response.WriteAsJsonAsync(new { Message = quotaError });
+                return;
+            }
+
+            // Switch the response into SSE mode BEFORE the pre-agent DB work
+            // and flush headers + an initial status so the client's first byte
+            // arrives immediately instead of after ~1s of Firestore calls.
+            Response.StatusCode = StatusCodes.Status200OK;
+            Response.ContentType = "text/event-stream";
+            Response.Headers.CacheControl = "no-cache";
+            // App Service / proxies love to buffer responses, which delays SSE
+            // frames until the buffer fills — kill buffering for this stream.
+            HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>()
+                ?.DisableBuffering();
+            await Response.StartAsync();
+            await WriteSseEventAsync("status",
+                JsonSerializer.Serialize(new { message = "Preparing your question…" }, SseJsonOptions));
 
             var history = await _chatMessageService.GetHistoryAsync(id, _agentConfig.HistoryMessageCount);
             var userMessage = await _chatMessageService.CreateAsync(dto, id.ToString());
             await _chatSessionService.TouchAsync(id);
 
-            // Switch the response into SSE mode.
-            Response.StatusCode = StatusCodes.Status200OK;
-            Response.ContentType = "text/event-stream";
-            Response.Headers.CacheControl = "no-cache";
+            // Query & Activity Monitoring (same as the blocking path).
+            await _analytics.RecordAsync(
+                ActivityLogTypes.ChatQuery,
+                query: dto.Content,
+                userId: uid);
 
             var answerBuffer = new StringBuilder();
             IReadOnlyList<ChatSourceDto> sources = [];
@@ -198,6 +273,10 @@ namespace server.Controllers
                 {
                     switch (evt)
                     {
+                        case AgentStreamEvent.Status statusEvent:
+                            await WriteSseEventAsync("status", JsonSerializer.Serialize(new { message = statusEvent.Message }, SseJsonOptions));
+                            break;
+
                         case AgentStreamEvent.SourcesDiscovered sourcesEvent:
                             sources = sourcesEvent.Sources;
                             await WriteSseEventAsync("sources", JsonSerializer.Serialize(sourcesEvent.Sources, SseJsonOptions));
@@ -213,15 +292,26 @@ namespace server.Controllers
                                 new CreateChatMessageDto { Content = completed.Result.Answer, Role = "assistant" },
                                 id.ToString(),
                                 completed.Result.Sources);
+                            // Daily-quota meter — same rule as the blocking path:
+                            // +1 only when the run actually invoked the LLM.
+                            if (completed.Result.UsedLlm)
+                            {
+                                await _analytics.RecordLlmUsageAsync(uid);
+                            }
                             await WriteSseEventAsync("done", JsonSerializer.Serialize(new { message = aiMessage }, SseJsonOptions));
                             break;
                     }
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
             {
-                // Client disconnected mid-stream. Persist whatever was already
-                // generated so the conversation history is not lost.
+                // Client disconnected mid-stream (only when the REQUEST was
+                // aborted — a TaskCanceledException from an Azure OpenAI
+                // network timeout also derives from OperationCanceledException
+                // and must fall through to the error handler below, otherwise
+                // the client would hang with no "error" event).
+                // Persist whatever was already generated so the conversation
+                // history is not lost.
                 if (answerBuffer.Length > 0)
                 {
                     _logger.LogInformation("Client disconnected mid-stream for session {SessionId} — persisting partial answer", id);
@@ -229,6 +319,26 @@ namespace server.Controllers
                         new CreateChatMessageDto { Content = answerBuffer.ToString(), Role = "assistant" },
                         id.ToString(),
                         sources);
+                    // Synthesis was already streaming when the client left — the
+                    // LLM ran, so the meter ticks even though no Completed event
+                    // ever arrived (mid-planner disconnects: buffer empty, no tick).
+                    await _analytics.RecordLlmUsageAsync(uid);
+                }
+            }
+            catch (LlmUnavailableException ex)
+            {
+                // Circuit breaker is open, or synthesis timed out after all
+                // retries — either way the deployment is sick; fail fast with
+                // the friendly message instead of a generic 500.
+                _logger.LogWarning(ex, "LLM unavailable for session {SessionId} — answering with friendly unavailable message", id);
+                if (!Response.HasStarted)
+                {
+                    Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                    await Response.WriteAsJsonAsync(new { Message = ex.Message });
+                }
+                else
+                {
+                    await WriteSseEventAsync("error", JsonSerializer.Serialize(new { message = ex.Message }, SseJsonOptions));
                 }
             }
             catch (Exception ex)
@@ -250,6 +360,30 @@ namespace server.Controllers
             }
         }
 
+        /// <summary>
+        /// APA 7th-edition references for a message's sources — powers the
+        /// "Cite" button (client copies the returned strings). Stateless:
+        /// formats whatever sources the client passes, no session involved.
+        /// </summary>
+        [HttpPost("citations/apa")]
+        public IActionResult FormatCitations([FromBody] ApaCitationRequestDto dto)
+        {
+            if (dto?.Sources is not { Count: > 0 })
+            {
+                return BadRequest(new { Message = "At least one source is required." });
+            }
+
+            var citations = _citationFormatter.FormatAll(dto.Sources)
+                .Select((text, index) => new ApaCitationDto
+                {
+                    ThesisId = dto.Sources[index].ThesisId,
+                    Citation = text,
+                })
+                .ToList();
+
+            return Ok(new ApaCitationResponseDto { Citations = citations });
+        }
+
         [HttpPut("sessions/{id}/update")]
         public async Task<IActionResult> UpdateChatSessionTitle([FromRoute] Guid id, [FromBody] UpdateChatSessionDto updateDto)
         {
@@ -262,6 +396,20 @@ namespace server.Controllers
             return Ok(new { Message = "Chat Session Title Updated" });
         }
 
+        [HttpPut("sessions/{id}/pin")]
+        public async Task<IActionResult> SetChatSessionPinned(
+            [FromRoute] Guid id,
+            [FromBody] UpdateChatSessionPinnedDto updateDto)
+        {
+            var ownershipError = await CheckOwnershipAsync(id);
+            if (ownershipError != null) return ownershipError;
+
+            var result = await _chatSessionService.SetPinnedAsync(id, updateDto.Pinned);
+            if (!result) return StatusCode(500, new { Message = "Failed to update chat session pin." });
+
+            return Ok(new { Message = updateDto.Pinned ? "Chat Session Pinned" : "Chat Session Unpinned" });
+        }
+
         [HttpDelete("sessions/{id}/delete")]
         public async Task<IActionResult> DeleteChatSession([FromRoute] Guid id)
         {
@@ -270,6 +418,15 @@ namespace server.Controllers
 
             var success = await _chatSessionService.DeleteAsync(id);
             if (!success) return StatusCode(500, new { Message = "Failed to delete chat session." });
+
+            // Chat-session deletion clears the user's chat query trace. The
+            // llm_usage quota ticks stay — the quota is a usage meter and is
+            // never refunded. Best-effort and non-throwing.
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrWhiteSpace(uid))
+            {
+                await _analytics.DeleteUserChatQueriesAsync(uid);
+            }
 
             return Ok(new { Message = "Chat Session Deleted" });
         }

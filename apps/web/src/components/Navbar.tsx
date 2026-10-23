@@ -1,15 +1,46 @@
+"use client";
+
 import { Link, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+
+const navItems = [
+  { label: "Home", href: "/" },
+  { label: "About Us", href: "/about" },
+  { label: "Tutorial", href: "/tutorial" },
+  { label: "Download App", href: "/download-app" },
+] as const;
+
+const itemVariants = {
+  initial: { opacity: 0, y: -10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: 10 },
+};
 
 export default function Navbar() {
   const location = useLocation();
+  const navRef = useRef<HTMLElement>(null);
+  const [underlineStyle, setUnderlineStyle] = useState({ width: 0, x: 0 });
 
-  const navItems = [
-    { label: "Home", href: "/" },
-    { label: "About Us", href: "/about" },
-  ];
+  // Calculate underline position for active item
+  useEffect(() => {
+    const newActive = navItems.find((item) => location.pathname === item.href) ?? navItems[0];
+
+    if (navRef.current) {
+      const activeLink = navRef.current.querySelector(`[data-nav-item="${newActive.label}"]`) as HTMLElement;
+      if (activeLink) {
+        const rect = activeLink.getBoundingClientRect();
+        const navRect = navRef.current.getBoundingClientRect();
+        setUnderlineStyle({
+          width: rect.width,
+          x: rect.left - navRect.left,
+        });
+      }
+    }
+  }, [location.pathname]);
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-surface-container-low/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-50 w-full bg-surface-container-low/95 backdrop-blur-sm border-b border-outline-variant/50">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-y-3 px-4 py-3 sm:flex-nowrap sm:px-8 sm:py-5 lg:px-10">
         <Link
           to="/"
@@ -19,27 +50,44 @@ export default function Navbar() {
         </Link>
 
         <nav
+          ref={navRef}
           aria-label="Primary"
-          className="order-3 flex w-full items-center justify-center gap-8 sm:order-2 sm:w-auto lg:gap-10"
+          className="order-3 flex w-full items-center justify-center gap-8 sm:order-2 sm:w-auto lg:gap-10 relative"
         >
-          {navItems.map((item) => {
-            const active = location.pathname === item.href;
+          {/* Animated underline indicator */}
+          <motion.div
+            className="absolute bottom-0 left-0 h-0.5 bg-primary rounded-full pointer-events-none"
+            initial={{ width: 0, x: 0, opacity: 0 }}
+            animate={{ ...underlineStyle, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            style={{ transformOrigin: "left center" }}
+          />
 
-            return (
-              <Link
+          <AnimatePresence mode="wait">
+            {navItems.map((item) => (
+              <motion.span
                 key={item.label}
-                to={item.href}
-                aria-current={active ? "page" : undefined}
-                className={
-                  active
-                    ? "border-b-2 border-primary pb-1 text-sm font-bold text-primary"
-                    : "text-sm font-bold text-on-surface-variant transition hover:text-primary"
-                }
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                variants={itemVariants}
+                transition={{ duration: 0.2, ease: "easeOut" }}
               >
-                {item.label}
-              </Link>
-            );
-          })}
+                <Link
+                  to={item.href}
+                  aria-current={location.pathname === item.href ? "page" : undefined}
+                  data-nav-item={item.label}
+                  className={`relative flex items-center gap-1.5 text-sm font-semibold transition-colors ${
+                    location.pathname === item.href
+                      ? "text-primary"
+                      : "text-on-surface-variant hover:text-primary"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              </motion.span>
+            ))}
+          </AnimatePresence>
         </nav>
 
         <div className="order-2 flex items-center gap-2 sm:order-3 sm:gap-3">

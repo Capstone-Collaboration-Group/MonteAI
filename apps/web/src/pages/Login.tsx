@@ -1,7 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { LeftPanel, Modal, Card, LoginForm } from "@monteai/ui";
+import { MfaLoginFlowGate } from "@monteai/hooks";
 import { auth } from "../lib/firebase";
+import { anonymousMfaService } from "../lib/mfaService";
+import { MfaStep } from "../components/MfaStep";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -22,11 +25,34 @@ export default function Login() {
             <LeftPanel />
 
             <div className="p-6 sm:p-8 lg:p-10">
-              <LoginForm
-                auth={auth}
-                onSuccess={() => navigate("/home")}
-                onResumeRegistration={() => navigate("/register")}
-              />
+              {/* While an MFA challenge is pending, the gate swaps in the
+                  code-entry screen; otherwise the normal login form shows. */}
+              <MfaLoginFlowGate verifyMfa={(i) => anonymousMfaService.verify(i)}>
+                {({ verify, onCancel, error, pending }) => (
+                  <MfaStep
+                        verify={async (code) => {
+                          const result = await verify(code);
+                          navigate("/home");
+                          return result;
+                        }}
+                        onCancel={onCancel}
+                        error={error}
+                        pending={pending}
+                      />
+                    )}
+                  </MfaLoginFlowGate>
+
+                  <LoginForm
+                    auth={auth}
+                    mfa={{
+                      challenge: (idToken) => anonymousMfaService.challenge(idToken),
+                      onCancel: () => {
+                        void auth.signOut();
+                      },
+                    }}
+                    onSuccess={() => navigate("/home")}
+                    onResumeRegistration={() => navigate("/register")}
+                  />
             </div>
           </div>
         </Card>

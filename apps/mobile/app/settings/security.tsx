@@ -5,9 +5,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
 import { userService } from '@/lib/userService';
+import MfaSecuritySection from '@/components/MfaSecuritySection';
 
 export default function SecuritySettingsScreen() {
   const router = useRouter();
@@ -139,6 +140,8 @@ export default function SecuritySettingsScreen() {
             </Text>
           </View>
         </View>
+
+        <MfaSecuritySection />
 
         {/* Change Password */}
         <Text

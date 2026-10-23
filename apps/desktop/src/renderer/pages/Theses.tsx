@@ -2,10 +2,9 @@
 import { useState } from "react";
 import { ThesisCatalogPage } from "@monteai/ui/pages";
 import { ThesisUploadModal, ThesisEditModal, ThesisDeleteDialog } from "@monteai/ui/components/Thesis";
-import { useApproveThesis } from "@/hooks/useApproveThesis";
 import { useRequestRevision } from "@/hooks/useRequestRevision";
 import { useRejectThesis } from "@/hooks/useRejectThesis";
-import { useSubmitThesis, useUpdateThesis, useDeleteThesis, useUserProfile } from "@monteai/hooks";
+import { useSubmitThesis, useUpdateThesis, useDeleteThesis, useIngestThesis, useUserProfile } from "@monteai/hooks";
 import { profileService } from "../lib/authServices";
 import { thesisService } from "../lib/thesisService";
 import { useNavigate } from "react-router-dom";
@@ -34,7 +33,7 @@ function getActionErrorMessage(err: unknown, forbiddenMessage: string, fallback:
 export default function Theses() {
   const navigate = useNavigate();
   const { profile } = useUserProfile(profileService);
-  const { mutate: approve } = useApproveThesis();
+  const { mutate: ingest } = useIngestThesis(thesisService);
   const { mutate: revision } = useRequestRevision();
   const { mutate: reject } = useRejectThesis();
   const { mutate: submitThesis, isPending: isUploading } = useSubmitThesis(thesisService);
@@ -56,13 +55,56 @@ export default function Theses() {
   const isAdmin = profile?.role === "Admin";
 
   // Full CRUD (edit/delete) is Admin-only; moderation stays as before.
+  // Reindex (re-run metadata-only ingestion) is Admin-only too and is only
+  // offered for already-approved/indexed rows (see ThesisListView).
   // Web/mobile never pass these actions, so the catalog is read-only there.
   const allowedActions: ThesisActionType[] = isAdmin
-    ? ["approve", "reject", "revision", "edit", "delete"]
+    ? ["approve", "reject", "revision", "edit", "delete", "reindex"]
     : ["approve", "reject", "revision"];
 
+  // Shared by approve and reindex: both POST /thesis/ingest, where the
+  // server resolves the metadata and upserts the single metadata vector
+  // synchronously.
+  const runIngest = (thesisId: string, action: "approve" | "reindex") => {
+    setNotice(null);
+    ingest(
+      { thesisId },
+      {
+        onSuccess: (data) => {
+          if (data.status === "Failed") {
+            setNotice({
+              variant: "error",
+              message: "MonteAI could not ingest this thesis. Please try again.",
+            });
+            return;
+          }
+          setNotice({
+            variant: "success",
+            message:
+              action === "reindex"
+                ? "Reindexing complete — MonteAI refreshed this thesis's metadata index."
+                : "Thesis approved and indexed — it is now searchable by MonteAI.",
+          });
+        },
+        onError: (err) => {
+          setNotice({
+            variant: "error",
+            message: getActionErrorMessage(
+              err,
+              "You are not allowed to index theses.",
+              "Failed to ingest thesis. Please try again.",
+            ),
+          });
+        },
+      },
+    );
+  };
+
   const handleThesisAction = async (thesisId: string, action: ThesisActionType) => {
-    if (action === "approve") { approve({ thesisId }); return; }
+    if (action === "approve" || action === "reindex") {
+      runIngest(thesisId, action);
+      return;
+    }
     if (action === "reject") { reject({ thesisId }); return; }
     if (action === "revision") { revision({ thesisId }); return; }
 

@@ -1,6 +1,7 @@
 // apps/mobile/components/schedule/DefenseCard.tsx
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import type { ScheduleResponseDto } from '@monteai/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Radius, Spacing } from '@/constants/theme';

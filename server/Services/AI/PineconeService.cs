@@ -1,33 +1,31 @@
 // server/Services/AI/PineconeService.cs
 //
 // Pinecone + Azure OpenAI embedding integration — the vector-store layer of
-// the RAG pipeline.
+// the RAG pipeline. METADATA-ONLY: one vector per thesis.
 //
 // ── INGESTION (called by ThesisService.IngestAsync) ─────────────────────────
-//   chunks ──> EmbedBatchAsync (16 texts per text-embedding-3-small call,
-//              instead of one HTTP request per chunk). What gets EMBEDDED is
-//              BuildEmbeddingText: a Title/Authors/Publication year header
-//              above the abstract, so "studies by <author>" and year-bounded
-//              questions can match — the abstract alone never contains
-//              author names or years. metadata["abstract"] keeps the RAW
-//              excerpt for citations/prompts.
-//          ──> one bulk UpsertRequest per 100 vectors, with metadata:
-//              abstract, title, url (blob path, NEVER a SAS link), authors,
-//              publication_year, journal, thesis_id, chunk_index, uploaded_at
+//   one text-embedding-3-small call embeds BuildMetadataEmbeddingText: a
+//   Title/Authors/Publication year header above the abstract, so "studies by
+//   <author>" and year-bounded questions can match — the abstract alone never
+//   contains author names or years. metadata["abstract"] keeps the RAW
+//   excerpt for citations/prompts. The vector id is deterministic
+//   (thesis_{id}_meta), so re-ingesting the same thesis REPLACES its vector.
 //
-// ── RETRIEVAL (called by the agent's semantic_search tool and the fallback
-//   RAG path) ────────────────────────────────────────────────────────────────
+// ── RETRIEVAL (called by the agent's semantic_search tool, the deterministic
+//   fast path, and catalog semantic search) ──────────────────────────────────
 //   query ──> DetectYearRange (fills YearFrom/YearTo from years in the query
 //             when the planner omitted them — small models do that often)
-//          ──> one embedding call ──> Pinecone QueryAsync(TopK, Filter)
+//          ──> one embedding call ──> Pinecone QueryAsync(TopK, Filter) on
+//             the METADATA namespace only
 //          ──> score-threshold filter ──> mapped to Chunk records (with the
 //              real match score and thesis_id for citation linking)
 //
 // ── DELETION ────────────────────────────────────────────────────────────────
-//   DeleteThesisVectorsAsync lists vector IDs by the "thesis_{id}_chunk_"
-//   prefix (paginated) and deletes them, then also deletes by the thesis_id
-//   metadata filter. This keeps re-ingestion idempotent and removes vectors
-//   when a thesis is edited or deleted.
+//   DeleteThesisVectorsAsync filter-deletes by thesis_id in every namespace,
+//   then prefix-scans for legacy thesis_{id}_chunk_* ids (pre-metadata-only
+//   full-text vectors, which may still sit in the default namespace) and
+//   deletes the deterministic metadata id. This keeps re-ingestion idempotent
+//   and removes vectors when a thesis is edited or deleted.
 
 using System.Text;
 using System.Text.RegularExpressions;
@@ -65,6 +63,9 @@ namespace server.Services.AI
         private string IndexName =>
             string.IsNullOrWhiteSpace(_config.IndexName) ? "research-assistant-abstracts" : _config.IndexName;
 
+        /// <summary>Namespace of the per-thesis metadata vector (thesis_{id}_meta).</summary>
+        private string MetadataNamespace => _config.MetadataNamespace;
+
         // ────────────────────────── RETRIEVAL ──────────────────────────
 
         public async Task<List<Chunk>> RetrieveRelevantChunksAsync(
@@ -79,7 +80,7 @@ namespace server.Services.AI
             }
 
             // Planner-supplied years win; otherwise detect them in the query
-            // text itself. Phi-4-mini often omits yearFrom/yearTo despite the
+            // text itself. Small models often omit yearFrom/yearTo despite the
             // few-shot examples, and the agent's guaranteed fallback passes no
             // options at all — without this, "published in 2019" would only
             // match on topic similarity (the year is not part of the embedding
@@ -92,26 +93,28 @@ namespace server.Services.AI
             OpenAIEmbedding embeddingResult = await _embeddingClient.GenerateEmbeddingAsync(query, cancellationToken: cancellationToken);
             var queryVector = embeddingResult.ToFloats().ToArray();
 
-            // 2. Query Pinecone with optional metadata filters.
             var topK = (uint)Math.Clamp(options?.TopK ?? _config.TopK, 1, 50);
+            var filter = BuildFilter(options);
+            var index = _pineconeClient.Index(IndexName);
+
+            // 2. Query the metadata namespace — the ONLY namespace that holds
+            //    vectors (one per thesis: title/author/year/abstract).
             var request = new QueryRequest
             {
                 Vector = queryVector,
                 TopK = topK,
                 IncludeMetadata = true,
                 IncludeValues = false,
+                Namespace = MetadataNamespace,
             };
+            if (filter is not null) request.Filter = filter;
 
-            var filter = BuildFilter(options);
-            if (filter is not null)
-            {
-                request.Filter = filter;
-            }
+            var response = await index.QueryAsync(request, cancellationToken: cancellationToken);
+            List<(float Score, Metadata? Metadata)> matches = response?.Matches?
+                .Select(m => (m.Score ?? 0f, m.Metadata))
+                .ToList() ?? new List<(float Score, Metadata? Metadata)>();
 
-            var index = _pineconeClient.Index(IndexName);
-            var queryResponse = await index.QueryAsync(request, cancellationToken: cancellationToken);
-
-            if (queryResponse?.Matches is null)
+            if (matches.Count == 0)
             {
                 _logger.LogInformation("Pinecone returned no matches for the query");
                 return new List<Chunk>();
@@ -120,8 +123,9 @@ namespace server.Services.AI
             // 3. Drop below-threshold matches so junk never reaches the LLM prompt.
             var threshold = options?.ScoreThreshold ?? _config.ScoreThreshold;
 
-            var chunks = queryResponse.Matches
-                .Where(match => (match.Score ?? 0) >= threshold)
+            var chunks = matches
+                .Where(match => match.Score >= threshold)
+                .OrderByDescending(match => match.Score)
                 .Select(match =>
                 {
                     var metadata = match.Metadata;
@@ -132,7 +136,7 @@ namespace server.Services.AI
                         Authors: GetString(metadata, "authors"),
                         PublicationYear: GetString(metadata, "publication_year"),
                         Journal: GetString(metadata, "journal"),
-                        RelevanceScore: match.Score?.ToString("0.###"),
+                        RelevanceScore: match.Score.ToString("0.###"),
                         ThesisId: GetString(metadata, "thesis_id"));
                 })
                 .Where(c => !string.IsNullOrWhiteSpace(c.Text))
@@ -140,7 +144,7 @@ namespace server.Services.AI
 
             _logger.LogInformation(
                 "Pinecone returned {Total} matches, {Kept} passed the {Threshold} score threshold",
-                queryResponse.Matches.Count(), chunks.Count, threshold);
+                matches.Count, chunks.Count, threshold);
 
             return chunks;
         }
@@ -239,78 +243,68 @@ namespace server.Services.AI
 
         // ────────────────────────── INGESTION ──────────────────────────
 
-        public async Task<int> UpsertAbstractsAsync(
+        /// <inheritdoc />
+        public async Task<int> UpsertMetadataChunkAsync(
             Guid thesisId,
-            IReadOnlyList<Chunk> chunks,
+            Chunk metadataChunk,
             CancellationToken cancellationToken = default)
         {
-            var valid = chunks
-                .Where(c => !string.IsNullOrWhiteSpace(c.Text))
-                .ToList();
-
-            if (valid.Count == 0)
+            if (string.IsNullOrWhiteSpace(metadataChunk.Text))
             {
-                _logger.LogWarning("Cannot upsert thesis {ThesisId}: no chunk has text content", thesisId);
+                _logger.LogWarning("Cannot upsert metadata vector for thesis {ThesisId}: chunk has no text", thesisId);
                 return 0;
             }
 
             try
             {
-                // 1. Batch-embed all chunk texts (EmbeddingBatchSize per call).
-                //    The embedded string carries a Title/Authors/Publication
-                //    year header so author and year questions can match — the
-                //    stored "abstract" metadata below stays the raw excerpt.
-                var texts = valid.Select(BuildEmbeddingText).ToList();
-                var embeddings = await EmbedBatchAsync(texts, cancellationToken);
+                // One embedding call: Title/Authors/Year header above the
+                // abstract so author/year questions match. The explicit
+                // OpenAIEmbedding type triggers the implicit ClientResult ->
+                // model conversion.
+                OpenAIEmbedding embeddingResult = await _embeddingClient.GenerateEmbeddingAsync(
+                    BuildMetadataEmbeddingText(metadataChunk), cancellationToken: cancellationToken);
+                var embedding = embeddingResult.ToFloats().ToArray();
 
-                // 2. Build vectors with full metadata.
                 var uploadedAt = DateTime.UtcNow.ToString("o");
-                var vectors = new List<Vector>(valid.Count);
-                for (var i = 0; i < valid.Count; i++)
+                var metadata = new Metadata
                 {
-                    var chunk = valid[i];
-                    var metadata = new Metadata
-                    {
-                        ["abstract"] = chunk.Text!,
-                        ["thesis_id"] = chunk.ThesisId ?? thesisId.ToString(),
-                        ["chunk_index"] = i,
-                        ["uploaded_at"] = uploadedAt,
-                    };
+                    ["abstract"] = metadataChunk.Text!,
+                    ["thesis_id"] = metadataChunk.ThesisId ?? thesisId.ToString(),
+                    ["chunk_index"] = -1,
+                    ["kind"] = "metadata",
+                    ["uploaded_at"] = uploadedAt,
+                };
 
-                    if (!string.IsNullOrEmpty(chunk.Title)) metadata["title"] = chunk.Title;
-                    if (!string.IsNullOrEmpty(chunk.Url)) metadata["url"] = chunk.Url;
-                    if (!string.IsNullOrEmpty(chunk.Authors)) metadata["authors"] = chunk.Authors;
-                    if (!string.IsNullOrEmpty(chunk.PublicationYear)) metadata["publication_year"] = chunk.PublicationYear;
-                    if (!string.IsNullOrEmpty(chunk.Journal)) metadata["journal"] = chunk.Journal;
+                if (!string.IsNullOrEmpty(metadataChunk.Title)) metadata["title"] = metadataChunk.Title;
+                if (!string.IsNullOrEmpty(metadataChunk.Url)) metadata["url"] = metadataChunk.Url;
+                if (!string.IsNullOrEmpty(metadataChunk.Authors)) metadata["authors"] = metadataChunk.Authors;
+                if (!string.IsNullOrEmpty(metadataChunk.PublicationYear)) metadata["publication_year"] = metadataChunk.PublicationYear;
+                if (!string.IsNullOrEmpty(metadataChunk.Journal)) metadata["journal"] = metadataChunk.Journal;
 
-                    vectors.Add(new Vector
-                    {
-                        Id = $"thesis_{thesisId}_chunk_{i}",
-                        Values = embeddings[i],
-                        Metadata = metadata,
-                    });
-                }
-
-                // 3. Bulk upsert (batched to keep requests within Pinecone limits).
                 var index = _pineconeClient.Index(IndexName);
-                var upserted = 0;
-                foreach (var batch in vectors.Chunk(Math.Clamp(_config.MaxUpsertBatchSize, 1, 1000)))
-                {
-                    var response = await index.UpsertAsync(
-                        new UpsertRequest { Vectors = batch },
-                        cancellationToken: cancellationToken);
-                    upserted += (int)(response?.UpsertedCount ?? 0);
-                }
+                // Upserting the same id REPLACES the previous vector — this is
+                // what makes re-ingestion refresh metadata without a delete.
+                await index.UpsertAsync(
+                    new UpsertRequest
+                    {
+                        Namespace = MetadataNamespace,
+                        Vectors = [new Vector
+                        {
+                            Id = $"thesis_{thesisId}_meta",
+                            Values = embedding,
+                            Metadata = metadata,
+                        }]
+                    },
+                    cancellationToken: cancellationToken);
 
                 _logger.LogInformation(
-                    "Thesis {ThesisId}: {Upserted}/{Total} vectors upserted into index {Index}",
-                    thesisId, upserted, vectors.Count, IndexName);
-
-                return upserted;
+                    "Metadata vector upserted for thesis {ThesisId} into {Index}/{Namespace}",
+                    thesisId, IndexName, MetadataNamespace);
+                return 1;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to upsert abstract chunks for thesis {ThesisId} into index {Index}", thesisId, IndexName);
+                _logger.LogError(ex, "Failed to upsert metadata vector for thesis {ThesisId}", thesisId);
                 return 0;
             }
         }
@@ -318,12 +312,12 @@ namespace server.Services.AI
         /// <summary>
         /// What actually gets embedded: a short metadata header above the raw
         /// abstract. Author names and publication years never appear inside
-        /// abstract text, so embedding the abstract alone made
-        /// "studies authored by X" unmatchable. The header fixes new
-        /// ingestions; metadata["abstract"] keeps the raw text so citations
-        /// and prompt excerpts are unaffected.
+        /// abstract text, so embedding the text alone made "studies authored
+        /// by X" unmatchable. The header fixes ingestions; the stored
+        /// "abstract" metadata key keeps the raw excerpt so citations and
+        /// prompt excerpts are unaffected.
         /// </summary>
-        private static string BuildEmbeddingText(Chunk chunk)
+        private static string BuildMetadataEmbeddingText(Chunk chunk)
         {
             var sb = new StringBuilder();
             if (!string.IsNullOrEmpty(chunk.Title))
@@ -336,86 +330,120 @@ namespace server.Services.AI
             return sb.ToString();
         }
 
-        /// <summary>Embeds texts in batches of EmbeddingBatchSize (max 16 per Azure OpenAI request).</summary>
-        private async Task<float[][]> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken)
-        {
-            var results = new float[texts.Count][];
-            var batchSize = Math.Clamp(_config.EmbeddingBatchSize, 1, 16);
-
-            for (var offset = 0; offset < texts.Count; offset += batchSize)
-            {
-                var batch = texts.Skip(offset).Take(batchSize).ToList();
-                var collection = await _embeddingClient.GenerateEmbeddingsAsync(batch, cancellationToken: cancellationToken);
-
-                var i = 0;
-                foreach (var embedding in collection.Value)
-                {
-                    results[offset + i] = embedding.ToFloats().ToArray();
-                    i++;
-                }
-            }
-
-            return results;
-        }
-
         // ────────────────────────── DELETION ──────────────────────────
 
         public async Task<int> DeleteThesisVectorsAsync(Guid thesisId, CancellationToken cancellationToken = default)
         {
             var index = _pineconeClient.Index(IndexName);
-            var removedByIds = 0;
 
+            // 1. Filter delete across every namespace: the metadata vector and
+            //    any legacy full-text chunks still sitting in the pre-split
+            //    default namespace.
+            foreach (var ns in DistinctNamespaces())
+            {
+                try
+                {
+                    await index.DeleteAsync(
+                        new DeleteRequest
+                        {
+                            Namespace = ns,
+                            Filter = new Metadata { ["thesis_id"] = thesisId.ToString() },
+                        },
+                        cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Filter-based delete failed for thesis {ThesisId} in {Namespace} — continuing with prefix delete", thesisId, ns);
+                }
+            }
+
+            // 2. Prefix scan catches legacy body vectors (thesis_{id}_chunk_*)
+            //    without thesis_id metadata in the default namespace.
+            var removedByIds = await DeleteByPrefixAsync(thesisId, cancellationToken);
+
+            // 3. Remove the metadata vector by its deterministic id.
             try
             {
-                // 1. Delete by the thesis_id metadata filter (covers every vector
-                //    ingested by the current pipeline, whatever its ID shape).
                 await index.DeleteAsync(
-                    new DeleteRequest { Filter = new Metadata { ["thesis_id"] = thesisId.ToString() } },
+                    new DeleteRequest
+                    {
+                        Namespace = MetadataNamespace,
+                        Ids = [$"thesis_{thesisId}_meta"],
+                    },
                     cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Filter-based delete failed for thesis {ThesisId} — continuing with prefix delete", thesisId);
+                _logger.LogWarning(ex, "Metadata vector delete failed for thesis {ThesisId}", thesisId);
             }
 
-            try
-            {
-                // 2. List IDs by the deterministic "thesis_{id}_chunk_" prefix and
-                //    delete them explicitly (also covers legacy vectors that lack
-                //    the thesis_id metadata field).
-                var prefix = $"thesis_{thesisId}_chunk_";
-                var ids = new List<string>();
-                string? paginationToken = null;
+            return removedByIds;
+        }
 
-                do
+        /// <summary>
+        /// All namespaces that may hold thesis vectors: the metadata namespace
+        /// and the pre-split default namespace — deduplicated so a configured
+        /// default metadata namespace is not scanned twice.
+        /// </summary>
+        private string[] DistinctNamespaces() =>
+            new[] { MetadataNamespace, LegacyNamespace }
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+        /// <summary>
+        /// The pre-split layout stored every vector in Pinecone's built-in
+        /// default namespace — still scanned on delete until old indexes are
+        /// migrated.
+        /// </summary>
+        private const string LegacyNamespace = "__default__";
+
+        /// <summary>
+        /// Lists vector IDs by the deterministic "thesis_{id}_chunk_" prefix
+        /// (paginated, scan-capped) and deletes them in one request. Catches
+        /// legacy full-text chunks from the pre-metadata-only pipeline.
+        /// </summary>
+        private async Task<int> DeleteByPrefixAsync(Guid thesisId, CancellationToken cancellationToken)
+        {
+            var index = _pineconeClient.Index(IndexName);
+            var removedByIds = 0;
+
+            foreach (var ns in DistinctNamespaces())
+            {
+                try
                 {
-                    var listRequest = new ListRequest { Prefix = prefix, Limit = 100 };
-                    if (!string.IsNullOrEmpty(paginationToken))
+                    var prefix = $"thesis_{thesisId}_chunk_";
+                    var ids = new List<string>();
+                    string? paginationToken = null;
+
+                    do
                     {
-                        listRequest.PaginationToken = paginationToken;
+                        var listRequest = new ListRequest { Prefix = prefix, Limit = 100, Namespace = ns };
+                        if (!string.IsNullOrEmpty(paginationToken))
+                        {
+                            listRequest.PaginationToken = paginationToken;
+                        }
+
+                        var listResponse = await index.ListAsync(listRequest, cancellationToken: cancellationToken);
+                        if (listResponse?.Vectors is null) break;
+
+                        ids.AddRange(listResponse.Vectors
+                            .Select(v => v.Id)
+                            .Where(id => !string.IsNullOrEmpty(id))!);
+
+                        paginationToken = listResponse.Pagination?.Next;
+                    } while (!string.IsNullOrEmpty(paginationToken) && ids.Count < MaxDeleteScan);
+
+                    if (ids.Count > 0)
+                    {
+                        await index.DeleteAsync(new DeleteRequest { Namespace = ns, Ids = ids }, cancellationToken: cancellationToken);
+                        removedByIds += ids.Count;
+                        _logger.LogInformation("Deleted {Count} vectors for thesis {ThesisId} from {Namespace} (prefix scan)", ids.Count, thesisId, ns);
                     }
-
-                    var listResponse = await index.ListAsync(listRequest, cancellationToken: cancellationToken);
-                    if (listResponse?.Vectors is null) break;
-
-                    ids.AddRange(listResponse.Vectors
-                        .Select(v => v.Id)
-                        .Where(id => !string.IsNullOrEmpty(id))!);
-
-                    paginationToken = listResponse.Pagination?.Next;
-                } while (!string.IsNullOrEmpty(paginationToken) && ids.Count < MaxDeleteScan);
-
-                if (ids.Count > 0)
-                {
-                    await index.DeleteAsync(new DeleteRequest { Ids = ids }, cancellationToken: cancellationToken);
-                    removedByIds = ids.Count;
                 }
-
-                _logger.LogInformation("Deleted {Count} vectors for thesis {ThesisId} (prefix scan)", removedByIds, thesisId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Prefix-based vector cleanup failed for thesis {ThesisId}", thesisId);
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Prefix-based vector cleanup failed for thesis {ThesisId} in {Namespace}", thesisId, ns);
+                }
             }
 
             return removedByIds;

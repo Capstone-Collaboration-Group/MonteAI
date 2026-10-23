@@ -57,6 +57,8 @@ export type ThesisStatus = "pending" | "approved" | "scheduled" | "rejected" | "
  * Catalog row actions. Moderation actions (approve/reject/revision/schedule)
  * are reviewer powers; "edit"/"delete" are full-CRUD management actions that
  * desktop only passes for Admin sessions (web/mobile stay read-only).
+ * "reindex" re-runs metadata-only ingestion for an already-indexed thesis
+ * (admin-only, desktop) — e.g. after an edit changed the abstract or authors.
  */
 export type ThesisActionType =
   | "approve"
@@ -64,7 +66,8 @@ export type ThesisActionType =
   | "revision"
   | "schedule"
   | "edit"
-  | "delete";
+  | "delete"
+  | "reindex";
 
 // ── Academic programs ────────────────────────────────────────────────────────
 // Codes sent to the API as ?program=; labels are the canonical display names
@@ -121,23 +124,19 @@ export function toThesisSummary(dto: ThesisResponseDto): ThesisSummary {
   };
 }
 
-export interface ThesisChunk {
-  chunkIndex:      number;
-  text:            string;
-  title?:          string;
-  url?:            string;
-  authors?:        string;   
-  publicationYear?: string;
-  journal?:        string;
-}
-
+/**
+ * Metadata-only ingestion payload (POST /thesis/ingest). The server resolves
+ * authors/year/abstract itself (Firestore → research group → SubmittedAt)
+ * and synchronously upserts ONE vector per thesis (thesis_{id}_meta) — no
+ * PDF text, no chunks.
+ */
 export interface IngestThesisDto {
   thesisId: string;
-  chunks:   ThesisChunk[];
 }
 
 export interface IngestThesisResponseDto  {
   thesisId: string;
+  /** Always 1 on success — one metadata vector per thesis. */
   vectorCount: number;
   status: 'Indexed' | 'Failed';
 }

@@ -12,6 +12,11 @@ import type {
 } from "@monteai/types";
 export interface ThesisService { 
     submitThesis(dto: SubmitThesisDto, file: File): Promise<ThesisResponseDto>;
+    /**
+     * Metadata-only ingestion: the server upserts one metadata vector per
+     * thesis (title/authors/year/abstract) synchronously. "Indexed" |
+     * "Failed".
+     */
     ingestThesis(dto: IngestThesisDto): Promise<IngestThesisResponseDto>;
     getDownloadUrl(thesisId: string): Promise<{url: string} | null>
     getThesis(thesisId: string): Promise<ThesisResponseDto | null>;

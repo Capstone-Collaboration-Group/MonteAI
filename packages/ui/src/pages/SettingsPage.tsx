@@ -1,11 +1,12 @@
 import type { UserService } from "@monteai/api";
 
-import { SettingsPanel } from "../components/Settings";
+import { SettingsPanel, type MfaApi } from "../components/Settings";
 
 interface SettingsPageProps {
   userService: UserService;
+  mfa?: MfaApi;
 }
 
-export function SettingsPage({ userService }: SettingsPageProps) {
-  return <SettingsPanel userService={userService} />;
+export function SettingsPage({ userService, mfa }: SettingsPageProps) {
+  return <SettingsPanel userService={userService} mfa={mfa} />;
 }

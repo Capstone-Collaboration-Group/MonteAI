@@ -30,6 +30,15 @@ namespace server.Services.Interfaces
         Task<string?> GetLatestAsync(Guid thesisId);
 
         /// <summary>
+        /// Stored citation metadata beside the abstracts map ("authors" array +
+        /// "publicationYear" string — admin archival uploads / submit-form
+        /// fields). One snapshot read; null when the document or BOTH fields
+        /// are absent. Never throws — resolution failures degrade to null, the
+        /// same contract as ResolveAbstractsAsync.
+        /// </summary>
+        Task<StoredAbstractMetadata?> GetStoredMetadataAsync(Guid thesisId);
+
+        /// <summary>
         /// Catalog edit (PUT /thesis/update/details): replace the LATEST
         /// version's abstract text IN PLACE. Overwriting the same version key
         /// keeps the map aligned with ThesisVersion rows — a later revision
@@ -52,4 +61,13 @@ namespace server.Services.Interfaces
         /// </summary>
         Task ResolveAbstractsAsync(IEnumerable<ThesisResponseDto> dtos);
     }
+
+    /// <summary>
+    /// Citation metadata stored beside the abstracts in the same Firestore
+    /// document (see ThesisAbstractService header). Authors may be empty when
+    /// only the year is stored, and vice versa.
+    /// </summary>
+    public sealed record StoredAbstractMetadata(
+        IReadOnlyList<string> Authors,
+        string? PublicationYear);
 }

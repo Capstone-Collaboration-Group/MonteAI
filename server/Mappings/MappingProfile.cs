@@ -13,7 +13,6 @@ using server.Models.DTOs.Submission;
 using server.Models.DTOs.Thesis;
 using server.Models.DTOs.User;
 using server.Models.Entities;
-using server.Models.Retrieval;
 
 namespace server.Mappings
 {
@@ -29,23 +28,13 @@ namespace server.Mappings
                         : null))
                 // Authors = the research group's members (ResearchGroup.Students),
                 // leader first, deduped by Id, then alphabetical. Empty for
-                // admin-archived/legacy theses without a group.
+                // admin-archived/legacy theses without a group. Shared with the
+                // citation metadata resolver so vectors cite the same names.
                 .ForMember(dest => dest.Authors, opt => opt.MapFrom(src =>
-                    src.ResearchGroup == null
-                        ? new List<string>()
-                        : src.ResearchGroup.Students
-                            .OrderByDescending(s => s.Id == (src.ResearchGroup.LeaderId ?? s.Id))
-                            .ThenBy(s => s.LastName)
-                            .ThenBy(s => s.FirstName)
-                            .Select(s => FormatPersonName(s))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .ToList()));
+                    server.Services.Theses.ThesisAuthorNames.FromResearchGroup(src.ResearchGroup)));
             CreateMap<SubmitThesisDto, Thesis>();
             CreateMap<UpdateThesisDto, Thesis>();
             CreateMap<UpdateThesisStatusDto, Thesis>();
-            CreateMap<ThesisChunkDto, Chunk>()
-                .ForCtorParam(nameof(Chunk.ThesisId), opt => opt.MapFrom(_ => (string?)null))
-                .ForCtorParam(nameof(Chunk.RelevanceScore), opt => opt.MapFrom(_ => (string?)null));
 
             //ThesisVersion Mappings
             CreateMap<ThesisVersion, ThesisVersionResponseDto>();
@@ -115,7 +104,7 @@ namespace server.Mappings
                 .ForMember(dest => dest.Institute, opt => opt.MapFrom(src =>
                     src.Leader != null ? (src.Leader.Institute ?? string.Empty) : string.Empty))
                 .ForMember(dest => dest.LeaderName, opt => opt.MapFrom(src =>
-                    src.Leader != null ? FormatPersonName(src.Leader) : string.Empty))
+                    src.Leader != null ? server.Services.Theses.ThesisAuthorNames.FormatPersonName(src.Leader) : string.Empty))
                 .ForMember(dest => dest.Members, opt => opt.MapFrom(src => src.Students));
             CreateMap<Student, ResearchGroupMemberDto>()
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src =>
@@ -180,16 +169,6 @@ namespace server.Mappings
                 "admin" => PanelistType.Admin,
                 _ => PanelistType.Faculty,
             };
-
-        // "Juan D. Cruz Jr." — skips missing middle initial/suffix.
-        private static string FormatPersonName(User user)
-            => string.Join(" ", new[]
-            {
-                user.FirstName,
-                user.MiddleInitial is null ? null : $"{user.MiddleInitial}.",
-                user.LastName,
-                user.Suffix
-            }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
         /// <summary>Deserializes the SourcesJson Firestore field into citation DTOs (null when absent/invalid).</summary>
         private static List<ChatSourceDto>? DeserializeSources(string? sourcesJson)

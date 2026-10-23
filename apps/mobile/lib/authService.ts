@@ -17,6 +17,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updatePassword,
@@ -24,6 +25,10 @@ import {
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { firebaseAuth } from './firebase';
+import { getMfaAccessToken, refreshMfaAccessToken } from './mfaSession';
+
+const useMock =
+  (process.env.EXPO_PUBLIC_USE_MOCK ?? (__DEV__ ? 'true' : 'false')) === 'true';
 
 /** Error code used for "signed in but the email link wasn't opened yet". */
 export const EMAIL_NOT_VERIFIED_CODE = 'auth/email-not-verified';
@@ -53,11 +58,15 @@ interface ResolveLoginResponse {
 
 /** Bearer token for authenticated API calls (cached ~1h by the SDK). */
 export async function getAuthToken(): Promise<string | undefined> {
+  const mfaToken = await getMfaAccessToken();
+  if (mfaToken) return mfaToken;
   return firebaseAuth.currentUser?.getIdToken();
 }
 
 /** Force-refreshed token — used by the API client's 401 retry path. */
 export async function refreshAuthToken(): Promise<string | undefined> {
+  const mfaToken = await refreshMfaAccessToken();
+  if (mfaToken) return mfaToken;
   return firebaseAuth.currentUser?.getIdToken(true);
 }
 
@@ -209,6 +218,21 @@ export async function signInWithPassword(
   return credential.user;
 }
 
+/**
+ * Forgot-password: sends the Firebase password-reset email directly to
+ * the account's address. Returns the email so the UI can show where the
+ * link was sent. In mock mode (EXPO_PUBLIC_USE_MOCK) no network call is
+ * made — the address is echoed back so the flow completes offline.
+ */
+export async function sendPasswordReset(email: string): Promise<string> {
+  const trimmed = email.trim();
+  if (useMock) {
+    return trimmed;
+  }
+  await sendPasswordResetEmail(firebaseAuth, trimmed);
+  return trimmed;
+}
+
 /** Clears the Firebase session; AuthSessionContext reacts via listener. */
 export async function signOut(): Promise<void> {
   await firebaseSignOut(firebaseAuth);
@@ -230,6 +254,49 @@ export async function changePassword(
   const credential = EmailAuthProvider.credential(user.email, currentPassword);
   await reauthenticateWithCredential(user, credential);
   await updatePassword(user, newPassword);
+}
+
+/**
+ * Server-managed password change (POST /auth/change-password): the server
+ * verifies the current password against Firebase and writes the new one via
+ * the Admin SDK — this is the flow that triggers the "password changed"
+ * security email. Prefer this over the client-side changePassword above.
+ */
+export async function changePasswordOnServer(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const token = await getAuthToken();
+  if (!token) throw authError('auth/no-current-user');
+
+  try {
+    await axios.post(
+      `${baseURL}/auth/change-password`,
+      { currentPassword, newPassword },
+      {
+        timeout: 15000,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      const data = err.response?.data as
+        | { message?: string; Message?: string }
+        | undefined;
+      const message = (data?.message ?? data?.Message ?? '').toLowerCase();
+
+      if (status === 429) throw authError('auth/too-many-requests');
+      if (status === 401 && message.includes('password'))
+        throw authError('auth/wrong-password');
+      if (status === 400 && message.includes('at least 6'))
+        throw authError('auth/weak-password');
+    }
+    throw err;
+  }
 }
 
 /** Maps Firebase / network / API errors to user-friendly messages. */

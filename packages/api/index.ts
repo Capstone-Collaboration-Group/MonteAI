@@ -2,6 +2,7 @@
 
 export * from "./src/annotation"
 export * from "./src/admin"
+export * from "./src/analytics"
 export * from "./src/client";
 export * from "./src/auth/tokenStorage";
 export * from "./src/otp";
@@ -14,7 +15,9 @@ export * from "./src/submission";
 export * from "./src/thesis";
 export * from "./src/chat";
 export * from "./src/auth";
+export * from "./src/mfa";
 export * from "./src/announcement";
+export * from "./src/notification";
 export * from "./src/student";
 export * from "./src/review";
 export * from "./src/user";

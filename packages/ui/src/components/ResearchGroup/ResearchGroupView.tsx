@@ -100,7 +100,7 @@ export function ResearchGroupView({
     <div className="min-h-screen bg-surface-container-low/60 p-6 font-sans lg:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <PageHeader
-          eyebrow="Research management"
+          eyebrow=""
           title="Research groups"
           actions={
             <>

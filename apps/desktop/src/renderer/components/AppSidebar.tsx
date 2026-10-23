@@ -1,4 +1,4 @@
-import { Sidebar } from "@monteai/ui/index";
+import { Sidebar, NotificationBell } from "@monteai/ui/index";
 import {
   NavLink,
   useNavigate
@@ -16,7 +16,23 @@ import {
   Menu,
 } from "lucide-react";
 import { auth } from "../lib/firebaseServices";
+import { notificationService } from "../lib/notificationService";
 import { queryClient } from "@monteai/hooks";
+
+// Deep links for notification clicks (HashRouter routes).
+function notificationRoute(targetType: string): string | null {
+  switch (targetType) {
+    case "research_group":
+      return "/research-groups";
+    case "schedule":
+      return "/schedule";
+    case "announcement":
+      return "/announcements";
+    default:
+      return null;
+  }
+}
+
 interface AppSidebarProps {
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -52,18 +68,32 @@ export default function AppSidebar({ collapsed, onToggleCollapsed }: AppSidebarP
             </div>
           </>
         )}
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          aria-expanded={!collapsed}
-          title={collapsed ? "Expand navigation" : "Collapse navigation"}
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high ${
-            collapsed ? "mx-auto" : "ml-auto"
+        {/* Collapsed: toggle on top, bell under it (above the New chat + icon
+            in the body). Expanded: both sit in a row on the right. */}
+        <div
+          className={`flex items-center ${
+            collapsed ? "mx-auto flex-col gap-1" : "ml-auto gap-1.5"
           }`}
         >
-          <Menu className="h-5 w-5" />
-        </button>
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand navigation" : "Collapse navigation"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <NotificationBell
+            notificationService={notificationService}
+            onNavigate={(targetType) => {
+              const route = notificationRoute(targetType);
+              if (route) navigate(route);
+            }}
+            className="shrink-0"
+          />
+        </div>
       </Sidebar.Header>
 
       <Sidebar.Nav>

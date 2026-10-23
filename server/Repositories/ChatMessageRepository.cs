@@ -8,6 +8,8 @@ namespace server.Repositories
         Task<List<ChatMessage>> GetMessagesBySessionIdAsync(Guid id);
 
         Task<ChatMessage> CreateChatMessageAsync(ChatMessage chatMessage);
+
+        Task DeleteMessagesBySessionIdAsync(Guid id);
     }
     public class ChatMessageRepository : IChatMessageRepository
     {
@@ -44,6 +46,31 @@ namespace server.Repositories
             await docRef.SetAsync(chatMessage);
 
             return chatMessage;
+        }
+
+        public async Task DeleteMessagesBySessionIdAsync(Guid sessionId)
+        {
+            var messages = _firestore
+                .Collection("chat_sessions")
+                .Document(sessionId.ToString())
+                .Collection("messages");
+            var snapshot = await messages.GetSnapshotAsync();
+
+            foreach (var batchDocuments in snapshot.Documents.Chunk(500))
+            {
+                var batch = _firestore.StartBatch();
+                foreach (var document in batchDocuments)
+                {
+                    batch.Delete(document.Reference);
+                }
+
+                await batch.CommitAsync();
+            }
+
+            await _firestore
+                .Collection("chat_sessions")
+                .Document(sessionId.ToString())
+                .DeleteAsync();
         }
     }
 }

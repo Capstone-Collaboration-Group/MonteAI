@@ -1,12 +1,16 @@
 // server/Services/AI/Agent/AgentJson.cs
 //
-// JSON-protocol helpers for talking to Phi-4-mini WITHOUT relying on native
-// OpenAI function calling (which small models deployed on Azure AI Foundry do
-// not reliably support).
+// JSON-protocol helpers for the planner WITHOUT relying on native OpenAI
+// function calling (small models deployed on Azure AI Foundry — originally
+// Phi-4-mini, now gpt-5-nano agents — do not reliably support it).
 //
 // Protocol: the planner is instructed to answer with a single JSON object:
-//     {"thought": "...", "tool": "semantic_search", "toolArgs": {"query": "..."}}
+//     {"thought": "...", "tool": "semantic_search", "toolArgs": {"query": "..."}, "needsMore": false}
 //     {"thought": "...", "final": true}
+//
+// "needsMore" (optional, default false) tells the loop whether a second tool
+// is required after this one; when false the loop ends after one tool and
+// goes straight to synthesis (no confirm-planner call).
 //
 // Small models frequently wrap that JSON in markdown fences or prose, so
 // <see cref="ExtractJsonObject"/> recovers the first balanced JSON object from
@@ -29,6 +33,7 @@ namespace server.Services.AI.Agent
             public string? Tool { get; set; }
             public JsonElement? ToolArgs { get; set; }
             public bool Final { get; set; }
+            public bool NeedsMore { get; set; }
         }
 
         /// <summary>
@@ -88,6 +93,7 @@ namespace server.Services.AI.Agent
                     Tool = dto.Tool,
                     ToolArgs = dto.ToolArgs,
                     Final = dto.Final,
+                    NeedsMore = dto.NeedsMore,
                 };
             }
             catch (JsonException)

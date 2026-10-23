@@ -1,6 +1,7 @@
 // apps/mobile/components/schedule/MonthView.tsx
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import type { ScheduleResponseDto } from '@monteai/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Radius, Spacing } from '@/constants/theme';

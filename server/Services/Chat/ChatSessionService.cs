@@ -84,6 +84,11 @@ namespace server.Services.Chat
             return result;
         }
 
+        public Task<bool> SetPinnedAsync(Guid id, bool pinned)
+        {
+            return _chatSessionRepo.SetPinnedAsync(id, pinned);
+        }
+
         public async Task<bool> TouchAsync(Guid id)
         {
             var session = await _chatSessionRepo.GetChatSessionByIdAsync(id);
@@ -95,8 +100,12 @@ namespace server.Services.Chat
 
         public async Task<bool> DeleteAsync(Guid id)
         {
+            await _chatMessageRepo.DeleteMessagesBySessionIdAsync(id);
             var result = await _chatSessionRepo.DeleteChatSessionAsync(id);
-            _logger.LogInformation("Chat Session With Id: {Id} Is deleted", id);
+            if (result)
+            {
+                _logger.LogInformation("Chat session {Id} and its messages were deleted", id);
+            }
             return result;
         }
 

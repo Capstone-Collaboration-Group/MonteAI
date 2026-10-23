@@ -5,6 +5,7 @@
 //
 // STREAMING DATA FLOW (sendMessageStream):
 //   POST /chat/sessions/{id}/messages/stream (text/event-stream)
+//     event: status   data: { "message": "Searching the repository…" }
 //     event: sources  data: [ { thesisId, title, authors, ... } ]
 //     event: delta    data: { "text": "...fragment..." }
 //     event: done     data: { "message": { persisted assistant message } }
@@ -16,7 +17,7 @@
 // accumulated responseText is split into complete "event: ...\ndata: ...\n\n"
 // frames as they arrive, so tokens render as they are generated.
 
-import { type AxiosInstance, type AxiosProgressEvent } from "axios";
+import { isAxiosError, type AxiosInstance, type AxiosProgressEvent } from "axios";
 import type {
   ChatSessionResponseDto,
   ChatSessionResponseListDto,
@@ -25,6 +26,9 @@ import type {
   UpdateChatSessionDto,
   ChatMessageResponseDto,
   ChatSourceDto,
+  ApaCitationDto,
+  ApaCitationResponseDto,
+  AnalyticsSuggestionsDto,
 } from "@monteai/types";
 import type { ChatService, ChatStreamHandlers } from "./types";
 import { handle404 } from "@monteai/utils";
@@ -32,6 +36,11 @@ import { handle404 } from "@monteai/utils";
 /** Shape of the SSE "done" event payload. */
 interface DoneEvent {
   message: ChatMessageResponseDto;
+}
+
+/** Shape of the SSE "status" event payload. */
+interface StatusEvent {
+  message: string;
 }
 
 /** Shape of the SSE "delta" event payload. */
@@ -43,6 +52,24 @@ export class LiveChatService implements ChatService {
   private readonly client: AxiosInstance;
   constructor(client: AxiosInstance) {
     this.client = client;
+  }
+
+  /**
+   * Translates an axios failure into an Error carrying a user-friendly,
+   * server-provided message when available (circuit-breaker 503s, validation
+   * 400s) instead of axios's generic "Request failed with status code N".
+   */
+  private static toFriendlyError(err: unknown): Error {
+    if (isAxiosError(err)) {
+      const body = err.response?.data as { message?: unknown } | undefined;
+      if (typeof body?.message === "string" && body.message.length > 0) {
+        return new Error(body.message);
+      }
+      if (err.response?.status === 429) {
+        return new Error("You're sending messages too quickly. Please wait a moment and try again.");
+      }
+    }
+    return err instanceof Error ? err : new Error("Request failed.");
   }
 
   async getSessions(userId: string): Promise<ChatSessionResponseListDto> {
@@ -73,14 +100,18 @@ export class LiveChatService implements ChatService {
    * the server runs a multi-step agent before answering.
    */
   async sendMessage(sessionId: string, dto: CreateChatMessageDto): Promise<ChatMessageResponseDto> {
-    const { data } = await this.client.post<
-      { message: string; userMessage: ChatMessageResponseDto; aiMessage: ChatMessageResponseDto }
-    >(
-      `/chat/sessions/${sessionId}/messages`,
-      dto,
-      { timeout: 120_000 }
-    );
-    return data.aiMessage;
+    try {
+      const { data } = await this.client.post<
+        { message: string; userMessage: ChatMessageResponseDto; aiMessage: ChatMessageResponseDto }
+      >(
+        `/chat/sessions/${sessionId}/messages`,
+        dto,
+        { timeout: 120_000 }
+      );
+      return data.aiMessage;
+    } catch (err) {
+      throw LiveChatService.toFriendlyError(err);
+    }
   }
 
   async sendMessageStream(
@@ -108,7 +139,9 @@ export class LiveChatService implements ChatService {
         if (!eventName || rawData === null) continue;
 
         try {
-          if (eventName === "sources") {
+          if (eventName === "status") {
+            handlers.onStatus?.((JSON.parse(rawData) as StatusEvent).message);
+          } else if (eventName === "sources") {
             handlers.onSources?.(JSON.parse(rawData) as ChatSourceDto[]);
           } else if (eventName === "delta") {
             handlers.onDelta?.((JSON.parse(rawData) as DeltaEvent).text);
@@ -123,26 +156,33 @@ export class LiveChatService implements ChatService {
       }
     };
 
-    const { data } = await this.client.post<string>(
-      `/chat/sessions/${sessionId}/messages/stream`,
-      dto,
-      {
-        // Agent planning runs before the first token — disable axios's
-        // default 10s timeout for this request.
-        timeout: 0,
-        responseType: "text",
-        onDownloadProgress: (progressEvent: AxiosProgressEvent) => {
-          const xhr = (progressEvent.event as ProgressEvent | undefined)?.target as
-            | XMLHttpRequest
-            | undefined
-            | null;
-          // In browsers, the raw XHR exposes everything received so far.
-          if (xhr && typeof xhr.responseText === "string") {
-            consumeBuffer(xhr.responseText);
-          }
-        },
-      }
-    );
+    let data: string;
+    try {
+      const response = await this.client.post<string>(
+        `/chat/sessions/${sessionId}/messages/stream`,
+        dto,
+        {
+          // Agent planning runs before the first token — disable axios's
+          // default 10s timeout for this request.
+          timeout: 0,
+          responseType: "text",
+          onDownloadProgress: (progressEvent: AxiosProgressEvent) => {
+            const xhr = (progressEvent.event as ProgressEvent | undefined)?.target as
+              | XMLHttpRequest
+              | undefined
+              | null;
+            // In browsers, the raw XHR exposes everything received so far.
+            if (xhr && typeof xhr.responseText === "string") {
+              consumeBuffer(xhr.responseText);
+            }
+          },
+        }
+      );
+      data = response.data;
+    } catch (err) {
+      // Pre-stream failures (429 rate limit, 503 breaker, ownership 403/404).
+      throw LiveChatService.toFriendlyError(err);
+    }
 
     // Flush any trailing frame that never hit a progress tick.
     if (typeof data === "string") {
@@ -184,10 +224,57 @@ export class LiveChatService implements ChatService {
 
   async updateChatSession(sessionId: string, dto: UpdateChatSessionDto): Promise<boolean> {
     try {
-      const { data } = await this.client.put<boolean>(`/chat/sessions/${sessionId}/update`, dto);
-      return data;
+      await this.client.put(`/chat/sessions/${sessionId}/update`, dto);
+      return true;
     } catch (err) {
       return handle404(err, false)
+    }
+  }
+
+  async setSessionPinned(sessionId: string, pinned: boolean): Promise<boolean> {
+    try {
+      await this.client.put(`/chat/sessions/${sessionId}/pin`, { pinned });
+      return true;
+    } catch (err) {
+      throw LiveChatService.toFriendlyError(err);
+    }
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    try {
+      await this.client.delete(`/chat/sessions/${sessionId}/delete`);
+    } catch (err) {
+      throw LiveChatService.toFriendlyError(err);
+    }
+  }
+
+  /**
+   * Top query strings from the analytics store. Kept tolerant: a failed
+   * fetch returns [] so chat surfaces fall back to their static prompts
+   * instead of showing an error for a decorative feature.
+   */
+  async getQuerySuggestions(limit = 6): Promise<string[]> {
+    try {
+      const { data } = await this.client.get<AnalyticsSuggestionsDto>(
+        "/analytics/suggestions",
+        { params: { limit } }
+      );
+      return data?.suggestions ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async formatCitations(sources: ChatSourceDto[]): Promise<ApaCitationDto[]> {
+    if (!sources.length) return [];
+    try {
+      const { data } = await this.client.post<ApaCitationResponseDto>(
+        "/chat/citations/apa",
+        { sources }
+      );
+      return data?.citations ?? [];
+    } catch (err) {
+      throw LiveChatService.toFriendlyError(err);
     }
   }
 }

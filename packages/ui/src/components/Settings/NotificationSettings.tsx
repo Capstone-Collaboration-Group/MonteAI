@@ -2,13 +2,43 @@ import { useState } from "react";
 import { Card } from "../Card";
 import { Button } from "../Button";
 
+const STORAGE_KEY = "monteai.settings.notifications";
+
+const DEFAULT_NOTIFICATIONS = {
+  researchUpdates: true,
+  thesisUpdates: true,
+  systemAnnouncements: true,
+  emailNotifications: false,
+};
+
+type NotificationPrefs = typeof DEFAULT_NOTIFICATIONS;
+
+function loadStoredPrefs(): NotificationPrefs {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<NotificationPrefs>;
+      return { ...DEFAULT_NOTIFICATIONS, ...parsed };
+    }
+  } catch {
+    // corrupted storage — fall back to defaults
+  }
+  return DEFAULT_NOTIFICATIONS;
+}
+
 export function NotificationSettings() {
-  const [notifications, setNotifications] = useState({
-    researchUpdates: true,
-    thesisUpdates: true,
-    systemAnnouncements: true,
-    emailNotifications: false,
-  });
+  const [notifications, setNotifications] = useState<NotificationPrefs>(loadStoredPrefs);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch {
+      // storage unavailable (private mode) — preferences stay session-local
+    }
+  };
 
   return (
     <Card className="overflow-hidden p-0">
@@ -70,8 +100,13 @@ export function NotificationSettings() {
         />
       </div>
 
-      <div className="flex justify-end border-t border-outline/10 px-6 py-4">
-        <Button type="button">
+      <div className="flex items-center justify-end gap-3 border-t border-outline/10 px-6 py-4">
+        {saved && (
+          <span className="text-sm text-on-surface-variant" role="status">
+            Saved
+          </span>
+        )}
+        <Button type="button" onClick={handleSave}>
           Save Changes
         </Button>
       </div>

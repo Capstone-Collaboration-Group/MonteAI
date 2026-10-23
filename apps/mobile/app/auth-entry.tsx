@@ -17,6 +17,7 @@ export default function AuthEntryRoute() {
       <AuthEntryScreen
         onLogin={() => router.push('/login')}
         onSignUp={() => router.push('/sign-up')}
+        onTroublePress={() => router.push('/forgot-password')}
       />
     </>
   );

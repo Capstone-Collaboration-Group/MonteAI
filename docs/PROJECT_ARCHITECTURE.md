@@ -1,8 +1,10 @@
-# Research Assistant and Digital Thesis Repository System — Project Plan
-**Document Version:** 1.0.0
+# Research Assistant and Digital Thesis Repository System — Architecture
+**Document Version:** 2.0.0 (As-Built)
 **Prepared by:** Charles Bernard Balaguer
-**Date:** May 22, 2026
+**Date:** October 10, 2026
 **Classification:** Internal — Development Team
+
+> Version 2.0.0 rewrites this document to match the **current implemented system**. The v1.0 plan (ONNX embedding on the desktop, app-JWT auth, Hangfire, Zustand, chat on desktop) is superseded. Where the code and the old plan differ, **the code is authoritative**.
 
 ---
 
@@ -18,25 +20,24 @@
 8. [API Design](#8-api-design)
 9. [Platform Specifications](#9-platform-specifications)
 10. [Security & Access Control](#10-security--access-control)
-11. [Development Phases & Milestones](#11-development-phases--milestones)
-12. [Team Structure & Responsibilities](#12-team-structure--responsibilities)
-13. [Risk Management](#13-risk-management)
-14. [Appendix](#14-appendix)
+11. [Implementation Status & Known Gaps](#11-implementation-status--known-gaps)
+12. [Appendix](#12-appendix)
 
 ---
 
 ## 1. Executive Summary
 
-This document outlines the complete project plan for **MonteAI, a full-stack, AI-powered Research Assistant System** designed for an Colegio de Montalban. The system enables students and faculty to explore, search, and interact with a curated repository of thesis documents through a conversational AI interface powered by **Retrieval-Augmented Generation (RAG)**.
+**MonteAI** (product name *MonteSkolar*) is a full-stack, AI-powered research assistant for the Colegio de Montalban / PNM. Students and faculty explore, search, and converse with a curated thesis repository through a RAG-powered agent, while admins manage submissions, users, scheduling, and knowledge-base ingestion from a desktop panel.
 
-The system is distributed across three distinct frontends — Web (React + Vite), Mobile (React Native), and Desktop (Electron + Forge) — each targeting a specific user group. The backend is a unified **ASP.NET Core Web API** layer that orchestrates authentication, document management, vector search, and AI inference.
+The system is distributed across three frontends — **Web** (React + Vite, public portal + chat), **Mobile** (Expo, student companion), and **Desktop** (Electron + Forge, admin/panelist control) — sharing a pnpm monorepo of workspace packages (`@monteai/*`). The backend is a single **ASP.NET Core 8** API that orchestrates Firebase authentication, Azure SQL persistence, Azure Blob file storage, Pinecone vector search, and Azure OpenAI inference.
 
-**Key capabilities:**
-- PDF ingestion with intelligent abstract-focused chunking and ONNX-based embedding
-- Vector similarity search via Pinecone for research discovery
-- ChatGPT/Gemini-like conversational interface for assisted research
-- Role-based access control for admins, faculty reviewers, and students
-- Thesis submission and review workflow managed from the Desktop admin panel
+**Implemented key capabilities:**
+- Hybrid RAG ingestion: PDF text extraction, abstract isolation, and chunking run in the Electron main process; the **server embeds chunks** (Azure OpenAI `text-embedding-3-small`) and upserts Pinecone
+- Agentic RAG chat: Phi-4-mini planner with `semantic_search` / `keyword_search` / `thesis_metadata` tools, grounded synthesis with numbered citations, SSE streaming (Web)
+- Thesis lifecycle: student submission with group gates, version/revision workflow, review decisions, admin approve/reject/revision → indexing
+- Defense scheduling with panelist assignments; announcements; research groups with advisers
+- Role-based access via Firebase tokens + per-request role claim injection (Student, Faculty, ProgramHead, Admin)
+- Response caching (Redis) for GET APIs, rate limiting on chat/proceedings, hybrid SQL + Firestore + Blob + Pinecone persistence
 
 ---
 
@@ -46,1232 +47,730 @@ The system is distributed across three distinct frontends — Web (React + Vite)
 
 | Goal | Description |
 |------|-------------|
-| Research Discovery | Allow students and faculty to search related literature using natural language queries |
-| AI-Assisted Research | Provide a conversational interface to answer research questions grounded in indexed documents |
-| Thesis Management | Enable admins to manage submissions and assign faculty reviewers |
-| Defense Schedule | Enable admins to create defense schedule for theses defense | 
-| Role Enforcement | Enforce distinct permissions for students, faculty, and administrators |
-| Cross-Platform Access | Deliver a consistent experience across web, mobile, and desktop |
+| Research Discovery | Natural-language literature search over indexed thesis abstracts (semantic + keyword) |
+| AI-Assisted Research | Conversational agent grounded strictly in repository content with source citations |
+| Thesis Management | Students submit/upload/revise; admins and reviewers control status and indexing |
+| Defense Scheduling | Admins/program heads create defense schedules and assign panelists |
+| Role Enforcement | Distinct permissions for Student, Faculty, ProgramHead, and Admin |
+| Cross-Platform Access | Web portal (students/faculty), mobile companion (students), desktop admin panel |
 
 ### 2.2 Stakeholders
 
 | Stakeholder | Role | Platform |
 |-------------|------|----------|
-| Students | Search literature, submit theses, use AI assistant | Mobile, Web |
-| Faculty | Review assigned theses, search literature, use AI assistant | Mobile, Web |
-| Program Head | Review Institute wide theses, search theses, comment, | Web, Desktop |
-| Admin | Manage users, submissions, roles, Schedule Defense, Assign Panelists | Desktop (Electron) |
-| Development Team | Build, maintain, and deploy the system | All |
+| Students | Submit theses, browse, search, chat, view schedules | Mobile, Web |
+| Faculty | View theses, review, chat, panelist duties | Web, Desktop |
+| Program Head | Institute-wide review, announcements, scheduling | Web, Desktop |
+| Admin | Users, submissions, ingestion, schedules, panelists, announcements | Desktop |
+| Development Team | Build, maintain, deploy | All |
 
 ### 2.3 Scope
 
-**In Scope:**
-- Multi-platform frontend applications (Web, Mobile, Desktop)
-- ASP.NET Core Web API backend
-- RAG pipeline: chunking → embedding → upsert → retrieval → generation
-- Firebase-based authentication with role propagation
-- Pinecone vector store for abstract embeddings
-- Azure SQL for relational data (users, theses, roles, submissions)
-- Admin desktop tools for thesis and user management
-- Chat interface on Web and Desktop only
+**In scope (implemented):**
+- Multi-platform frontends over a unified ASP.NET Core API
+- RAG pipeline: chunk (desktop) → embed + upsert (server) → retrieve → agentic generation
+- Firebase authentication with role propagation; role tables in Azure SQL
+- Pinecone vector store; Azure SQL relational store; Azure Blob PDFs; Firestore for chat messages, versioned abstracts, and PDF annotations
+- Admin desktop tools (thesis moderation + ingestion trigger, faculty/program-head/group management, scheduling, announcements)
+- Chat interface on **Web** (streaming) and **Mobile** (blocking); literature search on all three platforms
 
-**Out of Scope:**
-- Plagiarism detection engine (future phase)
-- Third-party journal indexing (e.g., IEEE, Scopus)
-- Real-time collaboration on documents
+**Out of scope / not built:**
+- Plagiarism detection; third-party journal indexing; real-time document collaboration
+- Chat on Desktop (planned earlier; never implemented — see [§11](#11-implementation-status--known-gaps))
+- Background job processing (Hangfire was planned; ingestion runs synchronously)
+- Tests and CI/CD pipelines (none exist yet)
 
 ---
 
 ## 3. System Architecture
 
-### 3.1 High-Level Architecture Diagram
+### 3.1 High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          CLIENT LAYER                               │
-│                                                                     │
-│  ┌─────────────────┐  ┌──────────────────┐  ┌──────────────────┐    │
-│  │  React + Vite   │  │  React Native    │  │ Electron + Forge │    │
-│  │  (Web — Public  │  │  (Mobile)        │  │ (Desktop — Admin)│    │
-│  │   + Chat)       │  │  Students/Faculty│  │                  │    │
-│  └────────┬────────┘  └────────┬─────────┘  └────────┬─────────┘    │
-└───────────┼──────────────────┼───────────────────────┼──────────────┘
-            │                  │                       │
-            └─────────────────┬┘                       │
-                              │  HTTPS / REST          │
-┌─────────────────────────────┼────────────────────────┼────────────┐
-│                    BACKEND LAYER (ASP.NET Core)      │            │
-│                              │                       │            │
-│  ┌───────────────────────────▼───────────────────────▼──────────┐ │
-│  │                    API Gateway / Controllers                 │ │
-│  │    AuthController │ ThesisController │ ChatController        │ │
-│  │    UserController │ SearchController │ AdminController       │ │
-|  |ScheduleController | GroupController  | FacultyController     | |
-│  └──────┬──────────────────┬───────────────────┬────────────────┘ │
-│         │                  │                   │                  │
-│  ┌──────▼──────┐   ┌───────▼────────┐  ┌──────▼──────────────┐    │
-│  │  Auth       │   │  RAG Pipeline  │  │  Document Service   │    │
-│  │  Service    │   │  Service       │  │  (Upload/Storage)   │    │
-│  │ (Firebase)  │   │                │  │                     │    │
-│  └──────┬──────┘   └───────┬────────┘  └──────┬──────────────┘    │
-│         │                  │                  │                   │
-└─────────┼──────────────────┼──────────────────┼───────────────────┘
-          │                  │                  │
-┌─────────▼──────────────────▼──────────────────▼────────────────────┐
-│                         DATA LAYER                                 │
-│                                                                    │
-│  ┌──────────────┐   ┌──────────────────┐   ┌──────────────────┐    │
-│  │   Firebase   │   │    Pinecone      │   │  Azure SQL DB    │    │
-│  │   Auth       │   │  Vector Store    │   │  (Relational)    │    │
-│  │              │   │  (Embeddings)    │   │                  │    │
-│  └──────────────┘   └──────────────────┘   └──────────────────┘    │
-│                                                                    │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │          Azure Blob Storage (Raw PDF Files)                  │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                             CLIENT LAYER                                │
+│  ┌───────────────────┐  ┌────────────────────┐  ┌────────────────────┐  │
+│  │  React + Vite     │  │  Expo (React Nat.) │  │ Electron + Forge   │  │
+│  │  apps/web         │  │  apps/mobile       │  │ apps/desktop       │  │
+│  │  Public + Student │  │  Student companion │  │ Admin/Panelist +   │  │
+│  │  portal + Chat    │  │                    │  │ local PDF pipeline │  │
+│  └─────────┬─────────┘  └─────────┬──────────┘  └─────────┬──────────┘  │
+└────────────┼──────────────────────┼───────────────────────┼─────────────┘
+             │   HTTPS / REST + SSE (Firebase ID tokens)    │
+┌────────────┼──────────────────────┼───────────────────────┼─────────────┐
+│            ▼          BACKEND (ASP.NET Core 8 — server/)  ▼             │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │  Controllers (api/v1/*)                                          │   │
+│  │  Auth · User · Chat · Thesis · Proceedings · Announcement        │   │
+│  │  Faculty · Student · ProgramHead · Admin · ResearchGroup         │   │
+│  │  Review · Schedule · PanelistSchedule · Submission · Abstracs    │   │
+│  └───────┬──────────────┬───────────────────┬───────────────┬───────┘   │
+│  ┌───────▼──────┐ ┌─────▼──────────────┐ ┌──▼────────────┐ ┌▼─────────┐ │
+│  │ FirebaseAuth │ │ RAG / Agent        │ │ Thesis Service │ │ Blob     │ │
+│  │ Middleware +  │ │ MonteAiAgentService│ │ Submission/    │ │ Service  │ │
+│  │ Role Inject  │ │ PineconeService    │ │ Review/Schedule│ │ (Azure)  │ │
+│  └───────┬──────┘ └─────┬──────────────┘ └──┬────────────┘ └┬─────────┘ │
+│          │              │                    │               │           │
+│   Middleware: RoleAuthorization · HttpGetCache (Redis) · RateLimiter     │
+└──────────┼──────────────┼────────────────────┼───────────────┼───────────┘
+┌──────────▼──────────────▼────────────────────▼───────────────▼───────────┐
+│                              DATA LAYER                                  │
+│  Firebase Auth   Azure SQL (EF Core)   Firestore   Pinecone   Azure Blob│
+│  (ID tokens)     (users/theses/etc.)   (chat msgs, (vectors)  (PDFs,    │
+│                                        abstracts,             SAS URLs) │
+│                                        annotations)                     │
+│  Redis (distributed cache for GET responses)                            │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.2 RAG Pipeline Architecture
+### 3.2 Request Pipeline (Program.cs)
 
 ```
-     PDF Upload
-         │
-         ▼
-┌───────────────────┐
-│  PDF Extractor    │  ←── Extracts raw text + metadata (title, author, abstract)
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Abstract Isolator│  ←── Identifies and extracts the "Abstract" section only
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Text Chunker     │  ←── Splits abstract text into token-safe chunks
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  ONNX Embedder    │  ←── Microsoft.ML.OnnxRuntime generates vector embeddings
-│  (Sentence BERT)  │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Pinecone Upsert  │  ←── Stores vector with metadata (title, author, chunk index)
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Azure SQL Insert │  ←── Stores thesis record (title, author, file path, status)
-└───────────────────┘
+UseRouting → Serilog request logging → UseHttpsRedirection (non-Dev only)
+→ UseCors("MonteSkolarPolicy") → UseAuthentication ("Firebase" scheme)
+→ UseRoleAuthorization()  ← injects ClaimTypes.Role from role tables
+→ UseAuthorization → UseRateLimiter → HttpGetCacheMiddleware → MapControllers
 ```
+
+- **Auth scheme:** custom `"Firebase"` (`FirebaseAuthMiddleware`) verifies the Firebase ID token on every request (`checkRevoked: true`). There is **no app-level JWT** — clients send `Authorization: Bearer <Firebase ID token>` directly.
+- **Policies:** FallbackPolicy requires an authenticated user **with a Role claim** (effectively every endpoint). Named policies: `Reviewer` (Faculty/Admin/ProgramHead), `Proceedings` (all roles), `FirebaseAuthenticated`.
+- **GET cache:** per-user SHA-256 cache keys over Redis; invalidates on mutations except chat/proceedings; emits `X-MonteAI-Cache: HIT|MISS`.
+- **Rate limits (FixedWindow):** Health 5/min, Chat 30/min, Proceedings 10/min (per user).
 
 ---
 
 ## 4. Technology Stack
 
-### 4.1 Backend
+### 4.1 Backend (`server/`)
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | Web API | ASP.NET Core 8 (.NET 8) | REST API, business logic, orchestration |
-| Authentication | Firebase Authentication | Identity management, JWT token issuance |
-| ORM | Entity Framework Core 8 | Azure SQL database access |
-| Vector Store Client | Pinecone .NET SDK | Embedding upsert and semantic query |
-| Embedder | Microsoft.ML.OnnxRuntime | Local ONNX model inference (Sentence-BERT) |
-| PDF Processing | PdfPig / iTextSharp | PDF text extraction and parsing |
-| File Storage | Azure Blob Storage SDK | Raw PDF file storage |
-| Logging | Serilog + Azure App Insights | Structured logging and monitoring |
-| Background Jobs | Hangfire | Async PDF processing pipeline |
-| API Documentation | Swashbuckle (Swagger) | Auto-generated API docs |
+| Authentication | Firebase Admin SDK | ID-token verification; role claims injected per request |
+| ORM | Entity Framework Core 8 | Azure SQL access (10 migrations; `EnableRetryOnFailure`) |
+| Vector store client | Pinecone .NET SDK | Abstract-chunk upsert + similarity query |
+| Embeddings | Azure OpenAI `text-embedding-3-small` | Server-side embedding of chunks and queries |
+| Chat LLM | Azure OpenAI `Phi-4-mini-instruct` | Agent planner + grounded answer synthesis |
+| PDF generation | PdfSharpCore | Proceedings documents |
+| File storage | Azure Blob Storage SDK | PDF storage + short-lived SAS download URLs |
+| Document data | Google Firestore | Chat messages, versioned abstracts, PDF annotations |
+| Caching | StackExchange Redis (dev: in-memory) | Distributed GET-response cache |
+| Logging | Serilog (console + rolling file `logs/`) | Structured logging |
+| API docs | Swashbuckle / Swagger | Dev-only Swagger UI at `/swagger` |
+| DI | Scrutor | Auto-registers `Repositories`/`Services` as matching interfaces (scoped); `IBlobService` singleton |
+
+**Not used:** Hangfire, ONNX, App Insights, Key Vault (secrets live in gitignored `appsettings.Development.json`).
 
 ### 4.2 Frontend
 
-| Platform | Technology | Target Users |
-|----------|------------|-------------|
-| Web | React 18 + Vite + TypeScript | Public / Students / Faculty |
-| Mobile | React Native (Expo) + TypeScript | Students / Faculty |
-| Desktop | Electron + Forge + React + TypeScript | Administrators |
+| Platform | Technology | Target users |
+|----------|------------|--------------|
+| Web (`apps/web`) | React 19, Vite 8, TypeScript 7, Tailwind v4, react-router 7 | Students / Faculty (public landing + portal + chat) |
+| Mobile (`apps/mobile`) | Expo SDK 54, expo-router 6, React Native 0.81, TypeScript 5.9 | Students (companion app) |
+| Desktop (`apps/desktop`) | Electron 41, Electron Forge 7, Vite 5, TypeScript 4.5, Tailwind v4 | Admins / Program Heads / Faculty panelists |
 
-**Shared Frontend Libraries:**
+### 4.3 Shared Packages (`packages/*`)
 
-| Library | Purpose |
-|---------|---------|
-| TanStack Query | Server-state management and caching |
-| Zustand | Client-side state management |
-| Axios | HTTP client for API calls |
-| React Hook Form + Zod | Form management and validation |
-| TailwindCSS | Styling (Web + Electron) |
-| NativeWind | TailwindCSS for React Native |
+| Package | Contents |
+|---------|----------|
+| `@monteai/types` | DTOs (`CreateX/UpdateX/XResponseDto`), role guards, theme tokens |
+| `@monteai/utils` | `cn`, `handle404`, `getApiErrorMessage`, date/name helpers, email domain rules (`@pnm.edu.ph` / `@student.pnm.edu.ph`) |
+| `@monteai/api` | `createApiClient` (Bearer interceptor + 401 refresh/retry) and per-domain factories `createXService(client, useMock)` — mock/live toggle |
+| `@monteai/hooks` | `AuthProvider`/`useAuth`, `useUserProfile`, TanStack Query hooks per domain (`useTheses`, `useChatSessions`, …) |
+| `@monteai/ui` | Design system + pre-wired pages (`ThesisCatalogPage`, `ChatPage`, `SchedulePage`, `FacultyPage`, …) taking services as props |
 
-### 4.3 Databases
+Layering: `types → utils → api → hooks → ui`. Packages export raw `src/index.ts` (no build step). Mobile consumes only `api` + `types`.
 
-| Database | Technology | Data Stored |
-|----------|------------|-------------|
-| Relational | Azure SQL Database (Gen5) | Users, theses, roles, permissions, submissions, reviews |
-| Vector Store | Pinecone (Serverless) | Text chunk embeddings + metadata |
-| File Store | Azure Blob Storage | Raw PDF files |
-| Auth Store | Firebase Firestore (optional) | Auth metadata, session tokens |
+### 4.4 Databases & Stores
 
-### 4.4 Infrastructure & DevOps
+| Store | Technology | Data stored |
+|-------|------------|-------------|
+| Relational | Azure SQL (EF Core) | Role tables, ResearchGroups, Theses, ThesisVersions, Submissions, Reviews, Schedules, PanelistSchedules, ChatSessions, Announcements |
+| Document | Firebase Firestore | Chat messages (`chat_sessions/{id}/messages`), versioned abstracts (`thesis_abstracts/{thesisId}`), PDF annotations (`theses/{id}/versions/{vid}/annotations`) |
+| Vector | Pinecone (serverless, cosine) | Abstract chunk embeddings + metadata |
+| Files | Azure Blob Storage | Raw PDF files (blob path stored; SAS URLs generated on demand) |
+| Cache | Redis (dev: memory) | GET response cache |
+| Auth | Firebase Authentication | Identity, tokens, refresh-token revocation |
 
-| Component | Technology |
-|-----------|------------|
-| Cloud Provider | Microsoft Azure |
-| API Hosting | Azure App Service |
-| CI/CD | GitHub Actions |
-| Container | Docker + Azure Container Registry |
-| Secrets Management | Azure Key Vault |
-| Environment Config | .env + Azure App Configuration |
+### 4.5 DevOps (current)
+
+| Component | Status |
+|-----------|--------|
+| Cloud | Microsoft Azure (SQL, Blob, OpenAI) + GCP Firestore + Pinecone |
+| API hosting | `dotnet run` / Dockerfile present; no deployed CI/CD yet |
+| CI/CD | None (`.github/workflows/` empty) |
+| Secrets | Gitignored `server/appsettings.Development.json` + Firebase credential JSON |
+| Tooling | pnpm workspaces, Husky (`pre-commit` typecheck, `pre-push` lint) |
 
 ---
 
 ## 5. Module Breakdown
 
-### 5.1 Backend Modules
+### 5.1 Backend (`server/`)
 
 ```
-MonteAI.server/
-├── Configuration/                   ← /pinecone configuration
-│   └── PineconeConfig.cs               
-│   └── OnnxConfig.cs                 ← removed, ONNX no longer on server
-│
-├── Controllers/
-│   ├── AuthController.cs
-│   ├── ThesisController.cs          ← /theses/ingest now just relays vectors
-│   ├── SearchController.cs
-│   ├── ChatController.cs
-│   ├── UserController.cs
-│   └── AdminController.cs
-│
+server/
+├── Program.cs                     ← host wiring: Azure AI, Pinecone, Firebase,
+│                                    Redis, EF, rate limits, CORS, Scrutor, cache
+├── Configuration/
+│   ├── PineconeConfig.cs          ← index name, TopK, thresholds, batch caps
+│   ├── MonteAiAgentConfig.cs      ← agent iterations, temps, token caps
+│   └── HttpGetCacheOptions.cs     ← TTL, size cap, excluded prefixes
+├── Controllers/                   ← see §8 for routes/endpoints
+│   Auth · User · Chat · Thesis · Abstracs · Proceedings · Announcement
+│   Faculty · Student · ProgramHead · Admin · ResearchGroup · Review
+│   Schedule · PanelistSchedule · Submission   (+ empty SearchController.cs)
 ├── Data/
-│   ├── AppDbContext.cs
-│   └── Migrations/
-│
-├── Mappings/
-│   └── AutoMapper.cs
-│
+│   ├── AppDbContext.cs            ← DbSets for all SQL entities
+│   └── Migrations/                ← 10 EF migrations (2026-06-20 → 2026-09-07)
+├── Mappings/MappingProfile.cs     ← AutoMapper (thesis authors from group members)
 ├── Middleware/
-│   ├── FirebaseAuthMiddleware.cs
-│   └── RoleAuthorizationMiddleware.cs
-│
+│   ├── FirebaseAuthMiddleware.cs  ← "Firebase" auth scheme, verifies ID tokens
+│   ├── RoleAuthorizationMiddleware.cs ← probes role tables, injects Role claim
+│   └── HttpGetCacheMiddleware.cs  ← Redis GET cache + generation invalidation
 ├── Models/
-│   ├── Entities/
-│   └── DTOs/
-│       └── ThesisIngestDto.cs            ← { title, author, abstract, vectors[] }
-│
-│
+│   ├── Entities/                  ← User (abstract) + Student/Faculty/ProgramHead/Admin,
+│   │                                 Thesis, ThesisVersion, ResearchGroup, Submission,
+│   │                                 Review, Schedule, PanelistSchedule, ChatSession,
+│   │                                 ChatMessage (Firestore), Announcement
+│   ├── DTOs/                      ← per-domain Create/Update/Response + ChatSourceDto,
+│   │                                 ThesisChunkDto, IngestThesisDto(s)
+│   ├── Agent/AgentModels.cs       ← AgentChatRequest/Result, stream events
+│   └── Retrieval/                 ← Chunk record, RetrievalOptions
 ├── Services/
-│   ├── Auth/
-│   │   └── FirebaseAuthService.cs
 │   ├── AI/
-│   │   ├── PdfExtractorService.cs        ← moved to Electron
-│   │   ├── AbstractIsolatorService.cs    ← moved to Electron
-│   │   ├── ChunkingService.cs            ← moved to Electron
-│   │   ├── EmbeddingService.cs           ← moved to Electron (onnxruntime-node)
-│   │   ├── PineconeUpsertService.cs      ← receives vectors[], upserts to Pinecone
-│   │   └── RagQueryService.cs             ← query pipeline unchanged
-│   ├── Thesis/
-│   │   ├── ThesisService.cs
-│   │   ├── SubmissionService.cs
-│   │   └── ReviewService.cs
-│   ├── User/
-│   │   ├── UserService.cs
-│   │   └── RoleService.cs
-│   └── Chat/
-│       └── ChatSessionService.cs
-│
-└── Repositories/                        ← class files that have direct access to database
-    ├── Interface/                       ← Interface files that will be inherited
-    └── StudentRepository.cs
+│   │   ├── PineconeService.cs     ← embed+query+delete; year-filter workaround
+│   │   └── MonteAiAgentService.cs ← planner loop, synthesis, SSE streaming, grounding
+│   ├── AI/Agent/                  ← AgentToolbox (3 tools), AgentPrompts, AgentJson
+│   ├── Theses/                    ← ThesisService (submit/search/ingest/versions),
+│   │                                 ThesisAbstractService (Firestore abstracts),
+│   │                                 AbstractChunker, BlobService, ProceedingsService,
+│   │                                 AnnotationReader, ReviewService, SubmissionService
+│   ├── Chat/                      ← ChatSessionService (SQL), ChatMessageService (Firestore)
+│   ├── Schedules/                 ← ScheduleService, PanelistScheduleService
+│   └── User/                      ← Student/Faculty/Admin/ProgramHead/ResearchGroup services
+└── Repositories/                  ← EF repositories per domain (Interfaces/ subfolder;
+                                     Scrutor auto-registers as scoped)
 ```
 
-### 5.2 Frontend Module Summary
+**Notable:** `SearchController.cs`, `Services/Auth/FirebaseAuthService.cs`, `Services/User/RoleService.cs`, and `Services/User/UserService.cs` are empty placeholder files. Search lives in `ThesisController` and the agent tools instead.
 
-**Web (React + Vite)**
+### 5.2 Web (`apps/web`)
+
 ```
 src/
-├── pages/
-│   ├── Landing/          ← Promotional landing page
-│   ├── Auth/             ← Login, Register
-│   ├── Dashboard/        ← Thesis browser
-│   ├── Search/           ← Literature search results
-│   └── Chat/             ← AI Chat interface (Web only)
-├── components/           ← Reusable UI components
-├── hooks/                ← Custom React hooks
-├── store/                ← Zustand state
-└── services/             ← API service layer
+├── main.tsx · App.tsx             ← router (BrowserRouter); pdf.js worker bundled
+├── pages/                         ← LandingPage, Home, Chat, About, Login, Register,
+│                                    SubmitThesis, Schedule, ThesesPage, ThesisViewer,
+│                                    Announcements, ResearchGroups, SettingsPage
+├── components/                    ← landing pieces, ThesisSubmissionModal flow,
+│                                    layouts/AppLayout.tsx (sidebar + chat sessions)
+├── sections/                      ← About page sections
+├── lib/                           ← Firebase init, per-domain service facades
+│   └── chat/                      ← chatService facade (stale liveChatService remains)
+└── services/api.tsx               ← dead stub
 ```
 
-**Mobile (React Native + Expo)**
+Most authenticated screens are thin wrappers around `@monteai/ui` pages with services injected. Protected routes render inside `AppLayout`.
+
+### 5.3 Mobile (`apps/mobile`)
+
 ```
-mobile/
-├── app/
-|   ├── (auth)/
-│   │   └── index.tsx
-│   │── (tabs)/
-│   │   ├── _layout.tsx
-│   │   ├── index.tsx
-│   │   ├── search.tsx
-│   ├── thesis/
-│   │   └── [id].tsx
-│   │── _layout.tsx
-│   └── modal.tsx
-├── components/
-├── services/
-├── hooks/
-├── constants/
-└── assets/
+app/
+├── _layout.tsx                    ← root: AuthSessionProvider → AppShell
+├── auth-entry.tsx · login.tsx · sign-up.tsx · modal.tsx
+├── (tabs)/                        ← custom tab bar: home, library, chat, announcements,
+│                                    profile (+ hidden routes: schedules, research-group)
+├── settings/                      ← index, profile, appearance, notifications,
+│                                    security, change-password, help, about
+└── thesis/                        ← [id].tsx (detail + PDF viewer), submit-thesis.tsx
+
+components/ · lib/ (service facades + firebase + authService + chatService)
+contexts/AuthSessionContext.tsx · hooks/ · constants/
 ```
 
-**Desktop (Electron + Forge)**
+No TanStack Query or `@monteai/ui` — screens use local state and RN components. Services built with `createApiClient` (token + refresh).
+
+### 5.4 Desktop (`apps/desktop`)
+
 ```
 src/
-├── main/                 ← Electron main process
-├── renderer/
-│   ├── pages/
-│   │   ├── Auth/
-│   │   ├── Dashboard/
-│   │   ├── Submissions/  ← Manage thesis submissions
-│   │   ├── Users/        ← Role and permission management
-│   │   └── Chat/         ← AI Chat interface (Desktop)
-│   └── components/
-└── preload/              ← Context bridge scripts
+├── main.ts                        ← window; contextIsolation on, nodeIntegration off;
+│                                    registers thesis:approve IPC handler
+├── preload.ts → preload/thesis.ts ← contextBridge: window.thesisApi.approveThesis
+├── pipeline/                      ← pdfDownloader, pdfExtractor (pdfjs legacy build),
+│                                    abstractIsolator, chunker (512 words / 50 overlap)
+├── handlers/approveThesis.ts      ← IPC: SAS download → extract → isolate → chunk
+│                                    → POST /thesis/ingest (server embeds + upserts)
+├── renderer.tsx · App.tsx         ← HashRouter; ProtectedRoute gate
+├── renderer/pages/                ← Login, Register, Dashboard, Theses, Faculty,
+│                                    ResearchGroups, Panelist, Schedule, Announcements,
+│                                    Settings, About, ThesisViewer (+ BackupPage from UI)
+├── renderer/components/           ← AppSidebar, etc.
+├── renderer/lib/                  ← apiClient, Firebase init, per-domain facades
+└── hooks/                         ← useApproveThesis, useRejectThesis, useRequestRevision
 ```
+
+No chat route. Forge packaging hardens fuses (`RunAsNode=false`, `OnlyLoadAppFromAsar=true`, etc.).
 
 ---
 
 ## 6. AI Pipeline Design
 
-### 6.1 PDF Ingestion Pipeline
+### 6.1 Ingestion Pipeline (as built)
 
-**Trigger:** Admin downloads a pending thesis PDF to their local machine via the Desktop app, reviews it, then clicks **Approve**. The approval action fires the full local pipeline on the admin's machine.
-
-**Step 1 — PDF Text Extraction**
-- Library: `pdfjs-dist` (Node.js, runs in Electron main process)
-- Extracts raw text of Abstract, Intro, Keywords, and Table of Contents, along with bounding box metadata
-- Normalizes whitespaces, encoding and removes non-printable characters
-- Only the pages needed for abstract isolation are processed - not the full document
-
-```JavaScript
-// pipeline/pdfExtractor.js
-import * as pdfjs from 'pdfjs-dist';
-
-export async function extractText(filePath) {
-    const pdf = await pdfjs.getDocument({url: filePath }).promise;
-    let fullText = '';
-
-    // Scan first 5 pages only - adjust this if abstract is deeper
-    const pagesToScan = Math.min(pdf.numPages, 5);
-
-    for(let i = 1; i <= pagesToScan; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        fullText += content.items.map(item => item.str).join(' ') + '\n';
-    }
-    return fullText;
-}
+Ingestion is **split** between the desktop (local text work) and the server (embedding + persistence). Embedding never runs on the client.
 
 ```
-**Step 2 — Abstract Isolation**
-- Rule-based section detection: searches for the heading `Abstract` (case-insensitive, supports variations like `ABSTRACT`, `Summary`, `Executive Summary`)
-- Captures all text between `Abstract` and the next section heading (e.g., `Introduction`, `Keywords`, `Table of Contents`)
-- Fallback: If abstract section not found, logs a warning and flags the document for manual review
-- Also extracts title and author from the first page using positional heuristics (largest font block = title, line directly below = author)
-
-```JavaScript
-// pipeline/abstractIsolator.js
-export function isolateAbstract(rawText) {
-    const abstractPattern = 
-    /(?:abstract|summary|executive\s+summary)\s*[\n\r]+([\s\S]*?)(?=\n\s*(?:introduction|keywords|table of contents|chapter\s+1|acknowledgements)|$)/i;
-
-    const match = rawText.match(abstractPattern);
-
-    if(!match || !match[1].trim()) {
-        return { abstract: null, found: false };
-    }
-
-    return { 
-        abstract: match[1].trim(),
-        found: true
-    };
-}
-export function extractMetadata(firstPageText){
-    const lines = firstPageText
-        .split('\n')
-        .map(l => l.trim())
-        .filter(Boolean());
-        
-    // Heuristic: title = longest line in first 10 lines
-    const title = lines.slice(0, 10).reduce((a, b)=> b.length > a.length ? b: a, '');
-
-    //Heuristic: author = line containing "by" or line after title
-    const authorLine = lines.find(l => /^(by|submitted by|preparedby)/i.test(l));
-    const author = authorLine ? authorLine.replace(/^(by|submitted by|prepared by)\s*/i, '').trim() : lines[lines.indexOf(title) + 1] || 'Unknown';
-
-    return {title, author};
-}
+Student: POST /thesis/submit (PDF → Azure Blob; Status=Pending)
+                │
+Admin (Desktop): clicks Approve on a thesis
+                │  IPC 'thesis:approve' (src/handlers/approveThesis.ts)
+                ▼
+┌─────────────────────────────┐
+│ 1. GET /thesis/{id}/download-url  → short-lived SAS URL      │
+│ 2. pdfDownloader → temp PDF in os.tmpdir()                   │
+│ 3. pdfExtractor (pdfjs-dist) → text, first 5 pages only      │
+│ 4. abstractIsolator → regex Abstract → Intro/Keywords/Ch.1   │
+│    + title/author/year heuristics                            │
+│ 5. chunker → 512-word chunks, 50-word overlap                │
+└─────────────────────────────┘
+                │  POST /thesis/ingest { thesisId, chunks[] }
+                ▼  (Admin-only; server is authoritative for metadata)
+┌─────────────────────────────┐
+│ ThesisService.IngestAsync                                    │
+│  • load SQL record (title/abstract/group authors)            │
+│  • cap chunks (MaxChunksPerIngest = 64)                      │
+│  • PineconeService.UpsertAbstractsAsync:                     │
+│      - batch embed (16/call) text-embedding-3-small,         │
+│        embedding text = title/authors/year header + abstract │
+│      - vector id: thesis_{id}_chunk_{i}                      │
+│      - metadata: thesis_id, title, authors, abstract,        │
+│        publication_year, journal, url (permanent blob path)  │
+│      - delete-then-upsert for idempotence (≤100/request)     │
+│  • Status = "Indexed", PineconeStatus/IndexedAt updated      │
+└─────────────────────────────┘
 ```
 
-**Step 3 — Text Chunking**
-- Strategy: Fixed-size chunking with overlap
-- Chunk size: 512 tokens (configurable)
-- Overlap: 50 tokens (preserves context across chunk boundaries)
-- Tokenizer: matched to the ONNX model's vocabulary (e.g., WordPiece for BERT-based models)
-- Purpose: Prevents exceeding the model's context window during embedding inference
+Admin archival uploads (`POST /thesis/submit` as Admin) auto-chunk server-side via `AbstractChunker` and ingest immediately with rollback on failure.
 
-```JavaScript
-// Pseudocode — pipeline/chunker.js
-export function chunkText(text, chunkSize = 512, overlap = 50) {
-    const words = text.split(/\s+/).filter(Boolean);
-    const chunks = [];
-    let start = 0;
+### 6.2 Agent Query Pipeline (Chat)
 
-    while (start < words.length) {
-        const chunk = words.slice(start, start + chunkSize).join(' ');
-        chunks.push(chunk);
-        if (start + chunkSize >= words.length) break;
-        start += chunkSize - overlap;
-
-    }
-    return chunks;
-}
-
-// public List<string> ChunkText(string text, int chunkSize = 512, int overlap = 50)
-// {
-//     var tokens = Tokenize(text);
-//     var chunks = new List<string>();
-//     int start = 0;
-
-//     while (start < tokens.Count)
-//     {
-//         var chunkTokens = tokens.Skip(start).Take(chunkSize).ToList();
-//         chunks.Add(Detokenize(chunkTokens));
-//         start += chunkSize - overlap;
-//     }
-//     return chunks;
-// }
-```
-
-**Step 4 — ONNX Embedding**
-- Runtime: `onnxruntime-node` (Microsoft's official Node.js ONNX binding—same underlying engine as Microsoft.ML.OnnxRuntime)
-- Model: `all-MiniLM-L6-v2` (Sentence-BERT, 384-dimensional embeddings) —bundled inside the Electron app via Forge extraResources
-- Singleton session: model is loaded once when the app starts, reused for ever subsequent ingestion — eliminates cold-start after the first thesis
-- Each chunk is independently embedded into a 384-dimensional float32 vector
-- Mean pooling applied over token embeddings to produce sentence-level representation
-
-```JavaScript
-// Pseudocode — pipeline/embedder.js
-import * as ort from 'onnxruntime-node';
-import path from 'path';
-import { app } from 'electron'
-
-let session = null; // singleton — loaded once at startup
-
-export async function getSession() {
-    if(!session) {
-        const modelPath = app.isPackaged 
-            ? path.join(process.resourcePath, 'models', 'all-MiniLM-L6-v2.onnx') : path.join(app.getAppPathI(), 'models' 'all-MiniLM-L6-v2.onnx');
-
-        session = await ort.InferenceSession.create(modelPath);
-    }
-    return session;
-}
-
-export async function generateEmbedding(text) {
-    const sess = awit getSession();
-    const { inputIds, attentionMask } = tokenize(text); // WordPiece tokenizer
-    
-    const feeds = {
-        input_ids: new ort.Tensor('int64', inputIds, [1, inputIds.length]),
-        attention_mask: new ort.Tensor('int64', attentionMask, [1, attentionMask.length],)
-    };
-
-    const output = await sess.run(feeds);
-    return meanPooling(output['last_hidden_state'], attentionMask); //float32 Array
-}
-```
-
-**Step 5 — Local Pipeline Orchestration**
-Before anything reaches the cloud, the full pipeline runs locally and prduces a clean payload:
-```JavaScript
-// pipeline/ingestThesis.js
-export async function ingestThesis(filePath, thesisId) {    
-    // Extract
-    const rawText = await extractText(filePath);
-
-    // Isolate abstract + metadata
-    const {abstract, found } = isolateAbstract(rawText);
-    if(!found) throw new Error('ABSTRACT_NOT_FOUND');
-
-    const { title, author } = extractMetaData(rawText);
-
-    // Chunk
-    const chunks = chunkText(abstract);
-
-    const vectors = [];
-    for(const [index, chunk] of chunks.entries()) {
-        const embedding = await generateEmbedding(chunk);
-        vectors.push({ 
-            id: `thesis_${thesisId}_chunk_${index}`,
-            chunkIndex: index,
-            chunkText: chunk,
-            embedding: Array.from(embedding),
-        });
-    }
-
-    return {title, author, abstract, vectors };
-
-
-
-}
-```
-B
-**Step 6 — Send to Cloud -> Pinecone Upsert**
-- The payload from the local pipeline is sent to the API which then  upserted into Pinecone as a vector record
-- Metadata included per vector:
-
-```JavaScript
-// handlers/approveThesis.js
-ipcMain.handle('approve-thesis', async (event, {thesisId, filePath }) => {
-    // Run full pipeline locally
-    const { title, author, abstract ,vectors } = await ingestThesis(filePath, thesisId);
-
-    // Send lightweight payload to cloud API
-    await api.post('/theses/ingest', {
-        thesisId,
-        title,
-        author,
-        abstract, 
-        vectors
-    });
-})
-
-// {
-//   "id": "thesis_{thesisId}_chunk_{chunkIndex}",
-//   "values": [0.021, -0.043, ...],   // 384-dim float vector
-//   "metadata": {
-//     "thesisId": "uuid",
-//     "title": "Effects of Machine Learning in...",
-//     "author": "Juan dela Cruz",
-//     "chunkIndex": 2,
-//     "chunkText": "This study investigates...",
-//     "uploadedAt": "2026-05-22T00:00:00Z"
-//   }
-// }
-```
-
-- Pinecone index configuration: cosine similarity metric, serverless tier (AWS us-east-1 or Azure equivalent)
-
-**Step 7 — Azure SQL Insert**
-- Upon successful upsert, a `Thesis` record is persisted in Azure SQL with:
-  - Title, Author, Abstract text, file path (Blob URL), upload timestamp, status, uploader ID
-
-### 7.2 RAG Query Pipeline (Chat Interface)
-
-**Trigger:** User submits a message via Chat interface (Web or Desktop)
+Triggered by `POST /api/v1/Chat/sessions/{id}/messages` (blocking) or `.../messages/stream` (SSE). Implemented by `MonteAiAgentService` with Phi-4-mini-instruct.
 
 ```
-User Message
-     │
-     ▼
-┌────────────────────┐
-│ Embed User Query   │  ←── Same ONNX model (all-MiniLM-L6-v2)
-└────────┬───────────┘
-         │
-         ▼
-┌────────────────────┐
-│ Pinecone Query     │  ←── Top-K similarity search (K=5 default)
-│ (Vector Search)    │
-└────────┬───────────┘
-         │  Returns top-K matching chunks + metadata
-         ▼
-┌────────────────────┐
-│ Context Builder    │  ←── Assembles retrieved chunks into a prompt context
-└────────┬───────────┘
-         │
-         ▼
-┌────────────────────┐
-│ LLM Generation     │  ←── Calls external LLM API (OpenAI / Azure OpenAI)
-│ (Augmented Prompt) │       with system prompt + context + user query
-└────────┬───────────┘
-         │
-         ▼
-┌────────────────────┐
-│ Response Streamed  │  ←── Server-Sent Events (SSE) to frontend
-│ to Client          │
-└────────────────────┘
+User message
+   │  sanitize (cap 2000 chars) → prompt-injection blocklist → canned refusal
+   ▼
+Planner loop (≤ 3 iterations, temp 0, JSON output)
+   │  chooses a tool per turn:
+   │   • semantic_search  → embed query (Azure OpenAI) → Pinecone TopK
+   │                         (score threshold 0.25; optional year filter)
+   │   • keyword_search   → EF LIKE over title/abstract
+   │   • thesis_metadata  → full SQL record by id
+   │  guaranteed fallback: one semantic_search if no tool ran
+   ▼
+Source merge (dedupe by thesis, order by score, cap 8)
+   ▼
+Synthesis (temp 0.2, ≤ 800 tokens): answer from retrieved context only,
+   numbered [Source n] citations
+   ▼
+Grounding pass: strip invalid citations (no-LLM hallucination guard)
+   ▼
+Persist assistant message to Firestore (with SourcesJson) → respond
+SSE events: sources → delta* → done (web client parses frames via axios)
 ```
 
-**System Prompt Template:**
-```
-You are a research assistant for an academic institution. 
-Answer the user's question based ONLY on the provided research context below.
-If the answer is not found in the context, say so clearly.
-Always cite the thesis title and author when referencing a document.
+Agent knobs live in `MonteAI:Agent` config (enable flag, iterations, temperatures, token caps, history size). Retrieval knobs in `Pinecone` config (TopK default 5, threshold 0.25).
 
-Context:
-{retrieved_chunks}
+### 6.3 Literature Search
 
-User Question:
-{user_message}
-```
-
-### 7.3 Literature Search Pipeline
-
-- User enters a natural language search query
-- Query is embedded via ONNX → queried against Pinecone
-- Top-K results returned with metadata (title, author, abstract snippet)
-- Results displayed as thesis cards with relevance-ranked ordering
-- Available on: Web, Mobile, Desktop
+`GET /api/v1/Thesis/search?q=&mode=exact|semantic`
+- **exact** — SQL catalog search; **semantic** — Pinecone TopK 50 → distinct thesis ids → hydrated from SQL
+- Available on Web, Mobile, and Desktop thesis catalogs
 
 ---
 
 ## 7. Database Design
 
-### 7.1 Azure SQL Schema
+### 7.1 Azure SQL (EF Core, as migrated)
 
-```sql
--- Users  (will only be used as an abstract class in c# will not create table in the DB)
-Table Users {
-  Id UNIQUEIDENTIFIER [pk, default: `NEWID()`]
-  Email NVARCHAR(256) [not null]
-  FirstName NVARCHAR(256)
-  MiddleName NVARCHAR(256)
-  LastName NVARCHAR(256)
-  Role NVARCHAR(50) [not null, default: 'Student', note: 'Student | Faculty | Admin']
-  IsActive BIT [default: 1]
-  CreatedAt DATETIME2 [default: `GETUTCDATE()`]
-  UpdatedAt DATETIME2 [default: `GETUTCDATE()`]
-};
--- Admin Table
-Table Admin {
-  Id uniqueidentifier [pk, default: `NEWID()`]
-  Email NVACHAR(256) [not null]
-  FirstName nvarchar(256) 
-  MiddleInitial nvarchar(256) 
-  LastName nvarchar(256)
-  Suffix nvarchar(5)
-};
+Role IDs are Firebase UIDs (`NVARCHAR(128)`, not DB-generated). `User` is an **abstract C# base class** (TPC-style); there is no `Users` table — each role has its own table.
 
--- Student table
-Table Students { 
-  StudentNumber UNIQUEIDENTIFIER [pk, default: `NEWID()`]
-  GroupId UNIQUEIDENTIFIER
-  Email NVACHAR(256) [not null]
-  FirstName nvarchar(256)
-  Position nvarchar(40) 
-  MiddleInitial nvarchar(256) 
-  LastName nvarchar(256)
-  Suffix nvarchar(5)
-  Institute nvarchar(50) 
-  Program nvarchar(50)
-  YearLevel int
-  Section nvarchar(3)
-};
+```
+Admins(Id pk = Firebase UID, Email, FirstName, MiddleInitial, LastName, Suffix,
+       Position, Role, IsActive, CreatedAt, UpdatedAt)
 
--- Program Head Table
-Table ProgramHeads {
-  Id uniqueidentifier [pk, default: `NEWID()`]
-  Email nvarchar(256) [not null]
-  FirstName nvarchar(256) 
-  MiddleInitial nvarchar(256) 
-  LastName nvarchar(256)
-  Suffix nvarchar(5)
-  Institute nvarchar(50) 
-  ProgramHandled nvarchar(50)
-};
+Faculties(Id pk, Email, FirstName, MiddleInitial, LastName, Suffix, Institute,
+          Role, IsActive, timestamps)
 
--- Faculty Table
-Table Faculty { 
-  Id uniqueidentifier [pk, default: `NEWID()`]
-  Email nvarchar(256) UNIQUE [not null]
-  FirstName nvarchar(256) 
-  MiddleInitial nvarchar(256) 
-  LastName nvarchar(256)
-  Suffix nvarchar(5)
-  Institute nvarchar(50) 
-};
+ProgramHeads(Id pk, Email, …, Institute, ProgramHandled, Role, IsActive, timestamps)
 
+Students(Id pk, StudentNumber unique, GroupId? → ResearchGroups, Email, FirstName,
+         MiddleInitial, LastName, Suffix, Position, Institute, Program, YearLevel,
+         Section, Role, IsActive, timestamps)
 
--- Theses table
-CREATE TABLE Theses (
-    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    Title           NVARCHAR(512) NOT NULL,
-    Authors         NVARCHAR(512) NOT NULL,
-    Abstract        NVARCHAR(MAX),
-    FilePath        NVARCHAR(1024) NOT NULL,         -- Firebase Storage URL
-    UploadedById    UNIQUEIDENTIFIER REFERENCES Users(Id),
-    Status          NVARCHAR(50) DEFAULT 'Pending',  -- Pending | UnderReview | Approved | Rejected
-    PineconeStatus NVARCHAR(20) DEFAULT 'None'
-    SubmittedAt     DATETIME2 DEFAULT GETUTCDATE(),
-    ReviewedAt      DATETIME2 DEFAULT GETUTCDATE(),
-    ApprovedAt      DATETIME2 DEFAULT GETUTCDATE(),
-    RejectedAt      DATETIME2 DEFAULT GETUTCDATE(),
-    UpdatedAt       DATETIME2 DEFAULT GETUTCDATE()
-);
+ResearchGroups(Id pk, GroupName, ResearchTitle, AdviserId? → Faculties (SetNull),
+               LeaderId → Students (Restrict), CreatedAt, UpdatedAt)
+               ↔ Students.GroupId (Cascade)
 
--- Submissions table (student → thesis link)
-CREATE TABLE Submissions (
-    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    ThesisId        UNIQUEIDENTIFIER REFERENCES Theses(Id),
-    StudentId       UNIQUEIDENTIFIER REFERENCES Users(Id),
-    SubmittedAt     DATETIME2 DEFAULT GETUTCDATE(),
-    Notes           NVARCHAR(MAX)
-);
+Theses(Id pk, Title, Abstract  ← Firestore doc GUID (legacy: raw text),
+       FilePath (blob path), UploadedById, Status, PineconeStatus, GroupId?,
+       SubmittedAt?, ReviewedAt?, ApprovedAt?, RejectedAt?, IndexedAt?, UpdatedAt)
+       ↔ Submissions (Cascade)
 
--- Reviews table
-CREATE TABLE Reviews (
-    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    ThesisId        UNIQUEIDENTIFIER REFERENCES Theses(Id),
-    ReviewerId      UNIQUEIDENTIFIER REFERENCES Users(Id),  -- Faculty member, and ProgramHead
-    Decision        NVARCHAR(50),   -- Approved | Rejected | Revise
-    Comments        NVARCHAR(MAX),
-    ReviewedAt      DATETIME2,
-);
+ThesisVersions(Id pk, ThesisId, VersionNumber, FilePath, UploadedById?,
+               UploadedAt, ChangeNote)
 
--- Chat Sessions table
-CREATE TABLE ChatSessions (
-    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    UserId          UNIQUEIDENTIFIER REFERENCES Users(Id),
-    Title           NVARCHAR(256),
-    CreatedAt       DATETIME2 DEFAULT GETUTCDATE()
-    LastChatDate    DATETIME2 DEFAULT GETUTCDATE()
-);
+Submissions(Id pk, ThesisId, StudentNumber → Students, SubmittedAt, Notes)
 
--- Chat Messages table
-CREATE TABLE ChatMessages (
-    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    SessionId       UNIQUEIDENTIFIER REFERENCES ChatSessions(Id),
-    Role            NVARCHAR(20) NOT NULL,  -- user | assistant
-    Content         NVARCHAR(MAX) NOT NULL,
-    Timestamp       DATETIME2 DEFAULT GETUTCDATE()
-);
+Reviews(Id pk, ThesisId, ReviewerId, Decision, Comments, ReviewedAt?)
 
--- Permissions table
-CREATE TABLE Permissions (
-    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    UserId          UNIQUEIDENTIFIER REFERENCES Users(Id),
-    PermissionKey   NVARCHAR(128) NOT NULL,  -- e.g., "thesis.review", "user.manage"
-    GrantedById     UNIQUEIDENTIFIER REFERENCES Users(Id),
-    GrantedAt       DATETIME2 DEFAULT GETUTCDATE()
-);
+Schedules(ScheduleId pk, ScheduledBy, GroupId?, Date, StartTime, EndingTime,
+          RoomVenue, AdditionalInformation) ↔ PanelistSchedules
 
--- Schedule 
-Table Schedule { 
-  ScheduleId uniqueidentifier [pk, default: `NEWID()`]
-  ScheduledBy nvarchar(256) [not null]
-  GroupId uniqueidentifier 
-  Date date [default: `GETUTCDATE()`]
-  StartingTime time 
-  EndingTime time
-  Panelists nvarchar(256) [not null]
-  RoomVenue nvarchar(256) [not null]
-  AdditionalInformation nvarchar(256)
-};
+PanelistSchedules(composite pk: ScheduleId + PanelistId, PanelistType
+                  (faculty|program-head|admin), Role?, CreatedAt)
 
--- Student Researcher Group
-Table ResearchGroup { 
-  GroupId uniqueidentifier [pk, default: `NEWID()`]
-  CreatedAt DATETIME2 [default: `GETUTCDATE()`]
-  UpdatedAt DATETIME2 [default: `GETUTCDATE()`]
-};
+ChatSessions(Id pk, UserId, Title, CreatedAt, LastChatDate)
+  — messages are NOT in SQL (see Firestore)
+
+Announcements(Id pk, Subject, Content, AttachmentUrls (JSON list), Category,
+              Priority, CreatedAt?, LastModified?,
+              CreatedByAdminId? | CreatedByProgramHeadId?  ← check constraint: exactly one)
 ```
 
-### 7.2 Pinecone Index Configuration
+**Status values** (Thesis.Status): `Pending`, `UnderReview`, `Approved`, `Rejected`, `Revision`, `Indexed` (set after successful ingestion).
+
+### 7.2 Firestore Layout
+
+| Path | Contents |
+|------|----------|
+| `thesis_abstracts/{thesisId}` | Map field `abstracts` keyed by version number; `authors`, `publicationYear` |
+| `chat_sessions/{sessionId}/messages/{messageId}` | `role`, `content`, `timestamp`, `SourcesJson` (serialized citations) |
+| `theses/{thesisId}/versions/{versionId}/annotations` | Panelist PDF annotations (read by `AnnotationReader` for proceedings) |
+
+### 7.3 Pinecone Index
 
 | Property | Value |
 |----------|-------|
-| Index Name | `research-assistant-abstracts` |
-| Dimensions | 384 (all-MiniLM-L6-v2) |
+| Index name | `research-assistant-abstracts` |
+| Dimensions | 1536 (`text-embedding-3-small`) |
 | Metric | Cosine |
-| Tier | Serverless |
-| Namespace | `thesis-abstracts` |
-| Metadata Fields | `thesisId`, `title`, `author`, `chunkIndex`, `chunkText`, `uploadedAt` |
+| Vector ID | `thesis_{thesisId}_chunk_{chunkIndex}` |
+| Metadata | `thesis_id`, `title`, `authors`, `abstract`, `publication_year`, `journal`, `url` |
+| Notes | `url` is the permanent blob path (never SAS); year filtering uses a string `$in` list workaround |
 
 ---
 
 ## 8. API Design
 
-### 8.1 Base URL
-```
-Format (temporary structure)
-https://api.monteai.edu.ph/api/v1
-```
+### 8.1 Base URL & Conventions
 
-### 8.2 Endpoint Summary
+- Prefix: `api/v1/{Controller}` for all controllers except `AbstracsController` (`api/Abstracs`) and `ProceedingsController` (hardcoded `api/v1/thesis`)
+- Auth: `Authorization: Bearer <Firebase ID token>` on every request (no app JWT exchange)
+- JSON: case-insensitive property names; string enums
+- Only anonymous endpoints: `GET /health` (header-guarded), Swagger (Dev), `POST /api/v1/Auth/resolve-login`
 
-#### Admin
+### 8.2 Endpoints (as implemented)
+
+#### Auth — `api/v1/Auth`
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/admin` | Retrieve all administrators | Admin |
-| GET | `/admin/{id}` | Retrieve an administrator by ID | Admin |
-| PATCH | `/admin/update/{id}` | Update administrator information | Admin |
-| DELETE | `/admin/delete/{id}` | Delete an administrator by ID | Admin |
+| POST | `/auth/register` | Self-register Student/Faculty profile (email-domain checks) | FirebaseAuthenticated |
+| POST | `/auth/register/admin-or-programhead` | Create Admin/ProgramHead profile | Admin |
+| POST | `/auth/login` | No-op (token already verified by middleware) | — |
+| POST | `/auth/resolve-login` | Student-number → email resolution (mobile) | Anonymous |
+| GET | `/auth/me` | Probe role tables, return profile | Authenticated |
 
-#### Announcement
+#### User — `api/v1/User`
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/announcement` | Retrieve all announcements | Student, Faculty, Admin |
-| GET | `/announcement/{id}` | Retrieve an announcement by ID | Student, Faculty, Admin |
-| POST | `/announcement/create` | Create a new announcement | Admin |
-| PATCH | `/announcement/update/{id}` | Update an existing announcement | Admin |
-| DELETE | `/announcement/delete/{id}` | Delete an announcement by ID | Admin |
+| GET | `/user/me` | Current profile | Authenticated |
+| PUT | `/user/me` | Partial profile update (role/email/status stripped) | Authenticated |
+| POST | `/user/revoke-sessions` | Firebase refresh-token revocation | Authenticated |
 
-#### Authentication 
+#### Chat — `api/v1/Chat` (ChatLimit: 30/min)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| POST | `/auth/login` | Exchange Firebase token for app JWT | Public |
-| POST | `/auth/register` | Create user profile post-Firebase signup | Public |
-| GET | `/auth/me` | Refresh app JWT | Authenticated |
+| GET | `/chat/sessions` | List user's sessions | Owner |
+| GET | `/chat/sessions/{id}` | Session + messages (Firestore) | Owner |
+| POST | `/chat/sessions/create` | Create session (owner = token uid) | Owner |
+| POST | `/chat/sessions/{id}/messages` | Blocking agent response | Owner |
+| POST | `/chat/sessions/{id}/messages/stream` | SSE: sources → delta → done | Owner |
+| PUT | `/chat/sessions/{id}/update` | Rename/update session | Owner |
+| DELETE | `/chat/sessions/{id}/delete` | Delete session | Owner |
 
-#### Chat
+#### Thesis — `api/v1/Thesis`
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| POST | `/chat/sessions/create` | Create a new chat session | Student, Faculty, Admin |
-| GET | `/chat/sessions` | List user's chat sessions | Student, Faculty, Admin |
-| GET | `/chat/sessions/{id}` | Get session with messages | Student, Faculty, Admin |
-| POST | `/chat/sessions/{id}/messages` | Send message, stream response (SSE) | Student, Faculty, Admin |
-| PUT | `/chat/sessions/{id}/update` | Update chat session information | Owner |
-| DELETE | `/chat/sessions/{id}/delete` | Delete a session | Owner |
+| GET | `/thesis` | List theses (first 20) | All authenticated |
+| GET | `/thesis/search?q=&mode=` | Exact (SQL) or semantic (Pinecone) search | All authenticated |
+| GET | `/thesis/my` | Current student's thesis | Student, Admin |
+| GET | `/thesis/{id}` | Thesis detail (abstract resolved from Firestore) | All authenticated |
+| POST | `/thesis/submit` | Upload PDF (magic-byte validated), blob storage + rollback | Student, Admin |
+| POST | `/thesis/ingest` | Ingest chunks → embed → Pinecone → Indexed | **Admin** |
+| PUT | `/thesis/update/details/{id}` | Update details (+ best-effort reindex) | Student, Admin |
+| PATCH | `/thesis/update/status/{id}` | Status transitions | Reviewer policy |
+| DELETE | `/thesis/delete/{id}` | Delete thesis + vectors + blobs + side data | Admin |
+| GET | `/thesis/{id}/download-url` | 15-min SAS URL | All authenticated |
+| GET | `/thesis/{id}/versions` · `/versions/latest` · `/versions/single/{versionId}` | Version listing/detail | Authenticated |
+| GET | `/thesis/versions/{versionId}/download-url` | Version SAS URL | Authenticated |
+| POST | `/thesis/{thesisId}/versions` | Upload revision PDF | Student |
+| DELETE | `/thesis/versions/{thesisId}` | Prune all but latest | Authenticated |
+| DELETE | `/thesis/{thesisId}/versions/{versionId}` | Delete a version (latest-only) | Student, Admin |
 
-
-
-#### Faculty Management
-| Method| | Endpoint | Description | Access |
-|---------|----------|-------------|--------|
-| GET | `/faculty` | List all faculty staffs | Admin |
-| GET | `/faculty/{id}` | Get faculty details | Admin |
-| PATCH | `/faculty/update/{id}` | Assign faculty as panelist | Admin |
-| DELETE | `/faculty/delete/{id}` | Revoke Panelist Permission | Admin | 
-
-#### Panelist Schedule
+#### Proceedings — `api/v1/thesis` (Proceedings policy + 10/min)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/panelistschedule` | Retrieve all panelist schedules | Admin |
-| GET | `/panelistschedule/{scheduleId}` | Retrieve a panelist schedule by schedule ID and panelist ID | Faculty, Admin |
-| POST | `/panelistschedule/create` | Create a new panelist schedule | Admin |
-| PATCH | `/panelistschedule/update/{scheduleId}` | Update an existing panelist schedule | Admin |
-| DELETE | `/panelistschedule/delete/{scheduleId}&{panelistId}` | Delete a panelist schedule by schedule ID and panelist ID | Admin |
+| POST | `/thesis/{thesisId}/proceedings` | Generate proceedings PDF (PdfSharpCore + Firestore annotations) | Proceedings policy (group members for students) |
 
-#### Program Head
+#### Abstracts — `api/Abstracs` (debug)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/programhead` | Retrieve all program heads | Admin |
-| GET | `/programhead/{id}` | Retrieve a program head by ID | Faculty |
-| POST | `/programhead/create` | Create a new program head | Admin |
-| POST | `/programhead/update/{id}` | Update program head information | Admin |
-| POST | `/programhead/delete/{id}` | Delete a program head by ID | Admin |
+| POST | `/abstracs/upsert/{thesisId}` | Direct Pinecone upsert bypass | Admin |
 
-#### Research Group
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| GET | `/researchgroup` | Retrieve all research groups | Faculty, Admin |
-| GET | `/researchgroup/{id}` | Retrieve a research group by ID | Faculty, Admin |
-| POST | `/researchgroup/create` | Create a new research group | Admin |
-| PATCH | `/researchgroup/update/{id}` | Update research group information | Admin |
-| DELETE | `/researchgroup/delete/{id}` | Delete a research group by ID | Admin |
+#### Announcement — `api/v1/Announcement`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/announcement`, GET `/announcement/{id}` | All authenticated |
+| POST `/announcement/create`, PATCH `/announcement/update/{id}`, DELETE `/announcement/delete/{id}` | Admin, ProgramHead |
 
-#### Review Workflow
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| GET | `/review` | Assign faculty reviewer to thesis | Admin |
-| GET | `/review/{id}` | Get reviews assigned to current faculty | Faculty, Admin |
-| POST | `/review/create` | Submit a review decision | Faculty, Admin |
-| PATCH | `/review/update/{id}` | Update the review decision | Faculty |
-| DELETE | `/review/delete/{id}` | Delete a review by ID | Faculty, Admin |
+#### Faculty — `api/v1/Faculty`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/faculty`, GET `/faculty/{id}`, PATCH `/faculty/update/{id}` | Admin, Faculty, ProgramHead |
+| DELETE `/faculty/delete/{id}` | Admin |
 
-#### Schedule
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| GET | `/schedule` | Retrieve all schedules | Admin |
-| GET | `/schedule/{id}` | Retrieve a schedule by ID | Student, Faculty, Admin |
-| POST | `/schedule/create` | Create a new schedule | Faculty, Admin |
-| PATCH | `/schedule/update/{id}` | Update schedule information | Faculty, Admin |
-| DELETE | `/schedule/delete/{id}` | Delete a schedule by ID | Faculty, Admin |
+#### Student — `api/v1/Student`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/student` (directory w/ search/program), GET `/student/{id}` | Student, Faculty, ProgramHead, Admin |
 
+#### Program Head — `api/v1/ProgramHead`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/programhead`, GET `/programhead/{id}` | Authenticated (role-gated) |
+| POST `/programhead/create`, POST `/programhead/update/{id}`, POST `/programhead/delete/{id}` | Admin (update also ProgramHead) |
 
-#### Submission Management 
-| Method | Endpoint | Description | Access |
-|---------|----------|-------------|--------|
-| GET | `/submission` | List all submissions | Admin | 
-| GET | `/submission/{studentNumber}/{thesisId}` | List all Submissions | Student, Admin, Faculty, ProgramHead | 
-| GET | `/submission/{id}` | Get submission details | Admin, Student, Faculty, ProgramHead | 
-| POST | `/submission/create` | Create Submission | Student | 
-| PUT | `/submission/update/{id}` | Update Submission detail (esp. Notes) | Student
-| DELETE | `/submission/delete/{id}`| Delete Submission entry | Admin, Student |
+#### Admin — `api/v1/Admin`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/admin`, GET `/admin/{id}`, PATCH `/admin/update/{id}`, DELETE `/admin/delete/{id}` | Admin |
 
-#### Thesis Management
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| GET | `/thesis` | List all theses (paginated) | All authenticated |
-| GET | `/thesis/{id}` | Get thesis detail | All authenticated |
-| POST | `/thesis/submit` | Upload and submit a thesis PDF | Student |
-| POST | `/thesis/ingest` | Ingest an approved thesis into the MonteAI knowledge base using Pinecone | Admin |
-| PUT | `/thesis/update/details/{id}` | Update the details of a thesis by ID | Student |
-| PATCH | `/thesis/update/status/{id}` | Update thesis status | Admin |
-| DELETE | `/thesis/delete/{id}` | Delete thesis | Admin |
-| GET | `/thesis/{id}/download-url` | Generate and retrieve a download URL for a thesis file | Student |
+#### Research Group — `api/v1/ResearchGroup`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/researchgroup`, GET `/researchgroup/{id}` | Student, Faculty, ProgramHead, Admin |
+| POST `/researchgroup/create`, DELETE `/researchgroup/{id}` | Student, Admin |
+| PATCH `/researchgroup/update/{id}` | Student, ProgramHead, Admin |
+| POST `/researchgroup/{id}/members`, DELETE `/researchgroup/{id}/members/{studentId}` | Student, ProgramHead, Admin |
 
-#### Search & Discovery
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| GET | `/search?q={query}` | Semantic search via Pinecone | All authenticated |
-| GET | `/search/filter` | Filter by author, date, status | All authenticated |
+#### Review — `api/v1/Review`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/review`, GET `/review/{id}` | Authenticated |
+| POST `/review/create`, PATCH `/review/update/{id}`, DELETE `/review/delete/{id}` | Reviewer policy |
 
+#### Schedule — `api/v1/Schedule`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/schedule`, GET `/schedule/{id}` | Authenticated |
+| POST `/schedule/create`, PATCH `/schedule/update/{id}`, PATCH `/schedule/update-times/{id}`, DELETE `/schedule/delete/{id}` | Admin, ProgramHead |
 
+#### Panelist Schedule — `api/v1/PanelistSchedule`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/panelistschedule`, GET `/panelistschedule/{scheduleId}` | Authenticated |
+| POST `/panelistschedule/create`, PATCH `/panelistschedule/update/{scheduleId}`, DELETE `/panelistschedule/delete/{scheduleId}&{panelistId}` | Admin, ProgramHead |
 
-#### User Management
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| GET | `/users` | List all users | Admin |
-| GET | `/users/{id}` | Get user details | Admin |
-| PATCH | `/users/{id}/update` | Update User Info | Admin |
-| DELETE | `/users/{id}/delete` | Delete User  | Admin |
+#### Submission — `api/v1/Submission`
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET `/submission`, GET `/submission/{id}`, GET `/submission/{studentNumber}/{thesisId}` | Authenticated |
+| POST `/submission/create`, PUT `/submission/update/{id}`, DELETE `/submission/delete/{id}` | Student, Admin |
 
+#### Health
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET | `/health` | Anonymous (requires `X-Ping-Secret` header matching config) |
 
-
-#### Students Management 
-| Method | Endpoint | Description | Access |
-|---------|----------|-------------|--------|
-| GET | `/students` | List all students | Admin | 
-| GET | `/students/{id}` | Get student details | Admin, Student | 
-| PATCH | `/students/{id}` | Update user credential | Student
-| DELETE | `/students{id}`| Delete user account | Admin, Student |
-
-
-
-
-
-### 8.3 Authentication Flow
+### 8.3 Authentication Flow (as built)
 
 ```
-Client                         Backend                     Firebase
-  │                               │                            │
-  │──── Login with credentials ──►│                            │
-  │                               │──── Verify ID Token ──────►│
-  │                               │◄─── Token Valid ───────────│
-  │                               │                            │
-  │                               │──── Lookup/Create User ──► Azure SQL
-  │                               │◄─── User Record ─────────  Azure SQL
-  │                               │                            │
-  │◄── App JWT (with role claims) ─│                            │
-  │                               │                            │
-  │──── All subsequent requests ──►│                            │
-  │     (Bearer: app JWT)          │──── Validate JWT ─────────►│
+Client                                Backend                    Firebase / SQL
+  │── login (Firebase SDK) ─────────────│── verify credentials ──► Firebase Auth
+  │◄── ID token ────────────────────────│◄── token ──────────────
+  │                                     │
+  │── every request: Bearer <token> ───►│ VerifyIdTokenAsync(checkRevoked)
+  │                                     │ RoleAuthorizationMiddleware:
+  │                                     │   probe Student→Faculty→ProgramHead→Admin
+  │                                     │   (first IsActive profile wins) → Role claim
+  │                                     │ FallbackPolicy requires Role claim
+  │◄── response ────────────────────────│
 ```
+
+Clients refresh tokens via `getIdToken(true)`; `@monteai/api`'s `createApiClient` retries once on 401 after refresh (mobile uses this; web/desktop renderer use hand-rolled interceptors).
 
 ---
 
 ## 9. Platform Specifications
 
-### 9.1 Web — React + Vite
+### 9.1 Web (`apps/web`)
 
-**Purpose:** Promotional landing page + student/faculty research portal with chat
+| Route | Description |
+|-------|-------------|
+| `/`, `/about` | Public landing + about (institution branding) |
+| `/login`, `/register` | Firebase email/password auth |
+| `/home` | Portal home |
+| `/theses`, `/thesis/view/:thesisId` | Thesis catalog + PDF viewer with annotations |
+| `/chat/:sessionId?` | AI chat — session sidebar, SSE streaming, source citations |
+| `/submit` | Student thesis submission flow (group-aware modal) |
+| `/schedule` | Defense schedule calendar |
+| `/announcements`, `/research-groups`, `/settings` | Announcements, groups, account settings |
 
-**Pages & Features:**
-| Page | Description |
-|------|-------------|
-| `/` | Landing page — institution branding, system intro, login CTA |
-| `/login` | Firebase-backed login form |
-| `/register` | Registration with role request (Student/Faculty) |
-| `/dashboard` | Thesis browser — search bar, cards grid, filters |
-| `/thesis/:id` | Thesis detail — abstract, author, metadata, download link |
-| `/search` | Full-text + semantic search results page |
-| `/chat` | Chat interface — session list sidebar + message window |
-| `/profile` | User profile, session history |
+**Chat (Web):** session create/rename/delete; streaming via axios `onDownloadProgress` frame parsing (`sources`/`delta`/`done`); markdown rendering; citations panel; fallback to blocking send. Messages persisted server-side (Firestore).
 
-**Chat Interface Requirements (Web):**
-- Session management sidebar (create, rename, delete sessions)
-- Streaming token response (SSE via `EventSource`)
-- Markdown rendering for assistant responses
-- Source citations with thesis title + author per response
-- "New Chat" button and history persistence via Azure SQL
+### 9.2 Mobile (`apps/mobile`)
 
-### 9.2 Mobile — React Native (Expo)
-
-**Purpose:** Portable research companion for students and faculty
-
-**Screens & Features:**
 | Screen | Description |
 |--------|-------------|
-| `Auth` | Login / Register stack |
-| `Home` | Feed of recent/approved theses |
-| `Search` | Natural language literature search |
-| `ThesisDetail` | Full thesis metadata, abstract, download PDF |
-| `Profile` | User info, submission history |
+| `auth-entry`, `login`, `sign-up` | Auth stack (student-number login via `resolve-login`; email verification flow) |
+| `(tabs)/home` | Feed |
+| `(tabs)/library` | Thesis catalog + search |
+| `(tabs)/chat` | AI chat (**blocking** send, no SSE); drawer with recents |
+| `(tabs)/announcements` | Announcements |
+| `(tabs)/profile` + `settings/*` | Profile, appearance, security, change password, help, about |
+| `thesis/[id]` | Detail + WebView PDF viewer with annotations/sections sheets |
+| `submit-thesis` | Submission flow |
+| `schedules`, `research-group` | Hidden tab routes (push navigation) |
 
-**Limitations vs. Web:**
-- No chat interface (deferred to Phase 2)
-- Read-only access to thesis repository
-- Optimized for cellular data (lazy loading, image compression)
+**Limitations vs. Web:** no SSE streaming; no admin/panelist features; no `@monteai/hooks`/`ui`; cleartext HTTP enabled for LAN dev API.
 
-### 9.3 Desktop — Electron + Forge
+### 9.3 Desktop (`apps/desktop`)
 
-**Purpose:** Admin control panel for thesis and user management
+| Route | Description |
+|-------|-------------|
+| `/login`, `/register` | Admin/faculty auth |
+| `/` | Dashboard |
+| `/theses` | Thesis moderation: approve (runs local pipeline), reject, request revision, edit, delete, upload |
+| `/faculty`, `/research-groups` | Faculty & group management |
+| `/panelist`, `/schedule` | Panelist assignments, defense schedules |
+| `/announcements` | Announcement management |
+| `/thesis/view/:thesisId` | PDF viewer with annotations |
+| `/settings`, `/backup`, `/about` | Settings, backup panel, about |
 
-**Windows & Features:**
-| Window/Page | Description |
-|-------------|-------------|
-| `Login` | Admin-only authentication |
-| `Dashboard` | System overview: pending submissions, user count, index status |
-| `Submissions` | Manage all thesis submissions, update status, trigger ingestion |
-| `Users` | View all users, assign roles (Student, Faculty, Admin) |
-| `Permissions` | Grant/revoke fine-grained permissions to faculty |
-| `Review Assignment` | Assign faculty reviewers to specific theses |
-| `Chat` | Admin-accessible AI chat interface |
-| `Settings` | System configuration (Pinecone index, ONNX model selection) |
+**Not implemented:** chat route, fine-grained permissions UI, review-assignment UI (reviews exist in API/UI primitives only partially).
 
-**Electron Security Configuration:**
-- `contextIsolation: true`
-- `nodeIntegration: false`
-- All Node.js API access through preload context bridge
-- Auto-updater via Electron Forge publisher
+**Electron security:** `contextIsolation: true`, `nodeIntegration: false`, single narrow IPC surface (`window.thesisApi.approveThesis`), Forge fuses hardened, asar-only loading.
 
 ---
 
 ## 10. Security & Access Control
 
-### 10.1 Role Definitions
+### 10.1 Roles
 
-| Role | Capabilities |
-|------|--------------|
-| `Student` | Upload thesis, view approved theses, search literature, use chat |
-| `Faculty` | View theses, review assigned submissions, search, use chat |
-| `Admin` | Full access — user management, role assignment, submission control, system config |
+| Role | Capabilities (implemented) |
+|------|----------------------------|
+| `Student` | Submit/revise theses, browse, search, chat, view schedules/groups, annotations |
+| `Faculty` | Browse, search, chat, review (Reviewer policy), panelist duties, annotations |
+| `ProgramHead` | Institute-wide browse, announcements, scheduling, group oversight |
+| `Admin` | Full: users/roles, submissions, ingestion trigger, schedules, panelists, announcements, deletes |
 
-### 10.2 Permission Matrix
+### 10.2 Enforcement Layers
 
-| Action | Student | Faculty | Admin |
-|--------|---------|---------|-------|
-| View approved theses | ✅ | ✅ | ✅ |
-| Upload thesis | ✅ | ❌ | ✅ |
-| Search literature | ✅ | ✅ | ✅ |
-| Use chat (Web/Desktop) | ✅ | ✅ | ✅ |
-| Review assigned thesis | ❌ | ✅ (if assigned) | ✅ |
-| Assign reviewers | ❌ | ❌ | ✅ |
-| Manage users & roles | ❌ | ❌ | ✅ |
-| Trigger PDF ingestion | ❌ | ❌ | ✅ |
-| Access Desktop app | ❌ | ❌ | ✅ |
-| Delete thesis | ❌ | ❌ | ✅ |
+1. **Firebase ID-token verification** (`FirebaseAuthMiddleware`, revocation-checked)
+2. **Role claim injection** (`RoleAuthorizationMiddleware` probes role tables per request)
+3. **ASP.NET authorization** — FallbackPolicy (auth + role claim) plus `Roles=` attributes and `Reviewer`/`Proceedings`/`FirebaseAuthenticated` policies
+4. **Domain rules** — ownership checks on chat sessions; student submission gates (year level, group membership, one thesis per group); email-domain rules at registration (`@student.pnm.edu.ph` / `@pnm.edu.ph`)
+5. **Rate limiting** — Chat 30/min, Proceedings 10/min, Health 5/min
+6. **Prompt-injection blocklist** in the agent (canned refusals for code/extraction/translation attacks)
+7. **CORS** — hardcoded origin whitelist (`MonteSkolarPolicy`) including localhost dev ports and `monteskolar.pnm.edu.ph`
+8. **HTTPS** — enforced outside Development; dev binds HTTP :5084 + HTTPS :7085
+9. **Blob SAS** — short-lived (15 min) download URLs; permanent blob paths only in vector metadata
 
-### 10.3 API Security Layers
+### 10.3 Not Implemented (vs. original plan)
 
-1. **Firebase Token Verification** — All requests validated against Firebase public keys
-2. **JWT Role Claims** — App-level JWT encodes user role for fast authorization
-3. **ASP.NET Core Authorization Policies** — `[Authorize(Policy = "AdminOnly")]` etc.
-4. **HTTPS Enforced** — TLS 1.3 minimum on Azure App Service
-5. **CORS Policy** — Whitelist of known frontend origins only
-6. **Rate Limiting** — Chat endpoint: 30 requests/min per user; Search: 60 requests/min
-7. **Azure Key Vault** — All secrets (Pinecone API key, LLM API key, DB connection string) stored in Key Vault, never in code
+- App-level JWT issuance (Firebase tokens are used directly)
+- Azure Key Vault (secrets in gitignored local config)
+- App Insights; fine-grained `Permissions` table; HTTPS-only enforcement in dev
 
 ---
 
-## 11. Development Phases & Milestones
+## 11. Implementation Status & Known Gaps
 
-### Phase 1 — Foundation (Weeks 1–4)
+### Delivered
 
-**Goal:** Establish infrastructure, authentication, and base API skeleton.
+- Auth + role system across all three platforms (Firebase, student-number login on mobile)
+- Full thesis lifecycle: submit → moderate (approve/reject/revision) → versioned revisions → ingestion → Indexed
+- RAG ingestion pipeline (desktop extract/chunk + server embed/upsert) end-to-end
+- Agentic chat with tools, citations, grounding, SSE streaming (web), history persistence
+- Semantic + exact literature search
+- Research groups, defense schedules, panelist schedules, announcements
+- Proceedings PDF generation with Firestore annotations
+- Shared package system (`@monteai/*`) with mock/live service toggle
+- Redis GET cache, EF retry policies, Serilog, Docker profile, Swagger (dev)
 
-| Task | Owner | Duration |
-|------|-------|----------|
-| Set up Azure resources (SQL, Blob, App Service, Key Vault) | DevOps | Week 1 |
-| Configure Firebase project and auth providers | Backend | Week 1 |
-| Scaffold ASP.NET Core Web API project structure | Backend | Week 1 |
-| Implement Firebase middleware + JWT issuance | Backend | Week 2 |
-| Define and migrate Azure SQL schema (EF Core) | Backend | Week 2 |
-| Scaffold React + Vite web project | Frontend | Week 2 |
-| Scaffold React Native (Expo) mobile project | Frontend | Week 3 |
-| Scaffold Electron + Forge desktop project | Frontend | Week 3 |
-| Implement shared API service layer (Axios + React Query) | Frontend | Week 4 |
-| Auth flow (Login/Register) across all three platforms | Full-stack | Week 4 |
+### Gaps / tech debt (authoritative list)
 
-**Deliverables:** Auth-enabled skeleton apps on all three platforms. API responds to authenticated requests. Azure SQL connected.
-
----
-
-### Phase 2 — Core Backend & AI Pipeline (Weeks 5–9)
-
-**Goal:** Build and validate the full RAG ingestion pipeline.
-
-| Task | Owner | Duration |
-|------|-------|----------|
-| PDF extraction service (PdfPig) | Backend/AI | Week 5 |
-| Abstract isolation algorithm | Backend/AI | Week 5 |
-| Text chunking service with overlap | Backend/AI | Week 6 |
-| ONNX embedding service (all-MiniLM-L6-v2) | Backend/AI | Week 6 |
-| Pinecone SDK integration + index setup | Backend/AI | Week 7 |
-| Upsert pipeline (full end-to-end) | Backend/AI | Week 7 |
-| Thesis upload endpoint + Azure Blob integration | Backend | Week 8 |
-| Hangfire background job for async ingestion | Backend | Week 8 |
-| RAG query pipeline + LLM integration | Backend/AI | Week 9 |
-| Streaming chat endpoint (SSE) | Backend | Week 9 |
-
-**Deliverables:** A PDF can be uploaded, chunked, embedded, and upserted to Pinecone. Chat endpoint returns grounded responses via RAG.
+| Area | Gap |
+|------|-----|
+| Desktop chat | No chat UI on desktop (planned in v1; chat exists on Web + Mobile only) |
+| Mobile streaming | Chat uses blocking endpoint, no SSE |
+| Tests / CI | Zero tests anywhere; `.github/workflows/` empty |
+| Background jobs | No Hangfire/queues — ingestion is synchronous in the request |
+| Dead code | Empty `SearchController`/`FirebaseAuthService`/`RoleService`/`UserService`; stale web `lib/chat/liveChatService.ts`, `services/api.tsx`; unused Google `StorageClient` DI registration |
+| Route quirks | `AbstracsController` typo route without v1; PanelistSchedule delete uses `&` in route; ProgramHead update/delete use POST |
+| Desktop ingest auth | Main-process ingest client sends no Firebase token (works only if endpoint policy changes or token is attached later) |
+| Undeclared deps | Desktop imports `firebase`/`react-pdf` without declaring them (relies on hoisted node_modules) |
+| Docs drift | Older sections of any pre-2.0 copies of this document describing ONNX/app-JWT/Hangfire are obsolete |
 
 ---
 
-### Phase 3 — Frontend Features (Weeks 10–15)
+## 12. Appendix
 
-**Goal:** Build out all frontend pages and connect them to the live backend.
+### A. Environment Variables
 
-| Task | Platform | Duration |
-|------|----------|----------|
-| Landing page (Web) | Web | Week 10 |
-| Thesis dashboard & search (Web + Mobile) | Web, Mobile | Week 10–11 |
-| Thesis detail page (Web + Mobile) | Web, Mobile | Week 11 |
-| Chat interface — session list + message window (Web) | Web | Week 12–13 |
-| SSE streaming integration in Chat (Web) | Web | Week 13 |
-| Admin dashboard (Desktop) | Desktop | Week 12 |
-| Submission management (Desktop) | Desktop | Week 13 |
-| User & role management (Desktop) | Desktop | Week 14 |
-| Review assignment workflow (Desktop) | Desktop | Week 14 |
-| Chat interface (Desktop) | Desktop | Week 15 |
-
-**Deliverables:** All three platforms functional with live backend data. Chat works end-to-end on Web and Desktop.
-
----
-
-### Phase 4 — QA, Security Audit & Deployment (Weeks 16–18)
-
-**Goal:** Harden, test, and deploy to production.
-
-| Task | Owner | Duration |
-|------|-------|----------|
-| Unit & integration tests (backend) | Backend | Week 16 |
-| E2E tests (Playwright for Web, Detox for Mobile) | QA | Week 16 |
-| Security audit (OWASP Top 10 review) | Security | Week 17 |
-| Performance testing (K6 load test on chat + search) | QA | Week 17 |
-| CI/CD pipelines (GitHub Actions → Azure) | DevOps | Week 17 |
-| Electron auto-updater configuration | Frontend | Week 17 |
-| Production deployment (Azure App Service) | DevOps | Week 18 |
-| Mobile app store submission (Expo EAS) | Frontend | Week 18 |
-| User acceptance testing (UAT) with institution | All | Week 18 |
-
-**Deliverables:** Production system live. Mobile app submitted to stores. Admin desktop app distributed via installer.
-
----
-
-### Summary Gantt Overview
-
-```
-Week │  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
-─────┼────────────────────────────────────────────────────────
-P1   │ ████████████████
-P2   │                 ████████████████████
-P3   │                                     ██████████████████
-P4   │                                                 ████████
+**Server** (`server/appsettings.Development.json`, gitignored):
+```json
+{
+  "ConnectionStrings": { "DefaultConnection": "..." },
+  "AzureAI": { "Endpoint": "...", "ApiKey": "...", "DeploymentName": "phi-4-mini-instruct" },
+  "AzureAIEmbedding": { "Endpoint": "...", "EmbeddingDeploymentName": "text-embedding-3-small", "ApiKey": "..." },
+  "Pinecone": { "ApiKey": "...", "IndexName": "research-assistant-abstracts", "Host": "..." },
+  "Firebase": { "AdminKeyPath": "monteai-firebase-credential.json", "ProjectId": "..." },
+  "AzureStorage": { "ConnectionString": "...", "ContainerName": "..." },
+  "Redis": { "Configuration": "..." },
+  "MonteAI": { "Agent": { "EnableAgentMode": true, ... } }
+}
 ```
 
-**Total Estimated Duration:** 18 Weeks (~4.5 Months)
+**Frontends** (per-app gitignored `.env.local`):
+- Web/Desktop: `VITE_API_BASE_URL`, `VITE_FIREBASE_*` (6 keys), `VITE_USE_MOCK`
+- Mobile: `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_FIREBASE_*` (6 keys), `EXPO_PUBLIC_USE_MOCK` (defaults true in `__DEV__`)
 
----
+### B. Commands
 
-## 12. Team Structure & Responsibilities
-
-| Role | Count | Responsibilities |
-|------|-------|-----------------|
-| Project Manager | 1 | Sprint planning, stakeholder communication, milestone tracking |
-| Senior Backend Engineer | 1 | API design, RAG pipeline, Pinecone & Azure SQL integration |
-| Backend Engineer | 1 | Auth, CRUD endpoints, Hangfire jobs, review workflow |
-| AI/ML Engineer | 1 | ONNX model setup, chunking, embedding, prompt engineering |
-| Senior Frontend Engineer | 1 | Web (React + Vite) architecture and Chat interface |
-| Frontend Engineer | 1 | Mobile (React Native) screens |
-| Frontend Engineer | 1 | Desktop (Electron) admin panel |
-| DevOps Engineer | 1 | Azure infrastructure, CI/CD, Key Vault, monitoring |
-| QA Engineer | 1 | Testing strategy, E2E tests, load testing |
-
-**Total Team Size:** 9 members
-
----
-
-## 13. Risk Management
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Abstract section not detected in PDF | Medium | High | Fallback flag for manual review; regex + heuristic rules; admin re-trigger option |
-| Pinecone API downtime | Low | High | Implement retry logic with exponential backoff; cache last query results |
-| ONNX model produces poor embeddings | Low | High | Benchmark model before production; allow model swap via config |
-| Firebase auth token expiry causes session issues | Medium | Medium | Implement silent token refresh on all clients |
-| Azure SQL connection pool exhaustion | Low | High | EF Core connection resiliency + retry policy; monitor with App Insights |
-| LLM hallucination in chat responses | Medium | High | Strict system prompt with "answer only from context" instruction; display source citations |
-| PDF with no extractable text (scanned image) | Medium | Medium | Detect and reject at upload; inform user to provide text-based PDF |
-| Electron app distribution/signing issues | Medium | Low | Use Electron Forge with code signing cert; test on clean Windows VMs |
-| Mobile app store rejection | Low | Medium | Follow Apple/Google developer guidelines from the start; use Expo managed workflow |
-| Team knowledge gap in ONNX Runtime | Low | Medium | Allocate spike week; reference Microsoft.ML.OnnxRuntime official samples |
-
----
-
-## 14. Appendix
-
-### A. ONNX Model Selection Rationale
-
-The `all-MiniLM-L6-v2` model was selected for the following reasons:
-- Compact size (~22MB ONNX file) — suitable for server-side inference without GPU
-- 384-dimensional output — cost-efficient for Pinecone storage vs. larger models
-- Strong semantic similarity performance on academic text benchmarks
-- Pre-quantized ONNX versions available, compatible with `Microsoft.ML.OnnxRuntime`
-- No external API call required — fully self-hosted, no data leaves the server for embedding
-
-### B. Chunking Strategy Justification
-
-Abstract sections in academic theses are typically 150–400 words. A 512-token chunk size ensures:
-- Most abstracts fit in a single chunk (minimizing fragmentation)
-- Longer abstracts are split with 50-token overlap to preserve sentence continuity
-- The embedding model operates within its optimal input range
-
-### C. Environment Variables Reference
-
-```env
-# Azure SQL
-AZURE_SQL_CONNECTION_STRING=
-
-# Firebase
-FIREBASE_PROJECT_ID=
-FIREBASE_SERVICE_ACCOUNT_JSON=
-
-# Pinecone
-PINECONE_API_KEY=
-PINECONE_INDEX_NAME=research-assistant-abstracts
-PINECONE_ENVIRONMENT=
-
-# LLM (Azure OpenAI or OpenAI)
-LLM_API_KEY=
-LLM_ENDPOINT=
-LLM_DEPLOYMENT_NAME=
-
-# Azure Blob Storage
-AZURE_BLOB_CONNECTION_STRING=
-AZURE_BLOB_CONTAINER_NAME=thesis-pdfs
-
-# ONNX
-ONNX_MODEL_PATH=Models/all-MiniLM-L6-v2.onnx
-
-# App Config
-JWT_SECRET=
-JWT_EXPIRY_MINUTES=60
-APP_ENV=Production
+```bash
+pnpm dev:web | dev:mobile | dev:desktop     # run frontends
+pnpm build:web | build:desktop              # builds (desktop `make` = installer)
+pnpm lint                                   # root + desktop + mobile lint
+dotnet run                                  # API from server/ (HTTPS :7085, Swagger /swagger)
+dotnet ef migrations add <Name>            # schema changes
 ```
 
-### D. Glossary
+### C. Glossary
 
 | Term | Definition |
 |------|------------|
-| RAG | Retrieval-Augmented Generation — AI technique that grounds LLM responses in retrieved documents |
-| ONNX | Open Neural Network Exchange — portable ML model format |
-| Pinecone | Managed vector database for semantic similarity search |
-| Upsert | Insert or update — used when adding vectors to Pinecone |
-| Embedding | A numerical vector representation of text, capturing semantic meaning |
-| Chunking | Splitting text into smaller segments for embedding |
-| SSE | Server-Sent Events — HTTP streaming protocol used for real-time chat token delivery |
-| EF Core | Entity Framework Core — .NET ORM for database access |
-| JWT | JSON Web Token — compact, signed token for stateless authentication |
+| RAG | Retrieval-Augmented Generation — LLM answers grounded in retrieved documents |
+| Agent loop | LLM planner choosing tools iteratively before answering |
+| Pinecone | Managed vector database for similarity search |
+| Upsert | Insert-or-update of vectors |
+| SSE | Server-Sent Events for token streaming |
+| SAS | Shared Access Signature — short-lived blob URL |
+| Scrutor | Assembly-scanning DI registration for .NET |
 
 ---
 
-*End of Document — MonteAI Research Assistant System Project Plan v1.0.0*
-
-*This document is intended for the core development team. All architecture decisions are subject to revision following technical discovery sessions in Phase 1.*
+*End of Document — MonteAI Architecture (As-Built) v2.0.0*

@@ -269,12 +269,15 @@ export const mockThesisService: ThesisService = {
         if (!existing) {
             return { thesisId: dto.thesisId, vectorCount: 0, status: "Failed" } as IngestThesisResponseDto;
         }
+        // Mirrors the live pipeline: the row is approved and the single
+        // metadata vector lands synchronously.
         thesesMap.set(dto.thesisId, {
             ...existing,
+            status: "Approved",
             pineconeStatus: "Indexed",
             indexedAt: new Date().toISOString(),
         });
-        return { thesisId: dto.thesisId, vectorCount: dto.chunks.length, status: "Indexed" } as IngestThesisResponseDto;
+        return { thesisId: dto.thesisId, vectorCount: 1, status: "Indexed" } as IngestThesisResponseDto;
     },
 
     async updateThesis(thesisId, dto: UpdateThesisDto) {

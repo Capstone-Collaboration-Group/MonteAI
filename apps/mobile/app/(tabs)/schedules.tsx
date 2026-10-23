@@ -1,8 +1,10 @@
 // apps/mobile/app/(tabs)/schedules.tsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useDrawerChats } from '@/hooks/useDrawerChats';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -148,6 +150,26 @@ export default function SchedulesScreen() {
 
   const openDefense = useCallback((schedule: ScheduleResponseDto) => setSelected(schedule), []);
   const closeDefense = useCallback(() => setSelected(null), []);
+
+  // Deep link from Home's "Upcoming Defenses": jump the calendar to the
+  // chosen schedule's date and open its details sheet. Handled once per
+  // param so a pull-to-refresh (new array ref) doesn't reopen the sheet.
+  const { scheduleId } = useLocalSearchParams<{ scheduleId?: string }>();
+  const handledScheduleId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!scheduleId || handledScheduleId.current === scheduleId || schedules.length === 0) {
+      return;
+    }
+    const match = schedules.find((s) => s.scheduleId === scheduleId);
+    if (!match) return;
+    handledScheduleId.current = scheduleId;
+    if (match.date) {
+      const parsed = new Date(match.date);
+      if (!Number.isNaN(parsed.getTime())) setCurrentDate(parsed);
+    }
+    setSelected(match);
+  }, [scheduleId, schedules]);
 
   return (
     <DrawerProvider recentChats={recentChats} recentLoading={chatsLoading}>

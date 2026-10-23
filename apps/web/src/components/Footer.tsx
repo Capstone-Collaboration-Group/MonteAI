@@ -16,7 +16,7 @@ export default function Footer() {
               power of AI.
             </p>
             <p className="mt-4 text-xs font-semibold text-primary">
-              Colegio de Montalban • Kasama sa Pag-unlad ng Bayan
+              Colegio de Montalban 
             </p>
           </div>
 
@@ -55,6 +55,36 @@ export default function Footer() {
                   target="_blank"
                 >
                   pnm.edu.ph
+                </a>
+              </div>
+              <div className="flex items-center gap-3">
+                <img
+                  className="h-4 w-4"
+                  alt="tutorial icon"
+                  src={icon3}
+                  aria-hidden="true"
+                />
+                <a
+                  className="text-xs sm:text-sm text-on-surface-variant hover:text-primary transition-colors underline"
+                  href="/tutorial"
+                  rel="noopener noreferrer"
+                >
+                  Tutorial & Guide
+                </a>
+              </div>
+              <div className="flex items-center gap-3">
+                <img
+                  className="h-4 w-4"
+                  alt="download icon"
+                  src={icon4}
+                  aria-hidden="true"
+                />
+                <a
+                  className="text-xs sm:text-sm text-on-surface-variant hover:text-primary transition-colors underline"
+                  href="/download-app"
+                  rel="noopener noreferrer"
+                >
+                  Download Mobile App
                 </a>
               </div>
             </div>

@@ -13,6 +13,7 @@ import type {
   CreateChatSessionDto,
   CreateChatMessageDto,
   UpdateChatSessionDto,
+  ApaCitationDto,
 } from "@monteai/types";
 
 function delay(ms: number) {
@@ -26,6 +27,7 @@ function buildSeed(): ChatSessionResponseDto[] {
       id: "session-1",
       userId: "user-1",
       title: "Getting Started",
+      pinned: true,
       createdAt: "2025-01-10T08:00:00.000Z",
       lastChatDate: "2025-01-10T08:15:00.000Z",
       messages: [
@@ -49,6 +51,7 @@ function buildSeed(): ChatSessionResponseDto[] {
       id: "session-2",
       userId: "user-2",
       title: "Research Assistance",
+      pinned: false,
       createdAt: "2025-02-01T09:30:00.000Z",
       lastChatDate: "2025-02-01T09:35:00.000Z",
       messages: [
@@ -90,6 +93,7 @@ export const mockChatService: ChatService = {
       id,
       userId: dto.userId,
       title: dto.title,
+      pinned: false,
       createdAt: now,
       lastChatDate: now,
       messages: [],
@@ -124,6 +128,26 @@ export const mockChatService: ChatService = {
     });
 
     return true;
+  },
+
+  async setSessionPinned(sessionId: string, pinned: boolean) {
+    await delay(300);
+
+    const existing = sessionsMap.get(sessionId);
+    if (!existing) {
+      return false;
+    }
+
+    sessionsMap.set(sessionId, { ...existing, pinned });
+    return true;
+  },
+
+  async deleteSession(sessionId: string) {
+    await delay(300);
+
+    if (!sessionsMap.delete(sessionId)) {
+      throw new Error(`Chat session '${sessionId}' not found.`);
+    }
   },
 
   async sendMessage(
@@ -235,9 +259,15 @@ export const mockChatService: ChatService = {
       },
     ];
 
-    // Simulate the real event order: sources first, then token-by-token deltas.
-    await delay(200);
+    // Simulate the real event order: status frames while the agent "plans",
+    // then sources, then more status, then token-by-token deltas.
+    handlers.onStatus?.("Understanding your question…");
+    await delay(250);
+    handlers.onStatus?.("Searching the repository…");
+    await delay(350);
     handlers.onSources?.(sources);
+    handlers.onStatus?.("Writing your answer…");
+    await delay(200);
 
     const fullText =
       `Here is a summary of the sources relevant to "${dto.content.slice(0, 80)}" ` +
@@ -263,4 +293,71 @@ export const mockChatService: ChatService = {
 
     return assistantMessage;
   },
+
+  async getQuerySuggestions(limit = 6): Promise<string[]> {
+    await delay(100);
+    return [
+      "studies about gamification in education",
+      "IoT-based smart irrigation",
+      "student benefits on cloud platforms",
+      "research methodologies for capstone projects",
+      "secondary science pedagogy literacy interventions",
+      "digital marketing and startup sustainability in Montalban",
+    ].slice(0, limit);
+  },
+
+  async formatCitations(sources: ChatSourceDto[]): Promise<ApaCitationDto[]> {
+    await delay(200);
+    return sources.map((source) => ({
+      thesisId: source.thesisId ?? null,
+      citation: formatMockApaCitation(source),
+    }));
+  },
 };
+
+// Client-side mirror of the server's ApaCitationFormatter (best effort for
+// mock mode): "Given [Middle] Surname [Suffix]" → "Surname, G. M."
+function formatMockApaCitation(source: ChatSourceDto): string {
+  const year = source.publicationYear?.trim() ? `(${source.publicationYear.trim()}).` : "(n.d.).";
+  const title = source.title?.trim() || "Untitled";
+  const byline = buildMockByline(source.authors);
+
+  return `${byline} ${year} ${title} [Unpublished manuscript]. Colegio de Montalban.`;
+}
+
+function buildMockByline(raw?: string | null): string {
+  if (!raw?.trim()) return "";
+
+  const separator = raw.includes(";") ? ";" : raw.includes("\n") ? "\n" : ", ";
+  const authors = raw
+    .split(separator)
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (!authors.length) return "";
+
+  const formatted = authors.map(formatMockAuthor);
+
+  if (formatted.length === 1) return `${formatted[0]}.`;
+  if (formatted.length <= 20) {
+    return `${formatted.slice(0, -1).join(", ")}, & ${formatted[formatted.length - 1]}.`;
+  }
+  return `${formatted.slice(0, 19).join(", ")}, ... ${formatted[formatted.length - 1]}.`;
+}
+
+function formatMockAuthor(name: string): string {
+  // "Surname, Given" / "Dela Cruz, J." stays as typed (already APA order).
+  if (name.includes(",")) return name;
+  const suffixes = ["jr.", "sr.", "ii", "iii", "iv"];
+  const tokens = name.split(/\s+/).filter(Boolean);
+  let suffix = "";
+  if (tokens.length > 2 && suffixes.includes(tokens[tokens.length - 1].toLowerCase().replace(".", ""))) {
+    suffix = tokens.pop()!;
+  }
+  const surname = tokens.pop() ?? name;
+  const initials = tokens
+    .map((token) => `${token[0].toUpperCase()}.`)
+    .join(" ");
+  const core = initials ? `${surname}, ${initials}` : surname;
+  if (!suffix) return core;
+  return suffix.toLowerCase().endsWith(".") ? `${core}, ${suffix}` : `${core}, ${suffix}.`;
+}

@@ -13,31 +13,35 @@ before answering — instead of the previous single-shot retrieve-then-stuff RAG
 ```
 ┌─────────────────────────────  INDEXING (write path)  ─────────────────────────────┐
 │                                                                                     │
-│  Desktop (Electron main)                     Server (ASP.NET Core 8)               │
-│  ─────────────────────────                    ──────────────────────────────        │
-│  admin clicks Approve                                                         │
-│    │ GET  /thesis/{id}/download-url  ──────►  ThesisController                  │
-│    │ ◄──── 15-min SAS URL                                                     │
-│  downloadPdfToTemp (temp file)                                                │
-│  extractText        (pdfjs-dist, first 5 pages)                               │
-│  isolateAbstract    (regex section heuristics)                                │
-│  extractMetadata    (title / authors / year)                                  │
-│  chunkText          (512 words, 50 overlap)                                   │
-│    │ POST /thesis/ingest  ─────────────────►  ThesisService.IngestAsync         │
-│                                              1. load thesis from Azure SQL      │
-│                                                 (authoritative FilePath/Title;  │
-│                                                 SAS URLs are discarded)         │
-│                                              2. cap chunks (default 64)         │
-│                                              3. DELETE old vectors (idempotent  │
-│                                                 re-ingest; prefix + filter)     │
-│                                              4. PineconeService                │
-│                                                 .UpsertAbstractsAsync:          │
-│                                                 batch-embed (16/request,        │
-│                                                   text-embedding-3-small)      │
-│                                                 bulk-upsert (100/request,       │
-│                                                   cosine, serverless)          │
-│                                              5. SQL status → "Indexed"          │
+│  Desktop (renderer)                         Server (ASP.NET Core 8)                 │
+│  ──────────────────────                     ──────────────────────────────          │
+│  admin clicks Approve / Reindex                                            │
+│    │ POST /thesis/ingest { thesisId } ──────►  ThesisController.IngestThesis       │
+│                                               ThesisService.IngestAsync            │
+│                                               1. load thesis from Azure SQL        │
+│                                                  (authoritative Title/FilePath)    │
+│                                               2. resolve authors/year              │
+│                                                  (Firestore → research group →     │
+│                                                  SubmittedAt) + latest abstract    │
+│                                               3. build the metadata chunk:         │
+│                                                  Title/Authors/Year/Abstract       │
+│                                                  block (BuildMetadataChunk)        │
+│                                               4. DELETE old vectors (idempotent    │
+│                                                  re-ingest: filter + prefix        │
+│                                                  sweep + thesis_{id}_meta)         │
+│                                               5. embed ONE vector                  │
+│                                                  (text-embedding-3-small) and      │
+│                                                  upsert id thesis_{id}_meta        │
+│                                               6. SQL status → Approved, Indexed    │
+│    │ ◄──── { thesisId, vectorCount: 1, status: "Indexed" }                         │
 └─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+> There is NO PDF pipeline on the desktop anymore: approve/reindex is a plain
+> renderer API call, there is no IPC handler, no staging blob, and no
+> background ingestion worker (both removed with the metadata-only revert).
+> Answers therefore stay grounded in institutional metadata (title, authors,
+> year, abstract) instead of body text citing external literature.
 
 ┌─────────────────────────────  CHAT (read path)  ──────────────────────────────────┐
 │                                                                                     │
@@ -79,14 +83,11 @@ before answering — instead of the previous single-shot retrieve-then-stuff RAG
 
 | File | Responsibility |
 |---|---|
-| `apps/desktop/src/handlers/approveThesis.ts` | Orchestrates the local extraction pipeline and POSTs chunks to `/thesis/ingest`. |
-| `apps/desktop/src/pipeline/pdfDownloader.ts` | Downloads the PDF via SAS URL to a temp file; deletes it afterwards. |
-| `apps/desktop/src/pipeline/pdfExtractor.ts` | pdfjs-dist text extraction (first 5 pages — enough for cover + abstract). |
-| `apps/desktop/src/pipeline/abstractIsolator.ts` | Regex isolation of the abstract + title/authors/year heuristics. |
-| `apps/desktop/src/pipeline/chunker.ts` | Word-based fixed-size chunking with overlap. |
-| `server/Controllers/ThesisController.cs` | `/thesis/ingest` + thesis CRUD/version endpoints. |
-| `server/Services/Theses/ThesisService.cs` | Ingestion hop: SQL-authoritative metadata, chunk cap, delete-then-upsert, status updates. Also deletes vectors when a thesis is deleted. |
-| `server/Services/AI/PineconeService.cs` | Embedding + vector store: filtered retrieval with score threshold, batched embed, bulk upsert, delete by prefix/filter. |
+| `apps/desktop/src/renderer/pages/Theses.tsx` | Admin approve/reindex → `useIngestThesis(thesisService)` → `POST /thesis/ingest` (no IPC, no PDF pipeline). |
+| `server/Controllers/ThesisController.cs` | `/thesis/ingest` (metadata-only) + thesis CRUD/version endpoints. |
+| `server/Services/Theses/ThesisService.cs` | `IngestAsync`: SQL-authoritative metadata, metadata resolution, delete-then-upsert, status updates. Also deletes vectors when a thesis is deleted. |
+| `server/Services/Theses/ThesisMetadataResolver.cs` | Authors/year resolution (Firestore → research group → `SubmittedAt`), memoized per request. |
+| `server/Services/AI/PineconeService.cs` | Embedding + vector store: metadata-namespace retrieval with score threshold, single metadata upsert, delete by prefix/filter. |
 | `server/Controllers/ChatController.cs` | Chat endpoints: ownership enforcement, history loading, blocking + SSE streaming message endpoints, source persistence. |
 | `server/Services/AI/MonteAiAgentService.cs` | **The agent**: bounded ReAct loop, planner/synthesizer prompts, memory replay, grounding pass. |
 | `server/Services/AI/Agent/AgentToolbox.cs` | The agent's tools: `semantic_search`, `keyword_search`, `thesis_metadata`. |
@@ -111,31 +112,39 @@ namespaces so the scanner ignores them.
 
 ---
 
-## 2. Indexing flow (PDF → vectors), in order
+## 2. Indexing flow (metadata → ONE vector), in order
 
-1. **Download** — `approveThesis.ts` asks the API for a SAS URL (15 min TTL),
-   fetches the PDF to `%TEMP%\monteai_thesis_{id}.pdf`.
-2. **Extract** — `pdfExtractor.extractText` reads up to 5 pages with pdfjs-dist.
-3. **Isolate** — `isolateAbstract` finds the text between an `Abstract` heading
-   and the next section (`Introduction`, `Keywords`, …). `extractMetadata`
-   pulls title/authors/year from the cover-page text patterns.
-   Failure (`ABSTRACT_NOT_FOUND`) surfaces to the admin UI for manual review.
-4. **Chunk** — `chunkText(abstract, 512, 50)`: word-based, overlapping.
-5. **Ship** — chunks are POSTed to `/thesis/ingest`; the desktop does **not** embed.
-6. **Server-side ingest** (`ThesisService.IngestAsync`):
-   - loads the thesis from SQL → `FilePath` (permanent blob path) replaces any
-     client-provided URL, and `Title`/`ThesisId` are stamped on every chunk;
-   - enforces `MaxChunksPerIngest` (default 64);
+1. **Ship** — the desktop renderer POSTs `{ thesisId }` to `/thesis/ingest`
+   (`useIngestThesis` → `ThesisService.ingestThesis`). No PDF is downloaded,
+   no text is extracted, and the desktop does **not** embed.
+2. **Server-side ingest** (`ThesisService.IngestAsync`), synchronously:
+   - loads the thesis from SQL (authoritative `Title` / `FilePath`);
+   - resolves authors/year via `ThesisMetadataResolver`
+     (Firestore → research group → `SubmittedAt`) and the latest abstract
+     from the Firestore abstract store;
+   - builds the metadata chunk (`BuildMetadataChunk`): a `Title:` /
+     `Authors:` / `Publication year:` / `Abstract:` block — this exact text
+     is what gets embedded;
    - `PineconeService.DeleteThesisVectorsAsync` removes stale vectors
-     (metadata-filter delete + prefix-list delete for legacy vectors);
-   - `PineconeService.UpsertAbstractsAsync` embeds in batches of 16 and upserts
-     in batches of 100. Vector id: `thesis_{thesisId}_chunk_{index}`.
-     Metadata: `abstract`, `thesis_id`, `chunk_index`, `uploaded_at`, `title`,
-     `url`, `authors`, `publication_year`, `journal`.
-   - SQL status is set to `Indexed` only when at least one vector landed
-     (response `Status`: `Indexed` / `Partial` / `Failed`).
-7. **Deletion sync** — `ThesisService.DeleteAsync` removes the SQL row *and*
+     (metadata-filter delete + prefix-list sweep of legacy
+     `thesis_*_chunk_*` vectors + the deterministic `thesis_{id}_meta` id);
+   - `PineconeService.UpsertMetadataChunkAsync` embeds the block
+     (`text-embedding-3-small`) and upserts ONE vector with id
+     `thesis_{id}_meta`. Metadata: `abstract`, `thesis_id`, `title`, `url`,
+     `authors`, `publication_year`, `uploaded_at`;
+   - SQL status is set to `Approved` then `Indexed`
+     (response `Status`: `Indexed` / `Failed`).
+3. **Idempotence** — re-ingest deletes before upserting, and upserting the
+   same `thesis_{id}_meta` id REPLACES the previous vector, so reindex and
+   catalog edits refresh citations in place.
+4. **Deletion sync** — `ThesisService.DeleteAsync` removes the SQL row *and*
    the Pinecone vectors, so the knowledge base never outlives the document.
+5. **One-off cleanup** — deploying this metadata-only build over a
+   full-text-indexed database requires `dotnet run --project server --
+   --purge-fulltext` (flushes the legacy `full-text-chunks` namespace,
+   deletes `*_chunk_*` vectors from the default namespace, deletes lingering
+   staging blobs) BEFORE `dotnet ef database update` applies the
+   `RemoveIngestStagingUrl` migration. The purge is idempotent.
 
 ## 3. Chat flow (question → cited answer), in order
 
@@ -222,9 +231,7 @@ deployment ever gains native tool support, swapping the planner to
 | `MonteAI:Agent:HistoryMessageCount` | `10` | bounds prompt size |
 | `MonteAI:Agent:MaxSources` | `8` | bounds citation block |
 | `MonteAI:Agent:MaxQueryLength` | `2000` | bounds query embedding |
-| `Pinecone:ScoreThreshold` | `0.25` | junk chunks never reach the LLM |
-| `Pinecone:EmbeddingBatchSize` | `16` | one embedding call per 16 chunks |
-| `Pinecone:MaxChunksPerIngest` | `64` | caps ingestion fan-out |
+| `Pinecone:ScoreThreshold` | `0.2` | junk matches never reach the LLM (0.3 rejected every query after the metadata-only revert — body text used to carry exact term matches, abstract-level similarity tops out ~0.26–0.34 for these repositories) |
 | `Pinecone:TopK` | `5` | retrieval width |
 | Rate limit `ChatLimit` | 30/min | stops runaway clients |
 | Tool observation cap | 4000 chars | protects the context window |
@@ -235,8 +242,9 @@ $94 credit budget is dominated by dev/testing volume, not per-message cost.
 
 ## 6. Known limits / next steps
 
-- **Abstract-only indexing** — methodology/results sections are not indexed
-  yet; chunk them per-section in the desktop pipeline to answer deeper questions.
+- **Metadata-only retrieval** — answers cite title/authors/year/abstract;
+  body chapters are not indexed (deliberate revert from full-text). Restoring
+  deeper questions means re-introducing a body pipeline.
 - **Hybrid ranking** — keyword + semantic results are merged by the agent, but
   there is no cross-encoder rerank (could use Pinecone Rerank later).
 - **No evaluation harness** — a golden Q&A set with faithfulness/relevancy

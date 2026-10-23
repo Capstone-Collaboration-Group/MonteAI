@@ -33,25 +33,36 @@ namespace server.Services.AI.Agent
     {
         private readonly IPineconeService _pineconeService;
         private readonly IThesisRepository _thesisRepository;
+        private readonly IThesisMetadataResolver _metadataResolver;
         private readonly ILogger<AgentToolbox> _logger;
 
-        /// <summary>Characters of a source's text included in prompt observations — keeps the context window small.</summary>
-        private const int SnippetLength = 400;
+        /// <summary>Characters of a source's text included in prompt observations — keeps the context window small while still showing the synthesizer each source's title/authors/year/abstract (metadata-only ingestion).</summary>
+        private const int SnippetLength = 600;
+        /// <summary>Cap for the synthesis-only full excerpt — comfortably above the longest abstract in the corpus.</summary>
+        private const int FullExcerptLength = 4000;
 
         /// <summary>Hard cap per tool observation so one call cannot blow up the prompt.</summary>
         private const int MaxObservationLength = 4000;
 
-        public AgentToolbox(IPineconeService pineconeService, IThesisRepository thesisRepository, ILogger<AgentToolbox> logger)
+        public AgentToolbox(
+            IPineconeService pineconeService,
+            IThesisRepository thesisRepository,
+            IThesisMetadataResolver metadataResolver,
+            ILogger<AgentToolbox> logger)
         {
             _pineconeService = pineconeService;
             _thesisRepository = thesisRepository;
+            _metadataResolver = metadataResolver;
             _logger = logger;
         }
 
         /// <summary>
-        /// Tool descriptions injected into the planner system prompt. Follows
-        /// the validated few-shot recipe in AgentPrompts (re-validate prompt
-        /// changes against the live Phi-4-mini deployment before shipping).
+        /// Tool descriptions for the planner. Since the Phi-4-mini retirement
+        /// this manifest is NOT sent per-request — it is rendered ONCE and
+        /// baked into the monteai-agent-planner Foundry agent definition (see
+        /// the AgentPrompts.cs header). Re-bake after changing it here, and
+        /// validate with `dotnet run --project server -- --prompt-check`
+        /// before shipping.
         /// </summary>
         public string GetToolManifest() =>
             """
@@ -117,6 +128,12 @@ namespace server.Services.AI.Agent
             var chunks = await _pineconeService.RetrieveRelevantChunksAsync(query, options, ct);
             var sources = chunks.Select(ToSource).ToList();
 
+            // Vectors ingested before authors were resolved (or by a recovery
+            // job with null metadata) cite as "Unknown" — fill them from SQL/
+            // Firestore so both the planner observation and the merged
+            // citation list carry real author-year data.
+            await _metadataResolver.EnrichAsync(sources, ct);
+
             return new ToolExecutionResult(
                 Observation: FormatSources(sources),
                 Sources: sources);
@@ -143,12 +160,20 @@ namespace server.Services.AI.Agent
             {
                 ThesisId = t.Id.ToString(),
                 Title = t.Title,
-                Authors = null, // author names live in the PDF/Pinecone metadata, not the SQL table
+                // Placeholder only — enriched below: author names live in
+                // Firestore/research-group data, not the SQL Theses table.
+                Authors = null,
                 PublicationYear = t.SubmittedAt?.Year.ToString(),
                 Snippet = Truncate(t.Abstract, SnippetLength),
+                // Legacy rows keep raw text; GUID rows point at Firestore (the
+                // abstract itself is not in SQL) — leave null so the synthesis
+                // block falls back to Snippet instead of a bare GUID.
+                FullExcerpt = Guid.TryParse(t.Abstract, out _) ? null : Truncate(t.Abstract, FullExcerptLength),
                 Score = null,
                 Url = t.FilePath,
             }).ToList();
+
+            await _metadataResolver.EnrichAsync(sources, ct);
 
             var sb = new StringBuilder();
             sb.Append("keyword_search('").Append(term).Append("') found ").Append(sources.Count).Append(" theses:");
@@ -196,12 +221,16 @@ namespace server.Services.AI.Agent
             {
                 ThesisId = thesis.Id.ToString(),
                 Title = thesis.Title,
+                // Placeholder only — enriched below (Firestore → research
+                // group → SubmittedAt).
                 Authors = null,
                 PublicationYear = thesis.SubmittedAt?.Year.ToString(),
                 Snippet = Truncate(thesis.Abstract, SnippetLength),
+                FullExcerpt = Guid.TryParse(thesis.Abstract, out _) ? null : Truncate(thesis.Abstract, FullExcerptLength),
                 Score = null,
                 Url = thesis.FilePath,
             };
+            await _metadataResolver.EnrichAsync(new List<ChatSourceDto> { source }, ct);
 
             var sb = new StringBuilder();
             sb.Append("Thesis record:\n");
@@ -209,6 +238,10 @@ namespace server.Services.AI.Agent
             sb.Append("  Title: ").Append(thesis.Title ?? "Untitled").Append('\n');
             sb.Append("  Status: ").Append(thesis.Status ?? "Unknown").Append('\n');
             sb.Append("  Submitted: ").Append(thesis.SubmittedAt?.ToString("yyyy-MM-dd") ?? "n.d.").Append('\n');
+            if (!string.IsNullOrWhiteSpace(source.Authors))
+                sb.Append("  Author(s): ").Append(source.Authors).Append('\n');
+            if (!string.IsNullOrWhiteSpace(source.PublicationYear))
+                sb.Append("  Year: ").Append(source.PublicationYear).Append('\n');
             sb.Append("  Abstract: ").Append(Truncate(thesis.Abstract, SnippetLength));
 
             return new ToolExecutionResult(
@@ -225,6 +258,7 @@ namespace server.Services.AI.Agent
             Authors = chunk.Authors,
             PublicationYear = chunk.PublicationYear,
             Snippet = Truncate(chunk.Text, SnippetLength),
+            FullExcerpt = Truncate(chunk.Text, FullExcerptLength),
             Score = double.TryParse(chunk.RelevanceScore, out var score) ? score : null,
             Url = chunk.Url,
         };

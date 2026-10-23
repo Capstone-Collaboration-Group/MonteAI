@@ -1,20 +1,22 @@
-﻿using System.ClientModel;
+using System.ClientModel;
+using System.ClientModel.Primitives;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Azure.AI.OpenAI;
+using Azure.Identity;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
 using Google.Cloud.Firestore.V1;
 using Google.Cloud.Storage.V1;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using OpenAI.Chat;
 using OpenAI.Embeddings;
 using Pinecone;
 using Serilog;
@@ -24,6 +26,7 @@ using server.Data;
 using server.Middleware;
 using server.Services;
 using server.Services.AI;
+using server.Services.Auth;
 using server.Services.Interfaces;
 using server.Services.Theses;
 
@@ -37,41 +40,116 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    
+    // Prompt-validation harness — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --prompt-check              (live gate)
+    //   dotnet run --project server -- --prompt-check --live-offline
+    if (args.Contains("--prompt-check", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.PromptCheckRunner.RunAsync(args));
+    }
+
+    // One-off full-text purge — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --purge-fulltext
+    // Flushes the legacy full-text-chunks Pinecone namespace, removes legacy
+    // body-chunk vectors from the default namespace, and deletes lingering
+    // ingest staging blobs. Run BEFORE `dotnet ef database update` for the
+    // RemoveIngestStagingUrl migration (the purge reads that column via raw
+    // SQL). Safe to re-run (idempotent).
+    if (args.Contains("--purge-fulltext", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.FullTextPurgeRunner.RunAsync(args));
+    }
+
+    // Read-only index inventory — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --diagnose-index ["query 1" "query 2" ...]
+    // Reports Pinecone namespace counts, metadata-field audit (incl. the
+    // Firestore abstract store), SQL status counts, and raw scoreboards for
+    // sample queries (nothing is written).
+    if (args.Contains("--diagnose-index", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.IndexDiagnosticRunner.RunAsync(args));
+    }
+
+    // One-off abstract-store repair — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --repair-abstracts
+    // Rewrites thesis_abstracts docs that still carry the dotted-key bug's
+    // LITERAL "abstracts.<n>" fields into the nested "abstracts" map every
+    // reader expects (and deletes the literals). Idempotent. WRITES Firestore
+    // — follow with --reingest-all to rebuild the metadata vectors.
+    if (args.Contains("--repair-abstracts", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.RepairAbstractsRunner.RunAsync(args));
+    }
+
     Log.Information("Starting MonteAI Server Application...");
 
     var builder = WebApplication.CreateBuilder(args);
-
-    var chatEndpoint = builder.Configuration["AzureAI:Endpoint"];
-    var chatApiKey = builder.Configuration["AzureAI:ApiKey"];
-    var chatDeploymentName = builder.Configuration["AzureAI:DeploymentName"];
 
     var embedEndpoint = builder.Configuration["AzureAIEmbedding:Endpoint"];
     var embedDeploymentName = builder.Configuration["AzureAIEmbedding:EmbeddingDeploymentName"];
     var embedApiKey = builder.Configuration["AzureAIEmbedding:ApiKey"];
 
-    var pineconeApiKey = builder.Configuration["Pinecone:ApiKey"] ??
+    var pineconeApiKey = builder.Configuration["Pinecone:ApiKey"];
+    if (string.IsNullOrWhiteSpace(pineconeApiKey) && !builder.Environment.IsEnvironment("Testing"))
+    {
         throw new InvalidOperationException("Pinecone API key is missing from configuration");
+    }
 
     // Pinecone 
     builder.Services.AddSingleton(sp => new PineconeClient(pineconeApiKey));
 
-    builder.Services.AddTransient<ChatClient>(sp =>
-    {
-        var options = new AzureOpenAIClientOptions(AzureOpenAIClientOptions.ServiceVersion.V2024_06_01);
-        var azureClient = new AzureOpenAIClient(
-            new Uri(chatEndpoint!),
-            new ApiKeyCredential(chatApiKey!), 
-            options
-        );
+    // LLM pool (gpt-5-nano Foundry agents). The old single-deployment
+    // ChatClient pair (Phi-4-mini, keyed "planner"/"synth") is gone — the
+    // planner and synthesizer now route through LlmClientPool to whichever
+    // healthy AzureAI:Deployments entry serves the requested role.
+    builder.Services.Configure<server.Configuration.LlmPoolConfig>(
+        builder.Configuration.GetSection(server.Configuration.LlmPoolConfig.SectionName));
 
-        return azureClient.GetChatClient(chatDeploymentName);
+    var llmProjectEndpoint = builder.Configuration["AzureAI:ProjectEndpoint"];
+    if (string.IsNullOrWhiteSpace(llmProjectEndpoint) && !builder.Environment.IsEnvironment("Testing"))
+    {
+        throw new InvalidOperationException("AzureAI:ProjectEndpoint is missing from configuration");
+    }
+
+    // Singleton: the client is thread-safe, one HTTP pipeline for all agents
+    // in the project. DefaultAzureCredential resolves az-login / managed
+    // identity / env vars — the Foundry agents authenticate with Entra ID,
+    // not an API key. Per-call timeouts are enforced by LlmClientPool.
+   builder.Services.AddSingleton(sp =>
+{
+    var env = sp.GetRequiredService<IHostEnvironment>();
+
+    var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+    {
+        // Locally there is no IMDS endpoint; probing it hangs until the pool's timeout fires.
+        ExcludeManagedIdentityCredential = env.IsDevelopment(),
+        TenantId = "99a566cc-af0d-4dca-818d-8753b8a8fb8d" // tenant that holds your Foundry project
     });
 
+    return new Azure.AI.Projects.AIProjectClient(
+        new Uri(llmProjectEndpoint ?? "https://placeholder.invalid/api/projects/_"),
+        credential);
+});
+
+    // Singletons (not Scrutor-scoped) so per-entry semaphores/cool-downs
+    // persist across requests.
+    //
+    // NOTE (retry/timeout posture): the removed AzureOpenAIClient options
+    // (NetworkTimeout + ClientRetryPolicy(maxRetries: 1)) are replaced by the
+    // pool's per-entry TimeoutSeconds and the agent loop's own first-token /
+    // StreamAttempts guards. Do not re-add silent multi-minute defaults —
+    // one hung call must not block a chat request for minutes.
+
     // 3. Register Embedding Client (Uses AzureAIEmbedding configuration)
-    builder.Services.AddTransient<EmbeddingClient>(sp =>
+    // Singleton + fail-fast posture: one connection pool, short timeouts so a
+    // sick embedding deployment cannot stall a chat request.
+    builder.Services.AddSingleton<EmbeddingClient>(sp =>
     {
-        var options = new AzureOpenAIClientOptions(AzureOpenAIClientOptions.ServiceVersion.V2024_06_01);
+        var options = new AzureOpenAIClientOptions(AzureOpenAIClientOptions.ServiceVersion.V2024_06_01)
+        {
+            NetworkTimeout = TimeSpan.FromSeconds(20),
+            RetryPolicy = new ClientRetryPolicy(maxRetries: 1),
+        };
         var azureClient = new AzureOpenAIClient(
             new Uri(embedEndpoint!),
             new ApiKeyCredential(embedApiKey!),
@@ -90,22 +168,27 @@ try
  
 
     // firebase configuration
-    var firebaseJson = builder.Configuration["Firebase:AdminKeyPath"];
-    var credential = !string.IsNullOrEmpty(firebaseJson) && firebaseJson.Trim().StartsWith("{")
-        ? CredentialFactory.FromJson(firebaseJson, JsonCredentialParameters.ServiceAccountCredentialType)
-        : CredentialFactory.FromFile(firebaseJson, JsonCredentialParameters.ServiceAccountCredentialType);
-
-    var firebaseApp = FirebaseApp.DefaultInstance ?? FirebaseApp.Create(new AppOptions
+    // Skipped under the "Testing" environment so WebApplicationFactory
+    // integration tests can boot without a service-account file.
+    if (!builder.Environment.IsEnvironment("Testing"))
     {
-        Credential = credential
-    });
-    builder.Services.AddSingleton(firebaseApp);
+        var firebaseJson = builder.Configuration["Firebase:AdminKeyPath"];
+        var credential = !string.IsNullOrEmpty(firebaseJson) && firebaseJson.Trim().StartsWith("{")
+            ? CredentialFactory.FromJson(firebaseJson, JsonCredentialParameters.ServiceAccountCredentialType)
+            : CredentialFactory.FromFile(firebaseJson, JsonCredentialParameters.ServiceAccountCredentialType);
 
-    var firebaseProjectId = builder.Configuration["Firebase:ProjectId"];
-    builder.Services.AddSingleton(_ => new FirestoreDbBuilder
-    { ProjectId = firebaseProjectId, Credential = credential }.Build());
+        var firebaseApp = FirebaseApp.DefaultInstance ?? FirebaseApp.Create(new AppOptions
+        {
+            Credential = credential
+        });
+        builder.Services.AddSingleton(firebaseApp);
 
-    builder.Services.AddSingleton(_ => StorageClient.Create(credential));
+        var firebaseProjectId = builder.Configuration["Firebase:ProjectId"];
+        builder.Services.AddSingleton(_ => new FirestoreDbBuilder
+        { ProjectId = firebaseProjectId, Credential = credential }.Build());
+
+        builder.Services.AddSingleton(_ => StorageClient.Create(credential));
+    }
 
     builder.Services
     .AddAuthentication(FirebaseAuthMiddleware.SchemeName)
@@ -128,7 +211,41 @@ try
             policy.RequireAuthenticatedUser());
     });
     builder.Services.AddHttpContextAccessor();
-     
+
+    // --- TOTP MFA ---
+    builder.Services.Configure<server.Configuration.AuthOptions>(
+        builder.Configuration.GetSection(server.Configuration.AuthOptions.SectionName));
+    // Dev/test fallback: generate an ephemeral signing key so the server boots
+    // without user-secrets setup. Tokens do not survive a restart (fine in dev).
+    if (string.IsNullOrWhiteSpace(builder.Configuration[$"{server.Configuration.AuthOptions.SectionName}:JwtSigningKey"]))
+    {
+        if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+        {
+            // Generate ONCE per app instance. A PostConfigure lambda would run on
+            // every resolve, handing each request a different key — so tokens
+            // issued by one request would fail validation in the next.
+            var ephemeralKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+            builder.Services.PostConfigure<server.Configuration.AuthOptions>(o =>
+            {
+                if (string.IsNullOrWhiteSpace(o.JwtSigningKey))
+                    o.JwtSigningKey = ephemeralKey;
+            });
+        }
+        else
+        {
+            throw new InvalidOperationException("Auth:JwtSigningKey must be configured in production.");
+        }
+    }
+    var dataProtection = builder.Services.AddDataProtection()
+        .SetApplicationName("MonteAI");
+    var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+    if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+    {
+        dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+    }
+    // Singleton (not Scrutor-scoped) so failed-attempt windows persist across requests.
+    builder.Services.AddSingleton<server.RateLimiting.IMfaAttemptLimiter, server.RateLimiting.MfaAttemptLimiter>();
+
     builder.Services.Configure<PineconeConfig>(
             builder.Configuration.GetSection(PineconeConfig.SectionName)
             );
@@ -136,6 +253,10 @@ try
     // Agent behaviour + cost caps (see MonteAiAgentConfig for every knob).
     builder.Services.Configure<MonteAiAgentConfig>(
         builder.Configuration.GetSection(MonteAiAgentConfig.SectionName));
+
+    // Per-user daily chat query allowance (see AnalyticsConfig).
+    builder.Services.Configure<AnalyticsConfig>(
+        builder.Configuration.GetSection(AnalyticsConfig.SectionName));
     // Add services to the container.
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(
@@ -158,14 +279,21 @@ try
             opt.QueueLimit = 0;
         });
 
-        // Chat generates paid LLM calls per message — cap the blast radius of
-        // a spamming client (or a runaway frontend loop).
-        options.AddFixedWindowLimiter("ChatLimit", opt =>
-        {
-            opt.PermitLimit = 30;
-            opt.Window = TimeSpan.FromMinutes(1);
-            opt.QueueLimit = 0;
-        });
+        // Chat generates paid LLM calls per message. Partitioned PER USER (by
+        // Firebase uid) so one spamming tab cannot starve the whole class —
+        // the old global 30/min limit meant a single runaway client 429'd
+        // everyone. QueueLimit=0 = instant 429 (fail fast, no pile-up).
+        options.AddPolicy("ChatLimit", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
 
         options.AddPolicy("ProceedingsLimit", context =>
             RateLimitPartition.GetFixedWindowLimiter(
@@ -175,6 +303,20 @@ try
                 _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
+
+        // Password change verifies the CURRENT password against Firebase —
+        // cap attempts per user so the endpoint can't be used to brute-force it.
+        options.AddPolicy("ChangePasswordLimit", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
                     Window = TimeSpan.FromMinutes(1),
                     QueueLimit = 0,
                 }));
@@ -202,7 +344,32 @@ try
             .WithScopedLifetime()
     );
 
+    builder.Services.AddScoped<IFirebaseTokenVerifier, FirebaseAuthVerifier>();
+
     builder.Services.AddSingleton<IBlobService, BlobService>();
+
+    // Capacity-stack singletons (server.Infrastructure — deliberately OUTSIDE
+    // the Scrutor-scanned namespaces because they hold shared state and must
+    // be singletons, not per-request scoped like the scanned services).
+    // Registered AFTER the scan so these win for their interfaces.
+    // (ILlmCircuitBreaker is gone — LlmClientPool owns per-entry cooldowns.)
+    builder.Services.AddSingleton<server.Infrastructure.IAgentConcurrencyGate, server.Infrastructure.AgentConcurrencyGate>();
+    builder.Services.AddSingleton<server.Infrastructure.ISemanticAnswerCache, server.Infrastructure.SemanticAnswerCache>();
+
+    // Outbound email (MailKit SMTP). Handlers call IEmailService.Queue(...)
+    // and EmailWorker drains it, so a slow mail server never blocks a
+    // response. Enabled defaults to false — see EmailOptions.
+    builder.Services.Configure<EmailOptions>(
+        builder.Configuration.GetSection(EmailOptions.SectionName));
+    builder.Services.AddSingleton<server.Infrastructure.IEmailQueue, server.Infrastructure.EmailQueue>();
+    builder.Services.AddHostedService<server.Infrastructure.EmailWorker>();
+
+    // LLM backend + pool. ILlmBackend is registered explicitly (not via the
+    // Scrutor scan) because the pool is a singleton and must not capture a
+    // scoped backend. The scan would otherwise register FoundryAgentBackend
+    // as scoped — this registration comes after the scan so it wins.
+    builder.Services.AddSingleton<server.Services.AI.ILlmBackend, server.Services.AI.FoundryAgentBackend>();
+    builder.Services.AddSingleton<server.Infrastructure.ILlmClientPool, server.Infrastructure.LlmClientPool>();
 
     // Note: IPineconeService, IAgentToolbox, and IMonteAiAgentService are
     // auto-registered by the Scrutor scan above (namespace server.Services.*
@@ -265,6 +432,17 @@ try
 
     var app = builder.Build();
 
+    // Bulk metadata-only re-ingest — runs INSTEAD of the web host:
+    //   dotnet run --project server -- --reingest-all
+    // Re-runs ThesisService.IngestAsync for every Approved/Indexed thesis
+    // (creates thesis_{id}_meta, sweeps legacy *_chunk_* leftovers). Uses the
+    // full DI container, so it is wired AFTER builder.Build(). Pending rows
+    // are skipped — those need an admin's approval in the desktop panel.
+    if (args.Contains("--reingest-all", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.ReingestAllRunner.RunAsync(app.Services, args));
+    }
+
 
     if (app.Environment.IsDevelopment())
     {
@@ -325,3 +503,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Exposes Program to WebApplicationFactory-based integration tests.
+public partial class Program { }

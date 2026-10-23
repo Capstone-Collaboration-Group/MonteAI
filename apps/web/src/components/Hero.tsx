@@ -114,10 +114,6 @@ export default function Hero() {
 
           {/* Center Main Hero Column */}
           <div className="flex flex-col items-center text-center lg:col-span-6">
-            <p className="hero-badge mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-5 py-2 text-xs font-bold uppercase tracking-[0.14em] text-primary backdrop-blur-sm">
-              Colegio de Montalban Research, Connected
-            </p>
-
             <h1
               id="hero-heading"
               className="hero-title text-balance text-4xl font-black leading-[1.1] text-on-surface sm:text-5xl lg:text-6xl xl:text-7xl"

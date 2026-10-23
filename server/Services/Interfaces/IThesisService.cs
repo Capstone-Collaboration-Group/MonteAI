@@ -27,7 +27,14 @@ namespace server.Services.Interfaces
 
         Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false);
 
+        /// <summary>
+        /// METADATA-ONLY ingestion (POST /thesis/ingest): resolves authors/
+        /// year/abstract server-side, deletes any previous vectors for the
+        /// thesis, upserts the single metadata vector, and marks the row
+        /// Approved → Indexed. Returns "Indexed" or "Failed".
+        /// </summary>
         Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto);
+
         Task<string?> GetDownloadUrlAsync(Guid thesisId);
         Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateThesisdto, string callerId, bool isAdmin);
 

@@ -5,14 +5,16 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '@/components/ui/ScaledText';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
+import { userService } from '@/lib/userService';
+import type { UserProfileDto } from '@monteai/types';
 
 const DRAWER_WIDTH = 320;
 const OVERLAY_OPACITY = 0.4;
@@ -21,7 +23,8 @@ type DrawerRoute =
   | '/(tabs)/schedules'
   | '/(tabs)/announcements'
   | '/(tabs)/research-group'
-  | '/submit-thesis';
+  | '/submit-thesis'
+  | '/(tabs)/library'
 
 interface NavItem {
   icon: React.ComponentProps<typeof MaterialIcons>['name'];
@@ -34,6 +37,7 @@ interface NavItem {
 export interface DrawerRecentChat {
   id: string;
   title: string;
+  pinned: boolean;
 }
 
 interface SidebarDrawerProps {
@@ -46,12 +50,12 @@ interface SidebarDrawerProps {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { icon: 'search', label: 'Find Thesis', route: '/(tabs)/library'},
   { icon: 'upload-file', label: 'Submit Thesis Document', route: '/submit-thesis' },
   { icon: 'group', label: 'Research Group', route: '/(tabs)/research-group' },
   { icon: 'calendar-month', label: 'Schedules', route: '/(tabs)/schedules' },
   { icon: 'campaign', label: 'Announcements', route: '/(tabs)/announcements' },
-  { icon: 'search', label: 'Find Thesis' },
-  { icon: 'chat', label: 'Search Chat' },
+  
 ];
 
 const LEGACY_RECENT = [
@@ -71,6 +75,25 @@ export function SidebarDrawer({
   const router = useRouter();
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const [profile, setProfile] = React.useState<UserProfileDto | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    userService
+      .getMe()
+      .then((me) => { if (active) setProfile(me); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [visible]);
+
+  const displayName = profile
+    ? `${profile.firstName} ${profile.lastName}`.trim()
+    : 'Signed out';
+  const initials = profile
+    ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase() || '?'
+    : '—';
+  const displayRole = profile?.role ?? '';
 
   const surface = useThemeColor({}, 'surface');
   const heading = useThemeColor({}, 'onSurface');
@@ -171,9 +194,8 @@ export function SidebarDrawer({
             );
           })}
 
-          {/* Recent section */}
+          {/* Pinned and recent chat sessions */}
           <View style={s.recentSection}>
-            <Text style={[s.recentHeading, { color: body }]}>RECENT</Text>
             {recentChats ? (
               recentLoading ? (
                 <View style={s.recentLoadingRow}>
@@ -183,26 +205,54 @@ export function SidebarDrawer({
               ) : recentChats.length === 0 ? (
                 <Text style={[s.recentEmpty, { color: body }]}>No conversations yet</Text>
               ) : (
-                recentChats.map((chat) => (
-                  <Pressable
-                    key={chat.id}
-                    style={s.recentItem}
-                    onPress={() => {
-                      // Navigate to the chat tab and open this session —
-                      // works from any tab. The timestamp keeps the param
-                      // unique so every tap is handled.
-                      router.navigate({
-                        pathname: '/(tabs)/chat',
-                        params: { open: `s:${chat.id}:${Date.now()}` },
-                      });
-                      onClose();
-                    }}
-                    accessibilityRole="button">
-                    <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>
-                      {chat.title}
-                    </Text>
-                  </Pressable>
-                ))
+                <>
+                  {recentChats.some((chat) => chat.pinned) && (
+                    <>
+                      <Text style={[s.recentHeading, { color: body }]}>PINNED</Text>
+                      {recentChats.filter((chat) => chat.pinned).map((chat) => (
+                        <Pressable
+                          key={chat.id}
+                          style={s.recentItem}
+                          onPress={() => {
+                            router.navigate({
+                              pathname: '/(tabs)/chat',
+                              params: { open: `s:${chat.id}:${Date.now()}` },
+                            });
+                            onClose();
+                          }}
+                          accessibilityRole="button">
+                          <MaterialIcons name="push-pin" size={16} color={body} />
+                          <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>
+                            {chat.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </>
+                  )}
+                  {recentChats.some((chat) => !chat.pinned) && (
+                    <>
+                      <Text style={[s.recentHeading, { color: body }]}>RECENTS</Text>
+                      {recentChats.filter((chat) => !chat.pinned).map((chat) => (
+                        <Pressable
+                          key={chat.id}
+                          style={s.recentItem}
+                          onPress={() => {
+                            router.navigate({
+                              pathname: '/(tabs)/chat',
+                              params: { open: `s:${chat.id}:${Date.now()}` },
+                            });
+                            onClose();
+                          }}
+                          accessibilityRole="button">
+                          <MaterialIcons name="chat-bubble-outline" size={16} color={body} />
+                          <Text style={[s.recentText, { color: heading }]} numberOfLines={1}>
+                            {chat.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </>
+                  )}
+                </>
               )
             ) : (
               LEGACY_RECENT.map((item) => (
@@ -218,14 +268,21 @@ export function SidebarDrawer({
         <View style={[s.footer, { borderTopColor: outline }]}>
           <View style={s.userRow}>
             <View style={[s.avatar, { backgroundColor: primary }]}>
-              <Text style={[s.avatarText, { color: onPrimary }]}>JD</Text>
+              <Text style={[s.avatarText, { color: onPrimary }]}>{initials}</Text>
             </View>
             <View style={s.userInfo}>
-              <Text style={[s.userName, { color: heading }]}>Jane Doe</Text>
-              <Text style={[s.userRole, { color: body }]}>Academic Researcher</Text>
+              <Text style={[s.userName, { color: heading }]}>{displayName}</Text>
+              <Text style={[s.userRole, { color: body }]}>{displayRole}</Text>
             </View>
           </View>
-          <Pressable hitSlop={8}>
+          <Pressable
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+            onPress={() => {
+              router.push('/settings');
+              onClose();
+            }}>
             <MaterialIcons name="settings" size={20} color={body} />
           </Pressable>
         </View>
@@ -276,8 +333,8 @@ const s = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: Spacing.xs,
   },
-  recentItem: { paddingVertical: Spacing.sm, borderRadius: Radius.sm },
-  recentText: { fontSize: FontSize.sm },
+  recentItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.sm },
+  recentText: { flex: 1, fontSize: FontSize.sm },
   recentLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
   recentEmpty: { fontSize: FontSize.sm, paddingVertical: Spacing.sm },
   footer: {
