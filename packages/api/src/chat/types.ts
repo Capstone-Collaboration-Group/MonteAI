@@ -21,6 +21,12 @@ export interface ChatStreamHandlers {
   onSources?: (sources: ChatSourceDto[]) => void;
   /** Fired for each fragment of the generated answer. */
   onDelta?: (text: string) => void;
+  /**
+   * Aborts the in-flight stream request (user tapped Stop). The service
+   * rejects with a ChatStreamAbortedError; the server persists whatever
+   * partial answer was already generated.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ChatService {

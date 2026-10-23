@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatService } from "@monteai/api";
+import { ChatStreamAbortedError } from "@monteai/api";
 import type { ChatMessageResponseDto, ChatSourceDto } from "@monteai/types";
 import { useDeleteChatSession } from "@monteai/hooks";
 import { ChatView } from "../components/Chat/ChatView";
@@ -78,11 +79,15 @@ export function ChatPage({
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   /** Terminal send failure, shown as a banner until the next send. */
   const [sendError, setSendError] = useState<string | null>(null);
+  /** Id of the assistant message the user cancelled (renders a "Stopped" chip). */
+  const [stoppedMessageId, setStoppedMessageId] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   /** Empty-state suggestion cards — top analytics queries, static fallback until they load. */
   const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
   const deleteSession = useDeleteChatSession(chatService);
   const hasAutoSent = useRef(false);
+  /** AbortController for the in-flight stream; nulled when idle/finished. */
+  const abortRef = useRef<AbortController | null>(null);
 
   // Fetch the top query strings once for the empty-state suggestion cards.
   // Fails soft: the static fallbacks stay in place when the call rejects.
@@ -128,12 +133,17 @@ export function ChatPage({
   }, [sessionId, chatService]);
 
   const send = useCallback(
-    async (content: string) => {
+    async (content: string, options?: { clearInput?: boolean }) => {
       if (!content.trim() || isSending || isLoadingSession) return;
       setIsSending(true);
-      setInput("");
+      if (options?.clearInput !== false) setInput("");
       setSendError(null);
       setStreamStatus("Preparing your question…");
+
+      // Fresh AbortController for this send — lets the Stop button (or
+      // unmount) cancel the in-flight SSE request.
+      const controller = new AbortController();
+      abortRef.current = controller;
 
       try {
         let activeSessionId = sessionId ?? localSessionId;
@@ -178,6 +188,7 @@ export function ChatPage({
               activeSessionId,
               { role: "user", content },
               {
+                signal: controller.signal,
                 onStatus: (status) => setStreamStatus(status),
                 onSources: (sources) =>
                   setMessages((prev) =>
@@ -197,12 +208,26 @@ export function ChatPage({
               prev.map((m) => (m.id === placeholderId ? finalMessage : m))
             );
           } catch (err) {
-            // Do NOT fall back to a blocking re-send: the stream endpoint has
-            // already persisted the user message, so a retry would duplicate
-            // it AND block for the full agent run. Surface the error instead.
-            console.error("Chat stream failed:", err);
-            setMessages((prev) => prev.filter((m) => m.id !== placeholderId));
-            setSendError(toUserFacingError(err));
+            if (err instanceof ChatStreamAbortedError) {
+              // User tapped Stop: keep whatever partial content streamed into
+              // the placeholder and tag it with a "Stopped" chip. The server
+              // already persisted the partial answer on disconnect.
+              setStoppedMessageId(placeholderId);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === placeholderId
+                    ? { ...m, content: m.content.trimEnd(), sources: m.sources ?? null }
+                    : m
+                )
+              );
+            } else {
+              // Do NOT fall back to a blocking re-send: the stream endpoint has
+              // already persisted the user message, so a retry would duplicate
+              // it AND block for the full agent run. Surface the error instead.
+              console.error("Chat stream failed:", err);
+              setMessages((prev) => prev.filter((m) => m.id !== placeholderId));
+              setSendError(toUserFacingError(err));
+            }
           } finally {
             setStreamingAssistantId(null);
             setStreamStatus(null);
@@ -221,6 +246,7 @@ export function ChatPage({
         console.error("Chat send failed:", err);
         setSendError(toUserFacingError(err));
       } finally {
+        abortRef.current = null;
         setIsSending(false);
         setStreamStatus(null);
       }
@@ -238,6 +264,15 @@ export function ChatPage({
 
   const activeSessionId = sessionId ?? localSessionId;
 
+  /** Abort the in-flight stream (the Stop button). */
+  const cancelStream = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  // Abort any in-flight stream when the page unmounts so the request (and
+  // the server-side agent run) doesn't keep going in the background.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   /** "Cite" — formats the message's sources as APA 7 references (server-side). */
   const handleRequestCitations = useCallback(
     (sources: ChatSourceDto[]) => chatService.formatCitations(sources),
@@ -248,6 +283,12 @@ export function ChatPage({
   const handleExpand = useCallback(() => {
     send(EXPAND_PROMPT);
   }, [send]);
+
+  /** "Retry" — re-sends a user message's text as a new turn (non-destructive). */
+  const handleRetry = useCallback(
+    (content: string) => send(content, { clearInput: false }),
+    [send]
+  );
 
   const confirmDeleteSession = async () => {
     if (!activeSessionId || deleteSession.isPending) return;
@@ -284,11 +325,14 @@ export function ChatPage({
         isSending={isSending}
         streamingMessageId={streamingAssistantId}
         streamStatus={streamStatus}
+        stoppedMessageId={stoppedMessageId}
         error={sendError}
         suggestions={suggestions}
         onSelectSuggestion={(text) => send(text)}
         onRequestCitations={handleRequestCitations}
         onExpand={handleExpand}
+        onRetry={handleRetry}
+        onCancel={cancelStream}
         onDeleteSession={activeSessionId ? () => setConfirmingDelete(true) : undefined}
         isDeletingSession={deleteSession.isPending}
         onInputChange={setInput}

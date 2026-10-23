@@ -21,6 +21,7 @@ import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { chatService } from '@/lib/chatService';
+import { ChatStreamAbortedError } from '@monteai/api';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
 import type {
   ApaCitationDto,
@@ -34,6 +35,8 @@ interface Message {
   text: string;
   status?: string;
   sources?: ChatSourceDto[] | null;
+  /** True when the user cancelled this assistant message mid-stream (renders a "Stopped" chip). */
+  stopped?: boolean;
 }
 
 /** Hard cap on user input length (enforced on the TextInput and defensively in handleSend). */
@@ -88,6 +91,8 @@ export default function ChatScreen() {
   const [renameTitle, setRenameTitle] = useState('');
   const [sessionActionBusy, setSessionActionBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  /** AbortController for the in-flight stream; nulled when idle/finished. */
+  const abortRef = useRef<AbortController | null>(null);
   const { recentChats, loading: chatsLoading, refresh } = useDrawerChats();
   /** Empty-state suggestion pills — top analytics queries, static fallback until they load. */
   const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
@@ -252,10 +257,14 @@ export default function ChatScreen() {
     }
   }, [open, handleSelectSession, startNewChat]);
 
-  /** Sends `rawText` — shared by the input bar, suggestion pills, and Expand. */
-  async function sendText(rawText: string) {
-    const text = rawText.trim().slice(0, MAX_INPUT_LENGTH);
-    if (!text || sending || loadingHistory) return;
+  /**
+   * Core send: appends the user message + a streaming AI draft, fires the
+   * SSE stream, and patches the draft as events arrive. Does NOT touch the
+   * input bar — `sendText` wraps this for the input/pills/Expand.
+   */
+  async function dispatchMessage(text: string) {
+    const trimmed = text.trim().slice(0, MAX_INPUT_LENGTH);
+    if (!trimmed || sending || loadingHistory) return;
 
     if (!userId) {
       setMessages((prev) => [
@@ -266,13 +275,17 @@ export default function ChatScreen() {
     }
 
     setSending(true);
-    setInput('');
+    // Fresh AbortController for this send — lets the Stop button (or
+    // unmount) cancel the in-flight SSE request.
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     // Optimistic user bubble + a streaming AI draft that fills in as
     // status/delta/source SSE events arrive.
     const draftId = `a-${Date.now()}`;
     setMessages((prev) => [
       ...prev,
-      { id: `u-${Date.now()}`, role: 'user', text },
+      { id: `u-${Date.now()}`, role: 'user', text: trimmed },
       { id: draftId, role: 'ai', text: '', status: 'Thinking…' },
     ]);
 
@@ -282,7 +295,7 @@ export default function ChatScreen() {
       if (!activeSession) {
         activeSession = await chatService.createSession({
           userId,
-          title: text.slice(0, 100),
+          title: trimmed.slice(0, 100),
         });
         setSession(activeSession);
       }
@@ -299,8 +312,9 @@ export default function ChatScreen() {
 
       const res = await chatService.sendMessageStream(
         activeSession.id,
-        { role: 'user', content: text },
+        { role: 'user', content: trimmed },
         {
+          signal: controller.signal,
           onStatus: (message) => patchDraft({ status: message }),
           onSources: (sources) => patchDraft({ sources }),
           onDelta: (fragment) => patchDraft((m) => ({ text: m.text + fragment })),
@@ -315,19 +329,50 @@ export default function ChatScreen() {
       // newly created chat is pushed to the top of the history in real time.
       refresh(true);
     } catch (err) {
-      // Prefer the server-provided friendly message (rate limit, breaker…).
-      const text =
-        err instanceof Error && err.message
-          ? err.message
-          : 'Sorry, something went wrong. Please try again.';
-      setMessages((prev) =>
-        prev.map((m) => (m.id === draftId ? { id: `err-${Date.now()}`, role: 'ai', text } : m))
-      );
+      if (err instanceof ChatStreamAbortedError) {
+        // User tapped Stop: keep whatever partial content streamed into the
+        // draft and tag it with a "Stopped" chip. The server already
+        // persisted the partial answer on disconnect.
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === draftId
+              ? { ...m, status: undefined, text: m.text.trimEnd(), stopped: true }
+              : m
+          )
+        );
+      } else {
+        // Prefer the server-provided friendly message (rate limit, breaker…).
+        const text =
+          err instanceof Error && err.message
+            ? err.message
+            : 'Sorry, something went wrong. Please try again.';
+        setMessages((prev) =>
+          prev.map((m) => (m.id === draftId ? { id: `err-${Date.now()}`, role: 'ai', text } : m))
+        );
+      }
     } finally {
+      abortRef.current = null;
       setSending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }
+
+  /** Sends `rawText` — shared by the input bar, suggestion pills, and Expand. Clears the input. */
+  async function sendText(rawText: string) {
+    const text = rawText.trim().slice(0, MAX_INPUT_LENGTH);
+    if (!text || sending || loadingHistory) return;
+    setInput('');
+    await dispatchMessage(text);
+  }
+
+  /** Abort the in-flight stream (the Stop button). */
+  const cancelStream = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  // Abort any in-flight stream when the screen unmounts so the request (and
+  // the server-side agent run) doesn't keep going in the background.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   async function handleSend() {
     await sendText(input);
@@ -593,6 +638,25 @@ export default function ChatScreen() {
                   <Text style={[s.bubbleText, { color: msg.role === 'user' ? onPrimary : heading }]}>
                     {msg.text}
                   </Text>
+                  {msg.stopped ? (
+                    <View style={s.stoppedRow}>
+                      <MaterialIcons name="stop-circle" size={12} color={body} />
+                      <Text style={[s.stoppedText, { color: body }]}>Stopped</Text>
+                    </View>
+                  ) : null}
+                  {msg.role === 'user' && !sending ? (
+                    <View style={[s.actions, { justifyContent: 'flex-end' }]}>
+                      <Pressable
+                        style={[s.actionBtn, { borderColor: 'rgba(255,255,255,0.3)' }]}
+                        onPress={() => void dispatchMessage(msg.text)}
+                        disabled={sending}
+                        accessibilityRole="button"
+                        accessibilityLabel="Retry sending this message">
+                        <MaterialIcons name="replay" size={14} color={onPrimary} style={s.actionIcon} />
+                        <Text style={[s.actionText, { color: onPrimary }]}>Retry</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                   {msg.role === 'ai' && msg.sources && msg.sources.length > 0 ? (
                     <View style={[s.sources, { borderTopColor: outline }]}>
                       <Text style={[s.sourcesLabel, { color: body }]}>Sources</Text>
@@ -698,16 +762,30 @@ export default function ChatScreen() {
                   maxLength={MAX_INPUT_LENGTH}
                   editable={!sending}
                 />
-                <Pressable hitSlop={8}>
+                <Pressable
+                  hitSlop={8}>
                   <MaterialIcons name="photo" size={22} color={body} />
                 </Pressable>
-                <Pressable
-                  style={[s.sendBtn, { backgroundColor: primary }]}
-                  hitSlop={8}
-                  onPress={handleSend}
-                  disabled={sending || !input.trim()}>
-                  <MaterialIcons name="send" size={20} color={onPrimary} />
-                </Pressable>
+                {sending ? (
+                  <Pressable
+                    style={[s.sendBtn, { backgroundColor: primary }]}
+                    hitSlop={8}
+                    onPress={cancelStream}
+                    accessibilityRole="button"
+                    accessibilityLabel="Stop generating">
+                    <MaterialIcons name="stop-circle" size={20} color={onPrimary} />
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    style={[s.sendBtn, { backgroundColor: primary }]}
+                    hitSlop={8}
+                    onPress={handleSend}
+                    disabled={!input.trim()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send message">
+                    <MaterialIcons name="send" size={20} color={onPrimary} />
+                  </Pressable>
+                )}
               </View>
               <Text style={[s.disclaimer, { color: body }]}>
                 MonteAI may provide inaccurate info. Verify key citations from primary sources.
@@ -738,6 +816,8 @@ const s = StyleSheet.create({
   sourceText: { flex: 1, fontSize: FontSize.sm, lineHeight: 18 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   status: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  stoppedRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  stoppedText: { fontSize: 11, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
   actionBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   actionIcon: { marginRight: 4 },

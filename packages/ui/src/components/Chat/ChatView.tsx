@@ -23,7 +23,9 @@ import {
   Copy,
   Maximize2,
   Quote,
+  RotateCcw,
   Sparkles,
+  Square,
   Trash2,
 } from "lucide-react";
 import type {
@@ -41,6 +43,8 @@ export interface ChatViewProps {
   streamingMessageId?: string | null;
   /** Progress note from the agent ("Searching the repository…") shown while waiting for/through the stream. */
   streamStatus?: string | null;
+  /** Id of the assistant message the user cancelled — renders a "Stopped" chip on that bubble. */
+  stoppedMessageId?: string | null;
   /** Terminal send failure shown as a banner above the input bar. */
   error?: string | null;
   /** Prompt suggestions for the empty state (top analytics queries / static fallbacks). */
@@ -51,6 +55,10 @@ export interface ChatViewProps {
   onRequestCitations?: (sources: ChatSourceDto[]) => Promise<ApaCitationDto[]>;
   /** Host handles the "Expand" follow-up (e.g. send("Expand your previous answer…")). */
   onExpand?: (message: ChatMessageResponseDto) => void;
+  /** Re-sends a user message's text as a new turn (the "Retry" button on user bubbles). */
+  onRetry?: (content: string) => void;
+  /** Aborts the in-flight stream — the send button becomes a Stop button while streaming. */
+  onCancel?: () => void;
   onDeleteSession?: () => void;
   isDeletingSession?: boolean;
   onInputChange: (value: string) => void;
@@ -63,11 +71,14 @@ export function ChatView({
   isSending,
   streamingMessageId,
   streamStatus,
+  stoppedMessageId,
   error,
   suggestions = [],
   onSelectSuggestion,
   onRequestCitations,
   onExpand,
+  onRetry,
+  onCancel,
   onDeleteSession,
   isDeletingSession = false,
   onInputChange,
@@ -182,6 +193,9 @@ export function ChatView({
 
           {messages.map((m) => {
             const isStreamingThis = m.id === streamingMessageId;
+            const isStopped = m.id === stoppedMessageId;
+            const showRetry =
+              m.role === "user" && !isStreamingThis && Boolean(onRetry) && !isSending;
             const showCite =
               m.role === "assistant" &&
               !isStreamingThis &&
@@ -205,6 +219,30 @@ export function ChatView({
                     <span className="ml-0.5 inline-block h-4 w-2 animate-pulse rounded-sm bg-on-surface align-text-bottom" />
                   )}
                 </div>
+
+                {isStopped && (
+                  <div className="mt-1.5 flex justify-end">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-on-surface/10 px-2 py-0.5 text-[11px] font-medium text-on-surface/60">
+                      <Square className="h-2 w-2 fill-current" />
+                      Stopped
+                    </span>
+                  </div>
+                )}
+
+                {showRetry && (
+                  <div className="mt-1.5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => onRetry?.(m.content)}
+                      disabled={isSending}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-on-primary/70 transition-colors hover:text-on-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Retry sending this message"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Retry
+                    </button>
+                  </div>
+                )}
 
                 {(showCite || showExpand) && (
                   <div className="mt-2 flex items-center gap-3 border-t border-outline-variant pt-2">
@@ -292,13 +330,24 @@ export function ChatView({
             placeholder="Ask MonteAI anything..."
             className="w-full rounded-full border border-outline-variant bg-surface px-4 py-3 pr-12 text-sm text-on-surface outline-none placeholder:text-on-surface-variant focus:ring-2 focus:ring-primary sm:px-5 sm:py-3.5"
           />
-          <button
-            type="submit"
-            disabled={!input.trim() || isSending}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary p-2 text-on-primary disabled:opacity-40"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </button>
+          {isSending && onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              aria-label="Stop generating"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary p-2 text-on-primary"
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim() || isSending}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary p-2 text-on-primary disabled:opacity-40"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </form>
 

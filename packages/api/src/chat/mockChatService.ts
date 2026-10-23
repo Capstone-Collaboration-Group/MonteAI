@@ -5,6 +5,7 @@
 // then the answer is "typed out" chunk by chunk with small delays.
 
 import type { ChatService, ChatStreamHandlers } from "./types";
+import { ChatStreamAbortedError } from "./errors";
 import type {
   ChatSessionResponseDto,
   ChatSessionResponseListDto,
@@ -218,6 +219,11 @@ export const mockChatService: ChatService = {
     dto: CreateChatMessageDto,
     handlers: ChatStreamHandlers = {}
   ): Promise<ChatMessageResponseDto> {
+    const throwIfAborted = () => {
+      if (handlers.signal?.aborted) throw new ChatStreamAbortedError();
+    };
+
+    throwIfAborted();
     await delay(300);
 
     const session = sessionsMap.get(sessionId);
@@ -260,23 +266,30 @@ export const mockChatService: ChatService = {
     ];
 
     // Simulate the real event order: status frames while the agent "plans",
-    // then sources, then more status, then token-by-token deltas.
+    // then sources, then more status, then token-by-token deltas. Respect
+    // the AbortSignal so the mock mirrors the live service's cancel path.
     handlers.onStatus?.("Understanding your question…");
+    throwIfAborted();
     await delay(250);
+    throwIfAborted();
     handlers.onStatus?.("Searching the repository…");
     await delay(350);
+    throwIfAborted();
     handlers.onSources?.(sources);
     handlers.onStatus?.("Writing your answer…");
     await delay(200);
+    throwIfAborted();
 
     const fullText =
       `Here is a summary of the sources relevant to "${dto.content.slice(0, 80)}" ` +
       "(Dela Cruz et al., 2024)[Source 1]. This is a mock streaming MonteAI response for local development.";
 
     for (const word of fullText.split(" ")) {
+      throwIfAborted();
       handlers.onDelta?.(word + " ");
       await delay(30);
     }
+    throwIfAborted();
 
     const assistantMessage: ChatMessageResponseDto = {
       id: crypto.randomUUID(),

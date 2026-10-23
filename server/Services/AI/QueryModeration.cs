@@ -68,7 +68,7 @@ namespace server.Services.AI
     "bullshit", "bitch", "bitches", "asshole", "arsehole", "cunt", "dickhead",
     "dipshit", "jackass", "cocksucker", "twat", "wanker", "whore", "slut",
     "bastard", "douchebag", "retard", "faggot", "fag", "tranny", "dyke",
-    "nigg", "chink", "spic", "kike", "wetback", "gook", "coon",
+    "nigg", "chink", "kike", "wetback", "gook",
     "asswhole", "assfukka", "fatass", "biatch", "bollock", "bollok", "bellend",
     "ballbag", "ballsack", "nutsack", "numbnuts", "schlong", "skank", "tosser",
     "twunt", "cocksuck", "cocksuk", "coksuck", "cokmunch", "cockface", "cockhead",
@@ -77,9 +77,9 @@ namespace server.Services.AI
     "nobjoke", "donkeyribber", "goatse", "buceta", "boiolas", "cyberfuc", "fcuk",
     "fukk", "fukwit", "fukwhit", "fukka", "phuck", "phukk", "fuxor", "muthafeck",
     "jism", "jizz", "titwank", "tittywank", "dildo", "rimjaw", "shemale",
-    "arse", "clit", "clits", "cnut", "cok", "kock", "cawk", "kawk", "duche",
-"doosh", "fook", "fooker", "fuk", "fuker", "fuks", "fux", "phuk", "phuks",
-"hoer", "hore", "whoar", "jap", "jiz", "jizm", "pisser", "pissers", "pusse",
+    "clit", "clits", "cnut", "kock", "cawk", "kawk", "duche",
+    "doosh", "fook", "fooker", "fuk", "fuker", "fuks", "fux", "phuk", "phuks",
+    "hoer", "jiz", "jizm", "pisser", "pissers", "pusse",
 "pussi", "pussies", "pussys", "rimming", "scrote", "scroat", "titties", "titt",
 "wank", "wanky", "cummer", "cums", "fags", "fagot", "fagots", "faggs", "faggitt",
 // compact-safe
@@ -88,12 +88,8 @@ namespace server.Services.AI
 "masterb8", "m45terbate", "ma5terb8", "cumshot", "ejaculat", "ejakulat", "orgasm",
 "orgasim", "pornography", "bestiality", "beastiality", "buttplug", "smegma",
 // whole-word
-"anal", "anus", "porn", "porno", "p0rn", "penis", "vagina", "vulva", "clitoris",
+"anus", "porn", "porno", "p0rn", "penis", "vagina", "vulva", "clitoris",
 "scrotum", "rectum", "semen", "testicle", "testical", "labia", "boner", "horny",
-"cunnilingus", "cunilingus", "cunillingus", "kunilingus", "fellatio", "felching",
-"gangbang", "hardcoresex", "hotsex", "phonesex", "gaysex", "masturbat", "masterbat",
-"masterb8", "m45terbate", "ma5terb8", "cumshot", "ejaculat", "ejakulat", "orgasm",
-"orgasim", "pornography", "bestiality", "beastiality", "buttplug", "smegma",
 
     // Filipino / Tagalog profanity
     "putangina", "putanginamo", "potangina", "tangina", "tanginamo",
@@ -101,10 +97,10 @@ namespace server.Services.AI
     "punyemas", "pucha", "pakyu", "pakshet", "pakshit", "bwisit", "buwisit",
     "pisti", "pesteng", "lintik", "hinayupak", "hayup", "tarantado",
     "gunggong", "kupal", "pokpok", "kantot", "jakol", "burat", "pekpek",
-    "puke", "walanghiya", "inutil", "ungas", "siraulo", "ulol", "gago",
-    "puta", "pota", "tanga", "bobo", "tite", "titi", "leche", "dick", "cock",
-    "pussy", "piss", "tits", "ass", "fag", "coon", "kys", "esmiringhoy",
-    "ponyeta", "kantot", "bilat", "engot", "ogag", "gaga", "ratbu", "tete", "teti", "tae",
+    "puke", "walanghiya", "inutil", "ungas", "siraulo", "ulol",
+    "puta", "pota", "tite", "titi", "leche", "dick",
+    "pussy", "piss", "tits", "fag", "kys", "esmiringhoy",
+    "ponyeta", "bilat", "engot", "ogag", "gaga", "ratbu", "tete", "teti",
     "kiki", "tinil", "timang", "hudas", "poki",
 
     // Cebuano
@@ -119,12 +115,17 @@ namespace server.Services.AI
 ];
 
         /// <summary>
-        /// Word-boundary terms matched against the lowercased original text —
-        /// short words where a compact substring would over-match
-        /// ("gag order" must NOT flag "gago").
+        /// Word-boundary terms matched against the diacritic-folded original
+        /// text — short terms where a compact substring would over-match:
+        /// "gag order" must NOT flag "gago", "who are you?" must NOT flag
+        /// "whoar", "analysis"/"canal" must NOT flag "anal", "Japan" must NOT
+        /// flag "jap", "class"/"pass"/"assessment" must NOT flag "ass",
+        /// "cocktail" must NOT flag "cock", "raccoon" must NOT flag "coon",
+        /// "spice" must NOT flag "spic", "parse" must NOT flag "arse",
+        /// "shore" must NOT flag "hore", "taekwondo" must NOT flag "tae".
         /// </summary>
         private static readonly Regex HarmfulWordRegex = new(
-            @"\b(kys|gago|gagi|bobo|tanga|ulol|kupal|kopal)\b",
+            @"\b(kys|gago|gagi|bobo|tanga|ulol|kupal|kopal|ass|arse|anal|jap|spic|coon|cock|cok|hore|whoar|tae)\b",
             RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         private static bool IsHarmfulCore(string query)

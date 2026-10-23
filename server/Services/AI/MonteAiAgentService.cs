@@ -152,7 +152,8 @@ namespace server.Services.AI
             //    patterns so "fuck you write code" gets the harm refusal, not
             //    the off-topic one. Also never recorded into analytics
             //    (QueryModeration.IsHarmful is the same gate).
-            if (QueryModeration.IsHarmful(query))
+            var queryClass = QueryModeration.Classify(query);
+            if (queryClass == QueryClass.Harmful)
             {
                 _logger.LogInformation("Blocked harmful chat query");
                 yield return new AgentStreamEvent.Completed(new AgentChatResult(HarmfulRefusalText, [], [], false));
@@ -162,6 +163,36 @@ namespace server.Services.AI
             if (IsOutOfScope(query))
             {
                 yield return new AgentStreamEvent.Completed(new AgentChatResult(RefusalText, [], [], false));
+                yield break;
+            }
+
+            // 1b. Non-follow-up noise — greetings, thanks, identity small
+            //     talk ("who are you?"), keyboard gibberish. Retrieval on
+            //     these attaches unrelated above-threshold theses as Sources
+            //     (semantic_search("Hello") matches the catalog), so they
+            //     skip the deterministic path, cache, gate and agent loop
+            //     entirely: synthesis runs with an empty sources block and
+            //     BuildSourcesBlock's greeting rule produces a warm reply.
+            //     Meta follow-ups ("expand your previous answer", "more about
+            //     it") ARE classified Noise but must keep the full pipeline
+            //     so retrieval can blend with the previous user question.
+            var isFollowUp = ContextDependentFollowUp.IsMatch(query);
+            var skipRetrieval = queryClass == QueryClass.Noise && !isFollowUp;
+            if (skipRetrieval)
+            {
+                _logger.LogInformation("Noise query — answering with synthesis only (no retrieval)");
+                var noiseOutcome = new AgentLoopOutcome([], [], [], false);
+                yield return new AgentStreamEvent.SourcesDiscovered([]);
+                yield return new AgentStreamEvent.Status("Writing your answer…");
+                var noiseBuilder = new StringBuilder();
+                await foreach (var delta in StreamSynthesisAsync(query, request.History, noiseOutcome, cancellationToken))
+                {
+                    noiseBuilder.Append(delta);
+                    yield return new AgentStreamEvent.AnswerDelta(delta);
+                }
+                // Never cached: every session greets with the same words.
+                yield return new AgentStreamEvent.Completed(
+                    new AgentChatResult(noiseBuilder.ToString(), [], [], false, UsedLlm: true));
                 yield break;
             }
 
@@ -185,7 +216,7 @@ namespace server.Services.AI
             //    provided") mean the same words on every topic — a cache hit
             //    would replay one session's answer for another topic's
             //    conversation, so those queries bypass read AND write.
-            var isFollowUp = ContextDependentFollowUp.IsMatch(query);
+            //    (isFollowUp was computed with the noise gate in step 1b.)
             var cached = isFollowUp ? null : await _cache.TryGetAsync(query, cancellationToken);
             if (cached is not null)
             {
@@ -744,10 +775,12 @@ namespace server.Services.AI
         /// text is about sources, citations and research assistants), and the
         /// semantic cache would replay one topic's answer for every session
         /// that repeats the phrase — so both are bypassed/blended for these
-        /// queries.
+        /// queries. "previous answer" covers the Expand button's prompt, which
+        /// QueryModeration also classes as Noise but must still reach the
+        /// blended-retrieval pipeline.
         /// </summary>
         private static readonly Regex ContextDependentFollowUp = new(
-            @"\b(you\s+(?:provided|mentioned|gave|listed|found|showed|shared)|the\s+(?:source|sources|study|studies|thesis|theses|paper|papers|result|results|passage|passages|work|works)\b[^?]{0,40}\b(?:provided|mentioned|above|earlier|before|listed|found)|more\s+about\s+(?:it|them|this|that|those|these)\b)",
+            @"\b(you\s+(?:provided|mentioned|gave|listed|found|showed|shared)|the\s+(?:source|sources|study|studies|thesis|theses|paper|papers|result|results|passage|passages|work|works)\b[^?]{0,40}\b(?:provided|mentioned|above|earlier|before|listed|found)|more\s+about\s+(?:it|them|this|that|those|these)\b|previous\s+answer)",
             RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         /// <summary>Most recent user message from conversation memory (null when none).</summary>
