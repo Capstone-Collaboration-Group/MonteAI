@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useTabsContext } from "./Tabs";
+import { useTabsContext } from "./TabsContext";
 
 const listVariants = {
   line: "border-b border-outline/20 gap-6",

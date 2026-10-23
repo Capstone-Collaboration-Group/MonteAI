@@ -1,29 +1,10 @@
 import {
-  createContext,
-  useContext,
   useState,
   type ReactNode,
   type ElementType,
 } from "react";
-import { cn } from "@monteai/utils"; // adjust if your cn() lives elsewhere
-
-// ─── Context ─────────────────────────────────────────────────────────────────
-
-export type TabsVariant = "line" | "pills" | "enclosed";
-
-interface TabsContextProps {
-  activeTab: string;
-  setActiveTab: (v: string) => void;
-  variant: TabsVariant;
-}
-
-const TabsContext = createContext<TabsContextProps | undefined>(undefined);
-
-export function useTabsContext() {
-  const ctx = useContext(TabsContext);
-  if (!ctx) throw new Error("Tabs sub-components must be rendered within a Tabs provider");
-  return ctx;
-}
+import { cn } from "@monteai/utils";
+import { TabsContext, useTabsContext, type TabsVariant } from "./TabsContext";
 
 // ─── Tabs (provider) ─────────────────────────────────────────────────────────
 
@@ -85,7 +66,7 @@ export function TabsList({ children, className }: TabsListProps) {
   );
 }
 
-// ─── TabsTrigger ─────────────────────────────────────────────────────────────
+// ─── TabsTrigger ──────────────────────────────────────────────────────────────
 
 export interface TabsTriggerProps {
   value: string;
@@ -159,7 +140,7 @@ export function TabsTrigger({
   );
 }
 
-// ─── TabsContent ─────────────────────────────────────────────────────────────
+// ─── TabsContent ──────────────────────────────────────────────────────────────
 
 export interface TabsContentProps {
   value: string;

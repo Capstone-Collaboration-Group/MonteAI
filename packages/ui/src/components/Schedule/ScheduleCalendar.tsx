@@ -13,7 +13,7 @@ import type {
   PanelistCandidate,
 } from "@monteai/types";
 import { DefenseCard } from "./DefenseCard";
-import { getInstituteChipTheme } from "./DefenseCard";
+import { getInstituteChipTheme } from "./scheduleThemes";
 import type { DefenseCardDragAction } from "./DefenseCard";
 import { ScheduleDetailPanel } from "./ScheduleDetailPanel";
 import { ScheduleEditModal } from "./ScheduleEditModal";

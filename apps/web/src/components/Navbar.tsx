@@ -2,7 +2,7 @@
 
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const navItems = [
   { label: "Home", href: "/" },
@@ -31,13 +31,11 @@ const underlineVariants = {
 export default function Navbar() {
   const location = useLocation();
   const navRef = useRef<HTMLNavElement>(null);
-  const [activeItem, setActiveItem] = useState(navItems[0]);
   const [underlineStyle, setUnderlineStyle] = useState({ width: 0, x: 0 });
 
   // Calculate underline position for active item
   useEffect(() => {
     const newActive = navItems.find((item) => location.pathname === item.href) ?? navItems[0];
-    setActiveItem(newActive);
 
     if (navRef.current) {
       const activeLink = navRef.current.querySelector(`[data-nav-item="${newActive.label}"]`) as HTMLElement;
