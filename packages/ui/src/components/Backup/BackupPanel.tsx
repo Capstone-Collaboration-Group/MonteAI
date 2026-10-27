@@ -24,7 +24,7 @@ import type {
   BackupStatsResponse,
 } from "@monteai/types";
 import { getApiErrorMessage } from "@monteai/utils";
-import { toast } from "../Toaster";
+import { toast } from "sonner";
 import { Button } from "../Button";
 import { Card } from "../Card";
 
