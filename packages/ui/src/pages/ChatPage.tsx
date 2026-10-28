@@ -306,11 +306,23 @@ export function ChatPage({
     }
   };
 
-  // Auto-send initial prompt when navigating from another page
+  // Auto-send initial prompt when navigating from another page.
+  // Deferred one task: React StrictMode's mount double-invoke runs all
+  // effects, then all cleanups, then effects again. send() assigns
+  // abortRef.current synchronously, so starting it inside the first effect
+  // pass lets the unmount-abort cleanup below abort the controller before
+  // the stream request is even created — axios rejects the pre-aborted
+  // signal with a CanceledError, which the UI misreads as a user Stop
+  // (empty bubble + "Stopped" chip on the first message of every new chat).
+  // The timer fires after the double-invoke, when no cleanup can touch it;
+  // a real unmount before then clears it, so no orphan send is possible.
   useEffect(() => {
     if (!initialPrompt || hasAutoSent.current) return;
-    hasAutoSent.current = true;
-    send(initialPrompt);
+    const timer = setTimeout(() => {
+      hasAutoSent.current = true;
+      void send(initialPrompt);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [initialPrompt, send]);
 
   if (isLoadingSession) {

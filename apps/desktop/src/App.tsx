@@ -21,6 +21,9 @@ import ThesisViewer from "./renderer/pages/ThesisViewer";
 import Register from "./renderer/pages/Register";
 import Login from "./renderer/pages/Login";
 import { profileService, userService } from "./renderer/lib/authServices";
+import { backupService } from "./renderer/lib/backupService";
+import { backupStorage } from "./renderer/lib/backupStorage";
+import { backupExporter } from "./renderer/lib/backupExporter";
 import { auth } from "./renderer/lib/firebaseServices";
 import { MfaSessionProvider } from "./renderer/components/MfaSessionProvider";
 import { mfaService } from "./renderer/lib/mfaService";
@@ -73,7 +76,7 @@ const App = () => {
                   <Route path="/panelist" element={<Panelist />} />
                   <Route path="/schedule" element={<Schedule />} />
                   <Route path="/settings" element={<SettingsPage userService={userService} mfa={mfa} />} />
-                  <Route path="/backup" element={<BackupPage />} />
+                  <Route path="/backup" element={<BackupPage backupService={backupService} storage={backupStorage} exporter={backupExporter} />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
                 </Route>
