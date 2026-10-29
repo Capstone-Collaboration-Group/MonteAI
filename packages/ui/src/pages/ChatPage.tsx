@@ -25,6 +25,7 @@ import { ChatView } from "../components/Chat/ChatView";
 import { ChatPageSkeleton } from "../components/Chat/skeletons";
 import { ConfirmDialog } from "../components/common";
 import { toast } from "../components/toast";
+import { MonteAvatar, type AvatarActivity, type AvatarEmotion } from "../avatar";
 
 const FALLBACK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // dev fallback when no user is signed in (mock mode)
 
@@ -84,6 +85,12 @@ export function ChatPage({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   /** Empty-state suggestion cards — top analytics queries, static fallback until they load. */
   const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
+  /** 3D avatar — what it is doing (idle/thinking/speaking). */
+  const [avatarActivity, setAvatarActivity] = useState<AvatarActivity>("idle");
+  /** 3D avatar — mood from the latest answer (cheerful when theses matched). */
+  const [avatarEmotion, setAvatarEmotion] = useState<AvatarEmotion>("neutral");
+  /** Incremented once per streamed delta — the avatar's mouth syncs to it. */
+  const [avatarPulse, setAvatarPulse] = useState(0);
   const deleteSession = useDeleteChatSession(chatService);
   const hasAutoSent = useRef(false);
   /** AbortController for the in-flight stream; nulled when idle/finished. */
@@ -120,6 +127,16 @@ export function ChatPage({
       .then((session) => {
         if (!active) return;
         setMessages(session ? [...session.messages].reverse() : []);
+        // Mood from the newest assistant answer already in the conversation.
+        const latestAssistant = (session?.messages ?? [])
+          .filter((m) => m.role === "assistant")
+          .reduce<ChatMessageResponseDto | null>(
+            (newest, m) => (!newest || m.timestamp > newest.timestamp ? m : newest),
+            null
+          );
+        setAvatarEmotion(
+          latestAssistant ? (latestAssistant.sources?.length ? "cheerful" : "sad") : "neutral"
+        );
       })
       .catch(() => {
         if (active) setMessages([]);
@@ -139,6 +156,9 @@ export function ChatPage({
       if (options?.clearInput !== false) setInput("");
       setSendError(null);
       setStreamStatus("Preparing your question…");
+      // Monte ponders while the agent plans/retrieves, talks while tokens stream.
+      setAvatarActivity("thinking");
+      setAvatarEmotion("neutral");
 
       // Fresh AbortController for this send — lets the Stop button (or
       // unmount) cancel the in-flight SSE request.
@@ -170,6 +190,8 @@ export function ChatPage({
         // ── Streaming path ──
         if (typeof chatService.sendMessageStream === "function") {
           const placeholderId = crypto.randomUUID();
+          /** True once the first token arrived — later status notes must not revert to "thinking". */
+          let sawDelta = false;
           setStreamingAssistantId(placeholderId);
           setMessages((prev) => [
             ...prev,
@@ -189,13 +211,23 @@ export function ChatPage({
               { role: "user", content },
               {
                 signal: controller.signal,
-                onStatus: (status) => setStreamStatus(status),
-                onSources: (sources) =>
+                onStatus: (status) => {
+                  setStreamStatus(status);
+                  if (!sawDelta) setAvatarActivity("thinking");
+                },
+                onSources: (sources) => {
+                  setAvatarEmotion(sources?.length ? "cheerful" : "sad");
                   setMessages((prev) =>
                     prev.map((m) => (m.id === placeholderId ? { ...m, sources } : m))
-                  ),
+                  );
+                },
                 onDelta: (text) => {
                   setStreamStatus(null);
+                  if (!sawDelta) {
+                    sawDelta = true;
+                    setAvatarActivity("speaking");
+                  }
+                  setAvatarPulse((p) => p + 1);
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === placeholderId ? { ...m, content: m.content + text } : m
@@ -207,6 +239,8 @@ export function ChatPage({
             setMessages((prev) =>
               prev.map((m) => (m.id === placeholderId ? finalMessage : m))
             );
+            // Cheerful when the answer cites relevant theses, politely sad when not.
+            setAvatarEmotion(finalMessage.sources?.length ? "cheerful" : "sad");
           } catch (err) {
             if (err instanceof ChatStreamAbortedError) {
               // User tapped Stop: keep whatever partial content streamed into
@@ -227,10 +261,12 @@ export function ChatPage({
               console.error("Chat stream failed:", err);
               setMessages((prev) => prev.filter((m) => m.id !== placeholderId));
               setSendError(toUserFacingError(err));
+              setAvatarEmotion("sad");
             }
           } finally {
             setStreamingAssistantId(null);
             setStreamStatus(null);
+            setAvatarActivity("idle");
           }
         } else {
           // ── Blocking fallback ──
@@ -239,16 +275,19 @@ export function ChatPage({
             content,
           });
           setMessages((prev) => [...prev, assistantMessage]);
+          setAvatarEmotion(assistantMessage.sources?.length ? "cheerful" : "sad");
         }
 
         onSessionActivity?.();
       } catch (err) {
         console.error("Chat send failed:", err);
         setSendError(toUserFacingError(err));
+        setAvatarEmotion("sad");
       } finally {
         abortRef.current = null;
         setIsSending(false);
         setStreamStatus(null);
+        setAvatarActivity("idle");
       }
     },
     [
@@ -298,6 +337,7 @@ export function ChatPage({
       setConfirmingDelete(false);
       setMessages([]);
       setLocalSessionId(null);
+      setAvatarEmotion("neutral");
       onSessionActivity?.();
       onSessionDeleted?.(activeSessionId);
       toast.success("Chat deleted");
@@ -332,6 +372,7 @@ export function ChatPage({
   return (
     <>
       <ChatView
+        avatar={<MonteAvatar activity={avatarActivity} emotion={avatarEmotion} pulse={avatarPulse} />}
         messages={messages}
         input={input}
         isSending={isSending}
