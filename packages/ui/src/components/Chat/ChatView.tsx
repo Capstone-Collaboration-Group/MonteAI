@@ -14,6 +14,7 @@
 // a static fallback) that send immediately when tapped.
 
 import { useRef, useEffect, useState, useCallback } from "react";
+import type { ReactNode } from "react";
 import {
   ArrowUp,
   BookOpen,
@@ -36,6 +37,8 @@ import type {
 import { ChatMessageSkeleton } from "./skeletons";
 
 export interface ChatViewProps {
+  /** Optional floating mascot; bounded to the message viewport, clear of the input. */
+  avatar?: ReactNode;
   messages: ChatMessageResponseDto[];
   input: string;
   isSending: boolean;
@@ -66,6 +69,7 @@ export interface ChatViewProps {
 }
 
 export function ChatView({
+  avatar,
   messages,
   input,
   isSending,
@@ -166,147 +170,150 @@ export function ChatView({
       )}
 
       {/* ── Message list ── */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
-        <div className="mx-auto flex max-w-2xl flex-col gap-4">
-          {messages.length === 0 && !isSending && (
-            <div className="mt-20 flex flex-col items-center gap-5">
-              <p className="text-center text-sm text-on-surface-variant">
-                Start the conversation below.
-              </p>
-              {suggestions.length > 0 && onSelectSuggestion && (
-                <div className="flex w-full flex-col gap-2">
-                  {suggestions.map((text) => (
-                    <button
-                      key={text}
-                      type="button"
-                      onClick={() => onSelectSuggestion(text)}
-                      className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-left text-sm text-on-surface transition-colors hover:border-primary hover:bg-surface-container"
-                    >
-                      <Sparkles className="mr-2 inline h-3.5 w-3.5 text-primary" />
-                      {text}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {messages.map((m) => {
-            const isStreamingThis = m.id === streamingMessageId;
-            const isStopped = m.id === stoppedMessageId;
-            const showRetry =
-              m.role === "user" && !isStreamingThis && Boolean(onRetry) && !isSending;
-            const showCite =
-              m.role === "assistant" &&
-              !isStreamingThis &&
-              Boolean(m.sources?.length) &&
-              Boolean(onRequestCitations);
-            const showExpand =
-              m.role === "assistant" && !isStreamingThis && Boolean(onExpand);
-
-            return (
-              <div
-                key={m.id}
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                  m.role === "user"
-                    ? "ml-auto bg-primary text-on-primary"
-                    : "mr-auto bg-surface-container text-on-surface"
-                }`}
-              >
-                <div className="whitespace-pre-wrap break-words">
-                  {m.content}
-                  {isStreamingThis && (
-                    <span className="ml-0.5 inline-block h-4 w-2 animate-pulse rounded-sm bg-on-surface align-text-bottom" />
-                  )}
-                </div>
-
-                {isStopped && (
-                  <div className="mt-1.5 flex justify-end">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-on-surface/10 px-2 py-0.5 text-[11px] font-medium text-on-surface/60">
-                      <Square className="h-2 w-2 fill-current" />
-                      Stopped
-                    </span>
-                  </div>
-                )}
-
-                {showRetry && (
-                  <div className="mt-1.5 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => onRetry?.(m.content)}
-                      disabled={isSending}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-on-primary/70 transition-colors hover:text-on-primary disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="Retry sending this message"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                      Retry
-                    </button>
-                  </div>
-                )}
-
-                {(showCite || showExpand) && (
-                  <div className="mt-2 flex items-center gap-3 border-t border-outline-variant pt-2">
-                    {showCite && (
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
+          <div className="mx-auto flex max-w-2xl flex-col gap-4">
+            {messages.length === 0 && !isSending && (
+              <div className="mt-20 flex flex-col items-center gap-5">
+                <p className="text-center text-sm text-on-surface-variant">
+                  Start the conversation below.
+                </p>
+                {suggestions.length > 0 && onSelectSuggestion && (
+                  <div className="flex w-full flex-col gap-2">
+                    {suggestions.map((text) => (
                       <button
+                        key={text}
                         type="button"
-                        onClick={() => handleCite(m)}
-                        className={`inline-flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-primary ${
-                          citingMessageId === m.id ? "text-primary" : "text-on-surface-variant"
-                        }`}
+                        onClick={() => onSelectSuggestion(text)}
+                        className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-left text-sm text-on-surface transition-colors hover:border-primary hover:bg-surface-container"
                       >
-                        {citingMessageId === m.id ? (
-                          <ChevronDown className="h-3 w-3" />
-                        ) : (
-                          <Quote className="h-3 w-3" />
-                        )}
-                        Cite
+                        <Sparkles className="mr-2 inline h-3.5 w-3.5 text-primary" />
+                        {text}
                       </button>
-                    )}
-                    {showExpand && (
-                      <button
-                        type="button"
-                        onClick={() => onExpand?.(m)}
-                        disabled={isSending}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Maximize2 className="h-3 w-3" />
-                        Expand
-                      </button>
-                    )}
+                    ))}
                   </div>
-                )}
-
-                {m.role === "assistant" && m.sources && m.sources.length > 0 && (
-                  <>
-                    {citingMessageId === m.id ? (
-                      <CitationPanel
-                        citations={citations}
-                        isLoading={citationsLoading}
-                        error={citationsError}
-                        copiedKey={copiedKey}
-                        onCopy={(text, key) => copyText(text, key)}
-                        onCopyAll={copyAllCitations}
-                        onClose={() => setCitingMessageId(null)}
-                      />
-                    ) : (
-                      <SourcesPanel sources={m.sources} />
-                    )}
-                  </>
                 )}
               </div>
-            );
-          })}
+            )}
 
-          {isSending && !isStreamingAssistant && <ChatMessageSkeleton />}
+            {messages.map((m) => {
+              const isStreamingThis = m.id === streamingMessageId;
+              const isStopped = m.id === stoppedMessageId;
+              const showRetry =
+                m.role === "user" && !isStreamingThis && Boolean(onRetry) && !isSending;
+              const showCite =
+                m.role === "assistant" &&
+                !isStreamingThis &&
+                Boolean(m.sources?.length) &&
+                Boolean(onRequestCitations);
+              const showExpand =
+                m.role === "assistant" && !isStreamingThis && Boolean(onExpand);
 
-          {isSending && streamStatus && (
-            <p className="animate-pulse text-center text-xs text-on-surface-variant">
-              {streamStatus}
-            </p>
-          )}
+              return (
+                <div
+                  key={m.id}
+                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
+                    m.role === "user"
+                      ? "ml-auto bg-primary text-on-primary"
+                      : "mr-auto bg-surface-container text-on-surface"
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap break-words">
+                    {m.content}
+                    {isStreamingThis && (
+                      <span className="ml-0.5 inline-block h-4 w-2 animate-pulse rounded-sm bg-on-surface align-text-bottom" />
+                    )}
+                  </div>
 
-          <div ref={bottomRef} />
+                  {isStopped && (
+                    <div className="mt-1.5 flex justify-end">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-on-surface/10 px-2 py-0.5 text-[11px] font-medium text-on-surface/60">
+                        <Square className="h-2 w-2 fill-current" />
+                        Stopped
+                      </span>
+                    </div>
+                  )}
+
+                  {showRetry && (
+                    <div className="mt-1.5 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => onRetry?.(m.content)}
+                        disabled={isSending}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-on-primary/70 transition-colors hover:text-on-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Retry sending this message"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Retry
+                      </button>
+                    </div>
+                  )}
+
+                  {(showCite || showExpand) && (
+                    <div className="mt-2 flex items-center gap-3 border-t border-outline-variant pt-2">
+                      {showCite && (
+                        <button
+                          type="button"
+                          onClick={() => handleCite(m)}
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-primary ${
+                            citingMessageId === m.id ? "text-primary" : "text-on-surface-variant"
+                          }`}
+                        >
+                          {citingMessageId === m.id ? (
+                            <ChevronDown className="h-3 w-3" />
+                          ) : (
+                            <Quote className="h-3 w-3" />
+                          )}
+                          Cite
+                        </button>
+                      )}
+                      {showExpand && (
+                        <button
+                          type="button"
+                          onClick={() => onExpand?.(m)}
+                          disabled={isSending}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Maximize2 className="h-3 w-3" />
+                          Expand
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+                    <>
+                      {citingMessageId === m.id ? (
+                        <CitationPanel
+                          citations={citations}
+                          isLoading={citationsLoading}
+                          error={citationsError}
+                          copiedKey={copiedKey}
+                          onCopy={(text, key) => copyText(text, key)}
+                          onCopyAll={copyAllCitations}
+                          onClose={() => setCitingMessageId(null)}
+                        />
+                      ) : (
+                        <SourcesPanel sources={m.sources} />
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+
+            {isSending && !isStreamingAssistant && <ChatMessageSkeleton />}
+
+            {isSending && streamStatus && (
+              <p className="animate-pulse text-center text-xs text-on-surface-variant">
+                {streamStatus}
+              </p>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
         </div>
+        {avatar}
       </div>
 
       {error && (

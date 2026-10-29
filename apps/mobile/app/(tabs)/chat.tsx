@@ -21,6 +21,8 @@ import { DrawerProvider } from '@/components/ui/DrawerProvider';
 import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { chatService } from '@/lib/chatService';
+import { MonteAvatar } from '@/components/MonteAvatar';
+import type { AvatarActivity, AvatarEmotion } from '@monteai/ui/src/avatar/types';
 import { ChatStreamAbortedError } from '@monteai/api';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
 import type {
@@ -102,6 +104,14 @@ export default function ChatScreen() {
   const [citeLoading, setCiteLoading] = useState(false);
   /** Key of the last copied citation — row index ("c0") or "all". */
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  /** 3D avatar — what it is doing (idle/thinking/speaking). */
+  const [avatarActivity, setAvatarActivity] = useState<AvatarActivity>('idle');
+  /** 3D avatar — mood from the latest answer (cheerful when theses matched). */
+  const [avatarEmotion, setAvatarEmotion] = useState<AvatarEmotion>('neutral');
+  /** Incremented once per streamed delta — the avatar's mouth syncs to it. */
+  const [avatarPulse, setAvatarPulse] = useState(0);
+  /** Increment to make the avatar wave (mount + starting a new chat). */
+  const [greetKey, setGreetKey] = useState(0);
 
   // Fetch the top query strings once for the empty-state suggestion pills.
   // Fails soft: the static fallbacks stay in place when the call rejects.
@@ -135,6 +145,8 @@ export default function ChatScreen() {
     setSession(null);
     setMessages([WELCOME_MSG]);
     setSessionMenuVisible(false);
+    setAvatarEmotion('neutral');
+    setGreetKey((k) => k + 1); // fresh chat → wave hello
   }, []);
 
   const toggleSessionPinned = async () => {
@@ -190,6 +202,7 @@ export default function ChatScreen() {
       await chatService.deleteSession(session.id);
       setSession(null);
       setMessages([WELCOME_MSG]);
+      setAvatarEmotion('neutral');
       await refresh(true);
     } catch (error) {
       Alert.alert(
@@ -231,6 +244,15 @@ export default function ChatScreen() {
             .map((m) => toMessage(m.role, m.content, m.id, m.sources))
             .reverse()
         );
+        // Mood from the newest assistant answer already in the conversation.
+        const latestAssistant = [...s.messages]
+          .filter((m) => m.role === 'assistant')
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+        if (latestAssistant) {
+          setAvatarEmotion(latestAssistant.sources?.length ? 'cheerful' : 'sad');
+        } else {
+          setAvatarEmotion('neutral');
+        }
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
       } catch {
         setMessages((prev) => [
@@ -275,6 +297,9 @@ export default function ChatScreen() {
     }
 
     setSending(true);
+    // Monte ponders while the agent plans/retrieves, talks while tokens stream.
+    setAvatarActivity('thinking');
+    setAvatarEmotion('neutral');
     // Fresh AbortController for this send — lets the Stop button (or
     // unmount) cancel the in-flight SSE request.
     const controller = new AbortController();
@@ -288,6 +313,9 @@ export default function ChatScreen() {
       { id: `u-${Date.now()}`, role: 'user', text: trimmed },
       { id: draftId, role: 'ai', text: '', status: 'Thinking…' },
     ]);
+
+    /** True once the first token arrived — later status notes must not revert to "thinking". */
+    let sawDelta = false;
 
     try {
       let activeSession = session;
@@ -315,9 +343,22 @@ export default function ChatScreen() {
         { role: 'user', content: trimmed },
         {
           signal: controller.signal,
-          onStatus: (message) => patchDraft({ status: message }),
-          onSources: (sources) => patchDraft({ sources }),
-          onDelta: (fragment) => patchDraft((m) => ({ text: m.text + fragment })),
+          onStatus: (message) => {
+            patchDraft({ status: message });
+            if (!sawDelta) setAvatarActivity('thinking');
+          },
+          onSources: (sources) => {
+            patchDraft({ sources });
+            setAvatarEmotion(sources?.length ? 'cheerful' : 'sad');
+          },
+          onDelta: (fragment) => {
+            if (!sawDelta) {
+              sawDelta = true;
+              setAvatarActivity('speaking');
+            }
+            setAvatarPulse((p) => p + 1);
+            patchDraft((m) => ({ text: m.text + fragment }));
+          },
         }
       );
       // Swap the draft for the persisted assistant message (final content,
@@ -325,6 +366,8 @@ export default function ChatScreen() {
       setMessages((prev) =>
         prev.map((m) => (m.id === draftId ? toMessage(res.role, res.content, res.id, res.sources) : m))
       );
+      // Cheerful when the answer cites relevant theses, politely sad when not.
+      setAvatarEmotion(res.sources?.length ? 'cheerful' : 'sad');
       // Once the response is back, silently refresh the session list so a
       // newly created chat is pushed to the top of the history in real time.
       refresh(true);
@@ -349,10 +392,12 @@ export default function ChatScreen() {
         setMessages((prev) =>
           prev.map((m) => (m.id === draftId ? { id: `err-${Date.now()}`, role: 'ai', text } : m))
         );
+        setAvatarEmotion('sad');
       }
     } finally {
       abortRef.current = null;
       setSending(false);
+      setAvatarActivity('idle');
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }
@@ -614,132 +659,140 @@ export default function ChatScreen() {
             </View>
           </Modal>
 
-          <ScrollView
-            ref={scrollRef}
-            style={s.scroll}
-            contentContainerStyle={s.messages}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}>
-            {messages.map((msg) => (
-              <View key={msg.id} style={[s.bubbleRow, msg.role === 'user' && s.bubbleRowUser]}>
-                <View
-                  style={[
-                    s.bubble,
-                    msg.role === 'user'
-                      ? [s.bubbleUser, { backgroundColor: primary }]
-                      : [s.bubbleAi, { backgroundColor: surface, borderColor: outline }],
-                  ]}>
-                  {msg.status ? (
-                    <View style={s.statusRow}>
-                      <MaterialIcons name="auto-awesome" size={14} color={primary} />
-                      <Text style={[s.status, { color: primary }]}>{msg.status}</Text>
-                    </View>
-                  ) : null}
-                  <Text style={[s.bubbleText, { color: msg.role === 'user' ? onPrimary : heading }]}>
-                    {msg.text}
-                  </Text>
-                  {msg.stopped ? (
-                    <View style={s.stoppedRow}>
-                      <MaterialIcons name="stop-circle" size={12} color={body} />
-                      <Text style={[s.stoppedText, { color: body }]}>Stopped</Text>
-                    </View>
-                  ) : null}
-                  {msg.role === 'user' && !sending ? (
-                    <View style={[s.actions, { justifyContent: 'flex-end' }]}>
-                      <Pressable
-                        style={[s.actionBtn, { borderColor: 'rgba(255,255,255,0.3)' }]}
-                        onPress={() => void dispatchMessage(msg.text)}
-                        disabled={sending}
-                        accessibilityRole="button"
-                        accessibilityLabel="Retry sending this message">
-                        <MaterialIcons name="replay" size={14} color={onPrimary} style={s.actionIcon} />
-                        <Text style={[s.actionText, { color: onPrimary }]}>Retry</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                  {msg.role === 'ai' && msg.sources && msg.sources.length > 0 ? (
-                    <View style={[s.sources, { borderTopColor: outline }]}>
-                      <Text style={[s.sourcesLabel, { color: body }]}>Sources</Text>
-                      {msg.sources.map((source, index) => {
-                        const label = source.title ?? 'Untitled thesis';
-                        const thesisId = source.thesisId ? cleanThesisId(source.thesisId) : '';
-                        const caption = `[Source ${index + 1}] ${label}${
-                          source.publicationYear ? ` (${source.publicationYear})` : ''
-                        }`;
-                        return thesisId ? (
+          <View style={s.conversation}>
+            <ScrollView
+              ref={scrollRef}
+              style={s.scroll}
+              contentContainerStyle={s.messages}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}>
+              {messages.map((msg) => (
+                <View key={msg.id} style={[s.bubbleRow, msg.role === 'user' && s.bubbleRowUser]}>
+                  <View
+                    style={[
+                      s.bubble,
+                      msg.role === 'user'
+                        ? [s.bubbleUser, { backgroundColor: primary }]
+                        : [s.bubbleAi, { backgroundColor: surface, borderColor: outline }],
+                    ]}>
+                    {msg.status ? (
+                      <View style={s.statusRow}>
+                        <MaterialIcons name="auto-awesome" size={14} color={primary} />
+                        <Text style={[s.status, { color: primary }]}>{msg.status}</Text>
+                      </View>
+                    ) : null}
+                    <Text style={[s.bubbleText, { color: msg.role === 'user' ? onPrimary : heading }]}>
+                      {msg.text}
+                    </Text>
+                    {msg.stopped ? (
+                      <View style={s.stoppedRow}>
+                        <MaterialIcons name="stop-circle" size={12} color={body} />
+                        <Text style={[s.stoppedText, { color: body }]}>Stopped</Text>
+                      </View>
+                    ) : null}
+                    {msg.role === 'user' && !sending ? (
+                      <View style={[s.actions, { justifyContent: 'flex-end' }]}>
+                        <Pressable
+                          style={[s.actionBtn, { borderColor: 'rgba(255,255,255,0.3)' }]}
+                          onPress={() => void dispatchMessage(msg.text)}
+                          disabled={sending}
+                          accessibilityRole="button"
+                          accessibilityLabel="Retry sending this message">
+                          <MaterialIcons name="replay" size={14} color={onPrimary} style={s.actionIcon} />
+                          <Text style={[s.actionText, { color: onPrimary }]}>Retry</Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                    {msg.role === 'ai' && msg.sources && msg.sources.length > 0 ? (
+                      <View style={[s.sources, { borderTopColor: outline }]}>
+                        <Text style={[s.sourcesLabel, { color: body }]}>Sources</Text>
+                        {msg.sources.map((source, index) => {
+                          const label = source.title ?? 'Untitled thesis';
+                          const thesisId = source.thesisId ? cleanThesisId(source.thesisId) : '';
+                          const caption = `[Source ${index + 1}] ${label}${
+                            source.publicationYear ? ` (${source.publicationYear})` : ''
+                          }`;
+                          return thesisId ? (
+                            <Pressable
+                              key={thesisId || String(index)}
+                              accessibilityRole="link"
+                              accessibilityLabel={`Open ${label} in the thesis viewer`}
+                              onPress={() => router.push(`/thesis/${thesisId}` as Href)}
+                              style={s.sourceRow}>
+                              <MaterialIcons name="menu-book" size={14} color={primary} style={s.sourceIcon} />
+                              <Text style={[s.sourceText, { color: primary }]} numberOfLines={2}>
+                                {caption}
+                              </Text>
+                            </Pressable>
+                          ) : (
+                            <View key={String(index)} style={s.sourceRow}>
+                              <MaterialIcons name="menu-book" size={14} color={body} style={s.sourceIcon} />
+                              <Text style={[s.sourceText, { color: body }]} numberOfLines={2}>
+                                {caption}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    ) : null}
+                    {msg.role === 'ai' && !msg.status && msg.text && msg.id !== 'welcome' ? (
+                      <View style={s.actions}>
+                        {msg.sources && msg.sources.length > 0 ? (
                           <Pressable
-                            key={thesisId || String(index)}
-                            accessibilityRole="link"
-                            accessibilityLabel={`Open ${label} in the thesis viewer`}
-                            onPress={() => router.push(`/thesis/${thesisId}` as Href)}
-                            style={s.sourceRow}>
-                            <MaterialIcons name="menu-book" size={14} color={primary} style={s.sourceIcon} />
-                            <Text style={[s.sourceText, { color: primary }]} numberOfLines={2}>
-                              {caption}
-                            </Text>
+                            style={[s.actionBtn, { borderColor: outline }]}
+                            onPress={() => void openCite(msg)}
+                            disabled={citeLoading}
+                            accessibilityRole="button"
+                            accessibilityLabel="Show APA citations">
+                            <MaterialIcons name="format-quote" size={14} color={heading} style={s.actionIcon} />
+                            <Text style={[s.actionText, { color: heading }]}>Cite</Text>
                           </Pressable>
-                        ) : (
-                          <View key={String(index)} style={s.sourceRow}>
-                            <MaterialIcons name="menu-book" size={14} color={body} style={s.sourceIcon} />
-                            <Text style={[s.sourceText, { color: body }]} numberOfLines={2}>
-                              {caption}
-                            </Text>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ) : null}
-                  {msg.role === 'ai' && !msg.status && msg.text && msg.id !== 'welcome' ? (
-                    <View style={s.actions}>
-                      {msg.sources && msg.sources.length > 0 ? (
+                        ) : null}
                         <Pressable
                           style={[s.actionBtn, { borderColor: outline }]}
-                          onPress={() => void openCite(msg)}
-                          disabled={citeLoading}
+                          onPress={() => void sendText(EXPAND_PROMPT)}
+                          disabled={sending}
                           accessibilityRole="button"
-                          accessibilityLabel="Show APA citations">
-                          <MaterialIcons name="format-quote" size={14} color={heading} style={s.actionIcon} />
-                          <Text style={[s.actionText, { color: heading }]}>Cite</Text>
+                          accessibilityLabel="Expand this answer">
+                          <MaterialIcons name="unfold-more" size={14} color={heading} style={s.actionIcon} />
+                          <Text style={[s.actionText, { color: heading }]}>Expand</Text>
                         </Pressable>
-                      ) : null}
-                      <Pressable
-                        style={[s.actionBtn, { borderColor: outline }]}
-                        onPress={() => void sendText(EXPAND_PROMPT)}
-                        disabled={sending}
-                        accessibilityRole="button"
-                        accessibilityLabel="Expand this answer">
-                        <MaterialIcons name="unfold-more" size={14} color={heading} style={s.actionIcon} />
-                        <Text style={[s.actionText, { color: heading }]}>Expand</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
-            ))}
-            {/* Empty-state suggestion pills — top queries from analytics (static fallback). */}
-            {messages.length === 1 && !sending && suggestions.length > 0 ? (
-              <View style={s.suggestions}>
-                {suggestions.map((text) => (
-                  <Pressable
-                    key={text}
-                    style={[s.suggestionPill, { backgroundColor: surface, borderColor: outline }]}
-                    onPress={() => void sendText(text)}
-                    accessibilityRole="button">
-                    <MaterialIcons name="auto-awesome" size={14} color={primary} style={s.actionIcon} />
-                    <Text style={[s.suggestionText, { color: heading }]} numberOfLines={2}>
-                      {text}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-            {loadingHistory && (
-              <View style={s.typingRow}>
-                <ActivityIndicator size="small" color={primary} />
-                <Text style={[s.typingText, { color: body }]}>Loading conversation...</Text>
-              </View>
-            )}
-          </ScrollView>
+              ))}
+              {/* Empty-state suggestion pills — top queries from analytics (static fallback). */}
+              {messages.length === 1 && !sending && suggestions.length > 0 ? (
+                <View style={s.suggestions}>
+                  {suggestions.map((text) => (
+                    <Pressable
+                      key={text}
+                      style={[s.suggestionPill, { backgroundColor: surface, borderColor: outline }]}
+                      onPress={() => void sendText(text)}
+                      accessibilityRole="button">
+                      <MaterialIcons name="auto-awesome" size={14} color={primary} style={s.actionIcon} />
+                      <Text style={[s.suggestionText, { color: heading }]} numberOfLines={2}>
+                        {text}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+              {loadingHistory && (
+                <View style={s.typingRow}>
+                  <ActivityIndicator size="small" color={primary} />
+                  <Text style={[s.typingText, { color: body }]}>Loading conversation...</Text>
+                </View>
+              )}
+            </ScrollView>
+            <MonteAvatar
+              activity={avatarActivity}
+              emotion={avatarEmotion}
+              pulse={avatarPulse}
+              greetKey={greetKey}
+            />
+          </View>
 
           {/* Input bar (in normal flow, no longer absolute) */}
           <SafeAreaView edges={['bottom']}>
@@ -792,6 +845,7 @@ export default function ChatScreen() {
               </Text>
             </View>
           </SafeAreaView>
+
         </KeyboardAvoidingView>
       )}
     </DrawerProvider>
@@ -801,6 +855,7 @@ export default function ChatScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
+  conversation: { flex: 1, overflow: 'hidden' },
   scroll: { flex: 1},
   messages: { padding: Spacing.xl, gap: Spacing.lg },
   bubbleRow: { flexDirection: 'row' },
