@@ -21,8 +21,10 @@
 
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using server.Models.Agent;
 using server.Models.DTOs.ChatMessage;
+using server.Models.Entities;
 using server.Models.Retrieval;
 using server.Repositories.Interfaces;
 using server.Services.Interfaces;
@@ -154,7 +156,23 @@ namespace server.Services.AI.Agent
             }
 
             var limit = Math.Clamp(AgentJson.GetIntArg(arguments, "limit") ?? 5, 1, 10);
-            var theses = await _thesisRepository.SearchByKeywordAsync(term, limit, ct);
+            var theses = new List<Thesis>();
+            var seen = new HashSet<Guid>();
+
+            // Standard-number designations are written both ways in the corpus
+            // ("ISO 25010" in one thesis, "ISO/IEC 25010" in another) — one
+            // literal LIKE cannot match across them, so each variant is tried
+            // and the hits are merged. Ordinary terms yield a single variant
+            // (the original) and behave exactly as before.
+            foreach (var candidate in BuildSearchTerms(term))
+            {
+                foreach (var thesis in await _thesisRepository.SearchByKeywordAsync(candidate, limit, ct))
+                {
+                    if (seen.Add(thesis.Id)) theses.Add(thesis);
+                }
+                if (theses.Count >= limit) break;
+            }
+            theses = theses.OrderByDescending(t => t.SubmittedAt).Take(limit).ToList();
 
             var sources = theses.Select(t => new ChatSourceDto
             {
@@ -210,7 +228,12 @@ namespace server.Services.AI.Agent
             }
 
             var thesis = await _thesisRepository.GetThesisByIdAsync(thesisId);
-            if (thesis is null)
+            // Same visibility rule as keyword_search: the agent's tools serve
+            // students, so a draft/failed row must not be readable by GUID
+            // (reported as absent rather than forbidden, so a guesser cannot
+            // distinguish "exists but hidden" from "does not exist").
+            if (thesis is null ||
+                (thesis.Status != "Indexed" && thesis.PineconeStatus != "Indexed"))
             {
                 return new ToolExecutionResult(
                     Observation: $"thesis_metadata: no thesis with id {thesisId} exists.",
@@ -250,6 +273,52 @@ namespace server.Services.AI.Agent
         }
 
         // ─────────────────── shared helpers ───────────────────
+
+        /// <summary>
+        /// Literal search variants for a keyword_search term. Standard-number
+        /// designations appear in both forms across theses — "ISO 25010" vs
+        /// "ISO/IEC 25010" — so an org+number term expands to:
+        ///   the typed form, the no-space form ("ISO25010"), each body of a
+        ///   multi-body designation ("ISO 25010" / "IEC 25010" from
+        ///   "ISO/IEC 25010"), and the dual-body form for a lone standards
+        ///   body ("ISO 25010" -> also "ISO/IEC 25010").
+        /// Everything else returns just the original term (plain LIKE).
+        /// </summary>
+        private static List<string> BuildSearchTerms(string term)
+        {
+            var trimmed = term.Trim();
+            var variants = new List<string> { trimmed };
+
+            var match = Regex.Match(
+                trimmed, @"^(?<org>[A-Za-z][A-Za-z./]*?)\s+(?<num>\d+(?:\.\d+)*)$");
+            if (!match.Success) return variants;
+
+            var org = match.Groups["org"].Value;
+            var num = match.Groups["num"].Value;
+
+            void Add(string candidate)
+            {
+                if (!string.IsNullOrWhiteSpace(candidate) &&
+                    !variants.Contains(candidate, StringComparer.OrdinalIgnoreCase))
+                {
+                    variants.Add(candidate);
+                }
+            }
+
+            Add(org.Replace(" ", string.Empty) + num);            // ISO25010
+            foreach (var body in org.Split('/', StringSplitOptions.RemoveEmptyEntries))
+            {
+                Add($"{body} {num}");                             // ISO 25010 / IEC 25010
+            }
+            // The one dual-body designation used in this corpus: a lone "ISO"
+            // number is often filed as "ISO/IEC <n>" (and vice versa above).
+            if (!org.Contains('/') && org.Equals("ISO", StringComparison.OrdinalIgnoreCase))
+            {
+                Add($"ISO/IEC {num}");                            // ISO 25010 -> ISO/IEC 25010
+            }
+
+            return variants;
+        }
 
         private static ChatSourceDto ToSource(Chunk chunk) => new()
         {

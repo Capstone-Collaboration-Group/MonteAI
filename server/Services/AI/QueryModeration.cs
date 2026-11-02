@@ -52,6 +52,24 @@ namespace server.Services.AI
         /// <summary>True when the query belongs in analytics (top queries / suggestions).</summary>
         public static bool IsRecordable(string? query) => Classify(query) == QueryClass.Research;
 
+        /// <summary>
+        /// True for capability small-talk ("what can you do / help me with?",
+        /// "Hi! What can you help me with?"). The agent answers these with a
+        /// fixed, citation-free reply — no retrieval (which would attach
+        /// unrelated theses) and no LLM call (no quota tick).
+        /// </summary>
+        public static bool IsCapability(string? query) =>
+            !string.IsNullOrWhiteSpace(query) && IsCapabilityCore(Compact(query));
+
+        private static bool IsCapabilityCore(string compact) =>
+            compact.Length <= 60 &&
+            (CapabilityCompact.Contains(compact, StringComparer.Ordinal) ||
+             // The tail alone is too loose ("studies that help me with" would
+             // hit) — a real capability question addresses the assistant, so
+             // it contains "you" ("can YOU help me", "what can YOU do").
+             (compact.Contains("you", StringComparison.Ordinal) &&
+              NoiseCapabilitySuffixes.Any(suffix => compact.EndsWith(suffix, StringComparison.Ordinal))));
+
         // ─────────────────────────── harmful ───────────────────────────
 
         /// <summary>
@@ -154,6 +172,36 @@ namespace server.Services.AI
         };
 
         /// <summary>
+        /// Capability small-talk ("what can you do / help me with"). Kept
+        /// separate from the exact set because it answers a distinct need:
+        /// "Hi! What can you help me with?" compacts to a phrase nobody can
+        /// enumerate up front — without this it classified as Research and
+        /// the guaranteed retrieval attached unrelated theses as Sources to a
+        /// pure small-talk message.
+        /// </summary>
+        private static readonly string[] CapabilityCompact =
+        [
+            "whatcanyoudo", "whatdoyoudo", "whatcanyouhelpmewith", "howcanyouhelpmewith",
+            "howcanyouhelpme", "whatcanyoudoforme", "whatdoyoudoforme", "whatcanyoudowithme",
+            "whatdoyoudohere", "whatkindofhelpcanyougive", "whatcanyouassistmewith",
+            "howcanyouassistme", "tellmewhatcanyoudo", "tellmewhatyoucando",
+            "whatcanidaskyou", "whatquestionscanyouanswer", "yourcapabilities",
+        ];
+
+        /// <summary>
+        /// Capability-question TAILS for greeting hybrids the exact list cannot
+        /// enumerate ("Hi! What can you help me with?" compacts to
+        /// "hiwhatcanyouhelpmewith"). Only short queries qualify (≤ 60 compact
+        /// chars) so a genuine research question that merely ends with the
+        /// same words still classifies as Research.
+        /// </summary>
+        private static readonly string[] NoiseCapabilitySuffixes =
+        [
+            "canyouhelpme", "helpmewith", "canyoudoforme", "doyoudoforme",
+            "assistmewith", "canyouassistme", "helpmewiththis",
+        ];
+
+        /// <summary>
         /// Meta follow-ups whose text is identical across sessions/topics —
         /// the chat pipeline handles them via history blending, but they must
         /// not pollute top queries or suggestion chips. Mirrors the agent's
@@ -175,8 +223,13 @@ namespace server.Services.AI
         private static bool IsNoiseCore(string query)
         {
             var lowered = NormalizeDiacritics(query).ToLowerInvariant();
+            var compact = Compact(query);
 
-            if (NoiseExactCompact.Contains(Compact(query))) return true;
+            if (NoiseExactCompact.Contains(compact)) return true;
+
+            // Greeting + capability hybrid ("Hi! What can you help me with?")
+            // — matched on its compact tail within small-talk length.
+            if (IsCapabilityCore(compact)) return true;
 
             foreach (var phrase in NoiseContains)
             {

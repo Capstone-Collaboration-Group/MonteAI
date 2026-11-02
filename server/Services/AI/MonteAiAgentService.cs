@@ -73,6 +73,18 @@ namespace server.Services.AI
             "I can only help with questions about academic theses and research papers. " +
             "Try asking something like: *\"What theses are about renewable energy?\"*";
 
+        /// <summary>
+        /// Refusal for administrative/data-mutation requests (approve, delete,
+        /// role changes). Chat is read-only by design: every agent tool is a
+        /// lookup, so these actions are impossible — say so instead of
+        /// answering with repository studies.
+        /// </summary>
+        private const string AdminActionRefusalText =
+            "I can't perform administrative actions — approving, deleting, or changing roles/accounts is done " +
+            "through MonteAI's admin panel with your own permissions, not from this chat. " +
+            "I can only search and summarize theses in the repository. " +
+            "Try asking something like: *\"What theses are about renewable energy?\"*";
+
         /// <summary>Harmful-content refusal (slurs, threats, harassment — see QueryModeration).</summary>
         private const string HarmfulRefusalText =
             "I can't help with that message. MonteAI is a thesis research assistant for Colegio de Montalban's " +
@@ -82,6 +94,20 @@ namespace server.Services.AI
         /// <summary>Appended when the model stream dies mid-answer; also excluded from the cache.</summary>
         private const string MidStreamDropNotice =
             "\n\n*(The connection to the model dropped mid-answer — it may be incomplete. Ask again to regenerate.)*";
+
+        /// <summary>
+        /// Fixed answer for capability small-talk ("What can you help me with?").
+        /// Deliberately NOT an LLM call: no quota tick, no sources to attach,
+        /// and no dependence on the synthesizer's baked empty-sources rule.
+        /// </summary>
+        private const string CapabilityReplyText =
+            "Hi! I'm MonteAI, your thesis research assistant for Colegio de Montalban's institutional repository. " +
+            "Here's what I can do for you:\n\n" +
+            "• **Search the repository** — by topic, author, year, or standard (e.g. *\"Find studies about modular learning\"* or *\"Any thesis about ISO/IEC 25010?\"*).\n" +
+            "• **Summarize studies** — abstracts, methods, and findings, with the source cited.\n" +
+            "• **Look up details** — who authored a thesis, what year it was published, or its full record.\n" +
+            "• **Cite properly** — every answer points to the theses it came from, ready for your references list.\n\n" +
+            "Ask me anything about the theses in the repository to get started.";
 
         /// <summary>Matches the inline citation markers the synthesizer is instructed to emit.</summary>
         private static readonly Regex SourceRefRegex = new(@"\[Source (\d+)\]", RegexOptions.Compiled);
@@ -166,6 +192,16 @@ namespace server.Services.AI
                 yield break;
             }
 
+            // 1a. Administrative/data-mutation requests — refused explicitly
+            //     (no tool can perform them; answering with a study list reads
+            //     as if the action had been understood and carried out).
+            if (AdminActionPatterns.Any(p => query.Contains(p, StringComparison.OrdinalIgnoreCase)))
+            {
+                _logger.LogInformation("Blocked administrative-action chat query");
+                yield return new AgentStreamEvent.Completed(new AgentChatResult(AdminActionRefusalText, [], [], false));
+                yield break;
+            }
+
             // 1b. Non-follow-up noise — greetings, thanks, identity small
             //     talk ("who are you?"), keyboard gibberish. Retrieval on
             //     these attaches unrelated above-threshold theses as Sources
@@ -177,9 +213,24 @@ namespace server.Services.AI
             //     it") ARE classified Noise but must keep the full pipeline
             //     so retrieval can blend with the previous user question.
             var isFollowUp = ContextDependentFollowUp.IsMatch(query);
+            var topicQuery = isFollowUp ? null : TopicQuery.TryParse(query);
             var skipRetrieval = queryClass == QueryClass.Noise && !isFollowUp;
             if (skipRetrieval)
             {
+                // Capability questions ("What can you help me with?") get a
+                // FIXED reply: retrieval would attach unrelated theses to a
+                // small-talk message, and the synthesizer's baked empty-sources
+                // rule would risk firing its "No relevant theses…" text on it.
+                if (QueryModeration.IsCapability(query))
+                {
+                    _logger.LogInformation("Capability query — canned reply (no retrieval, no LLM)");
+                    yield return new AgentStreamEvent.SourcesDiscovered([]);
+                    yield return new AgentStreamEvent.AnswerDelta(CapabilityReplyText);
+                    yield return new AgentStreamEvent.Completed(
+                        new AgentChatResult(CapabilityReplyText, [], [], false));
+                    yield break;
+                }
+
                 _logger.LogInformation("Noise query — answering with synthesis only (no retrieval)");
                 var noiseOutcome = new AgentLoopOutcome([], [], [], false);
                 yield return new AgentStreamEvent.SourcesDiscovered([]);
@@ -218,6 +269,14 @@ namespace server.Services.AI
             //    conversation, so those queries bypass read AND write.
             //    (isFollowUp was computed with the noise gate in step 1b.)
             var cached = isFollowUp ? null : await _cache.TryGetAsync(query, cancellationToken);
+            if (cached is not null && topicQuery is not null &&
+                cached.Sources.Any(s => !topicQuery.HasTopicEvidence(s)))
+            {
+                // Do not replay an old answer whose citations fail the current
+                // topic check; dropping its sources alone would unground it.
+                _logger.LogInformation("Semantic cache hit skipped: citations do not cover the requested topic");
+                cached = null;
+            }
             if (cached is not null)
             {
                 // Cached citations may predate the author-resolution fix —
@@ -233,6 +292,7 @@ namespace server.Services.AI
                         Authors = s.Authors,
                         PublicationYear = s.PublicationYear,
                         Snippet = s.Snippet,
+                        FullExcerpt = s.FullExcerpt,
                         Score = s.Score,
                         Url = s.Url,
                     })
@@ -277,7 +337,7 @@ namespace server.Services.AI
             using var gateReleaser = await waitTask;
 
             AgentLoopOutcome? loop = null;
-            await foreach (var item in RunAgentLoopEventsAsync(query, request.History, cancellationToken))
+            await foreach (var item in RunAgentLoopEventsAsync(query, request.History, topicQuery, cancellationToken))
             {
                 switch (item)
                 {
@@ -344,6 +404,27 @@ namespace server.Services.AI
             "ignore previous", "ignore all previous", "disregard your",
             "you are a helpful assistant that",
         };
+
+        /// <summary>
+        /// Administrative / data-mutation requests. No tool in the toolbox can
+        /// write to the repository, but answering these with a study list (the
+        /// old behaviour) reads as if the action was understood and ignored —
+        /// the assistant must say plainly that it cannot perform them. Phrases
+        /// are deliberately action-shaped ("approve ", "delete ") rather than
+        /// topic words ("approval", "deletion") so legitimate research
+        /// questions still pass through to the agent.
+        /// </summary>
+        private static readonly HashSet<string> AdminActionPatterns = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "approve ", "approve this", "approve my", "reject this", "reject the",
+            "delete ", "delete this", "delete my", "remove this thesis",
+            "archive this", "archive the", "publish this", "mark as indexed", "reindex for me",
+            "change my account", "update my account", "change my password",
+            "make me admin", "give me admin", "grant admin", "promote me",
+            "admin role", "role to admin", "change my role", "set my role",
+            "update my role", "assign me the", "change my role to",
+        };
+
         private bool IsOutOfScope(string query)
         {
             return OutOfScopePatterns.Any(p => query.Contains(p, StringComparison.OrdinalIgnoreCase));
@@ -364,6 +445,7 @@ namespace server.Services.AI
         private async IAsyncEnumerable<object> RunAgentLoopEventsAsync(
             string query,
             IReadOnlyList<ConversationTurn> history,
+            TopicQuery? topicQuery,
             [EnumeratorCancellation] CancellationToken ct)
         {
             var observations = new List<string>();
@@ -428,7 +510,11 @@ namespace server.Services.AI
 
                     yield return new AgentStreamEvent.Status(StatusForTool(action.Tool!));
 
-                    var result = await _toolbox.ExecuteAsync(action.Tool!, action.ToolArgs, ct);
+                    // Validate against the user's original topic BEFORE merging
+                    // or applying the cap. Otherwise a broad planner rewrite or
+                    // a high-scoring context-only hit can fill every source slot.
+                    var result = EnforceTopicEvidence(topicQuery,
+                        await _toolbox.ExecuteAsync(action.Tool!, action.ToolArgs, ct));
                     calledAnyTool = true;
                     observations.Add(result.Observation);
                     sources = MergeSources(sources, result.Sources);
@@ -483,8 +569,11 @@ namespace server.Services.AI
                 }
                 var fallbackSources = (await _pineconeService.RetrieveRelevantChunksAsync(fallbackQuery, cancellationToken: ct))
                     .Select(ToSource).ToList();
-                observations.Add($"semantic_search (automatic): {fallbackSources.Count} passages retrieved for the original question.");
-                sources = MergeSources(sources, fallbackSources);
+                var fallbackResult = EnforceTopicEvidence(topicQuery, new ToolExecutionResult(
+                    $"semantic_search (automatic): {fallbackSources.Count} passages retrieved for the original question.",
+                    fallbackSources));
+                observations.Add(fallbackResult.Observation);
+                sources = MergeSources(sources, fallbackResult.Sources);
             }
 
             // ONE enrichment point for the merged list (id-memoized, so the
@@ -497,6 +586,21 @@ namespace server.Services.AI
             await _metadataResolver.EnrichAsync(sources, ct);
 
             yield return new LoopCompleted(new AgentLoopOutcome(sources, trace, observations, usedFallback));
+        }
+
+        private ToolExecutionResult EnforceTopicEvidence(TopicQuery? topic, ToolExecutionResult result)
+        {
+            if (topic is null) return result;
+
+            var verified = result.Sources.Where(topic.HasTopicEvidence).ToList();
+            if (verified.Count == result.Sources.Count) return result;
+
+            _logger.LogInformation(
+                "Topic evidence check kept {Kept}/{Total} thesis source(s) for '{Subject}'",
+                verified.Count, result.Sources.Count, topic.Subject);
+            return new ToolExecutionResult(
+                result.Observation + $"\nTopic evidence check: {verified.Count} of {result.Sources.Count} candidates mention every substantive term of the original topic in their titles/abstracts; the rest were excluded. Keep the full requested topic when retrying. Context-only matches are not evidence for it.",
+                verified);
         }
 
         /// <summary>User-facing progress text for one planner tool choice.</summary>
@@ -820,10 +924,14 @@ namespace server.Services.AI
             if (sources.Count == 0)
             {
                 // Mirrors the Foundry synth agent's no-sources/greeting rules
-                // VERBATIM — the previous wording ("suggest broadening the
-                // question") directly contradicted the agent's fixed reply
-                // and gave the model two conflicting instructions.
-                return "(No sources were retrieved for this question. If it is a greeting or small talk, reply warmly as MonteAI — a thesis-research assistant for Colegio de Montalban's institutional repository. Otherwise reply with EXACTLY: \"No relevant theses were found in the repository for this topic. Please try a different topic or different keywords.\")";
+                // — the previous wording ("suggest broadening the question")
+                // directly contradicted the agent's fixed reply and gave the
+                // model two conflicting instructions. The capability-question
+                // allowance is a deliberate server-side EXTENSION (greetings,
+                // "what can you help me with?" — classified Noise, empty
+                // sources): without it the baked rule's fixed "No relevant
+                // theses…" reply fires on pure small talk.
+                return "(No sources were retrieved for this question. If it is a greeting, small talk, or a question about what you can do (your capabilities, how you help), reply warmly as MonteAI — a thesis-research assistant for Colegio de Montalban's institutional repository — and briefly say that you search and summarize theses from the repository with citations. Otherwise reply with EXACTLY: \"No relevant theses were found in the repository for this topic. Please try a different topic or different keywords.\")";
             }
 
             var sb = new StringBuilder();

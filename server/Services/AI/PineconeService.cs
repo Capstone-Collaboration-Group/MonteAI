@@ -123,8 +123,17 @@ namespace server.Services.AI
             // 3. Drop below-threshold matches so junk never reaches the LLM prompt.
             var threshold = options?.ScoreThreshold ?? _config.ScoreThreshold;
 
+            // 3b. Relative cutoff: keep only what is within RelativeScoreMargin
+            //     of the BEST match. Cuts the off-topic tail that follows an
+            //     exact-title hit while a uniformly relevant list (scores
+            //     clustered together) survives intact.
+            var bestScore = matches.Max(match => match.Score);
+            var relativeFloor = _config.RelativeScoreMargin > 0
+                ? bestScore - (float)_config.RelativeScoreMargin
+                : float.NegativeInfinity; // margin <= 0 disables the cutoff
+
             var chunks = matches
-                .Where(match => match.Score >= threshold)
+                .Where(match => match.Score >= threshold && match.Score >= relativeFloor)
                 .OrderByDescending(match => match.Score)
                 .Select(match =>
                 {

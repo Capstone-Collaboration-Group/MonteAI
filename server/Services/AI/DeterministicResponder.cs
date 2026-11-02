@@ -16,6 +16,18 @@
 // and the full agent pipeline handles the question as before. A misfire only
 // costs one extra retrieval.
 //
+// ANSWER SELECTION (the part that decides WHEN to answer at all):
+//   - an explicit "titled/called/named X" (or a subject that matches a
+//     retrieved title exactly) resolves to THAT thesis alone, or to a
+//     "couldn't find it" reply with EMPTY sources — a topic-neighbour is
+//     never presented as the requested study;
+//   - an author question with neither a title nor an author match returns
+//     null instead of the old "closest matches by topic" substitute;
+//   - every topic-list source must clear DeterministicMinScore AND directly
+//     mention the requested topic in its title/abstract. A strong match on
+//     context alone cannot authorize a list of unrelated neighbours. When
+//     none qualifies, return null so the agent can search and assess evidence.
+//
 // Auto-registered by Scrutor (namespace server.Services.AI, matching
 // interface, scoped lifetime like the toolbox it shares dependencies with).
 
@@ -49,11 +61,6 @@ namespace server.Services.AI
         private readonly MonteAiAgentConfig _config;
         private readonly ILogger<DeterministicResponder> _logger;
 
-        // "find/list/show/search for/look for (me) (some/any) studies/research/papers/theses about/on/regarding X"
-        private static readonly Regex TopicListPattern = new(
-            @"^(?:can\s+you\s+)?(?:find|list|show|search\s+for|look\s+for|looking\s+for)\s+(?:me\s+)?(?:some\s+|any\s+)?(?:studies|research|papers|theses|thesis|works)\s+(?:about|on|regarding|related\s+to|for)\s+(?<subject>.+?)[\s\?.!]*$",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
         // "who authored/wrote X" / "who is the author of X"
         private static readonly Regex WhoAuthoredPattern = new(
             @"^who\s+(?:authored|wrote|is\s+(?:the\s+)?author\s+of)\s+(?<subject>.+?)[\s\?.!]*$",
@@ -67,6 +74,21 @@ namespace server.Services.AI
         // "what year was X published/written/submitted" / "when was X published"
         private static readonly Regex YearPattern = new(
             @"^(?:what\s+year\s+(?:was|is)|when\s+(?:was|is))\s+(?<subject>.+?)(?:\s+(?:published|written|submitted|finished|completed))?[\s\?.!]*$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // "the thesis/study/paper titled|called|named X" — an EXPLICIT title
+        // reference. These must resolve to exactly that thesis or say "not
+        // found"; a topic-neighbour is never an acceptable substitute.
+        private static readonly Regex ExplicitTitlePattern = new(
+            @"^(?:the\s+)?(?:(?:thesis|study|paper|research\s+paper|article|document|work)\s+)?(?:titled|called|named)\s+(?<title>.+)$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Compound-question tails: "<title>, and what year was it published" —
+        // the clause after the COMMA (never a bare "and", which titles and
+        // topics contain legitimately) is a second question, not part of the
+        // subject. A "?" already truncates in CleanSubject before this runs.
+        private static readonly Regex CompoundTailPattern = new(
+            @",\s*(?:and\s+|then\s+)?(?:what|when|how|why|who|which|is|was|are|were|did|does|do|can|could|please)\b.*$",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         /// <summary>Publication years in theses predate e-paper workflows; anything before 1990 is treated as a misparse.</summary>
@@ -107,10 +129,9 @@ namespace server.Services.AI
                 return await AnswerAuthorAsync(byMatch.Groups["subject"].Value.Trim(), viaStudiesBy: true, cancellationToken);
             }
 
-            if (TopicListPattern.Match(trimmed) is { Success: true } topicMatch &&
-                topicMatch.Groups["subject"].Value.Trim().Length >= 3)
+            if (TopicQuery.TryParse(trimmed) is { } topic)
             {
-                return await AnswerTopicListAsync(topicMatch.Groups["subject"].Value.Trim(), cancellationToken);
+                return await AnswerTopicListAsync(topic, cancellationToken);
             }
 
             return null;
@@ -118,14 +139,29 @@ namespace server.Services.AI
 
         // ────────────────────── per-pattern answers ──────────────────────
 
-        private async Task<DeterministicAnswer?> AnswerTopicListAsync(string subject, CancellationToken ct)
+        private async Task<DeterministicAnswer?> AnswerTopicListAsync(TopicQuery topic, CancellationToken ct)
         {
-            var sources = await RetrieveDedupedAsync(subject, topK: 12, ct);
+            var sources = await RetrieveDedupedAsync(topic.Subject, topK: 12, ct);
             if (sources.Count == 0) return null;
 
-            var shown = sources.Take(5).ToList();
+            // Scores rank similarity, not coverage of the full topic. Require
+            // content evidence AND the score floor independently for each
+            // thesis, instead of letting the strongest hit qualify every row.
+            var supported = sources
+                .Where(s => s.Score >= _config.DeterministicMinScore && topic.HasDirectEvidence(s))
+                .OrderByDescending(s => s.Score)
+                .ToList();
+            if (supported.Count == 0)
+            {
+                _logger.LogInformation(
+                    "Deterministic topic list skipped for '{Subject}': no source has direct topic evidence and score >= {Floor:0.###}",
+                    topic.Subject, _config.DeterministicMinScore);
+                return null;
+            }
+
+            var shown = supported.Take(Math.Max(1, _config.MaxSources)).ToList();
             var sb = new StringBuilder();
-            sb.Append("I found the following studies in the repository about **").Append(subject).Append("**:\n\n");
+            sb.Append("I found the following studies in the repository about **").Append(topic.Subject).Append("**:\n\n");
             for (var i = 0; i < shown.Count; i++)
             {
                 var s = shown[i];
@@ -134,7 +170,7 @@ namespace server.Services.AI
                 if (!string.IsNullOrWhiteSpace(s.PublicationYear)) sb.Append(" (").Append(s.PublicationYear).Append(')');
                 sb.Append(" [Source ").Append(i + 1).Append("]\n");
             }
-            if (sources.Count > shown.Count)
+            if (supported.Count > shown.Count)
             {
                 sb.Append("\nAsk me about any of these for details, or rephrase to search for something else.");
             }
@@ -144,33 +180,72 @@ namespace server.Services.AI
 
         private async Task<DeterministicAnswer?> AnswerAuthorAsync(string subject, bool viaStudiesBy, CancellationToken ct)
         {
+            var cleaned = CleanSubject(subject);
+            if (cleaned.Length < 3) return null;
+
+            // Explicit title reference ("the thesis titled X"): resolve to THAT
+            // thesis or report "not found" — never to a topic-neighbour, and
+            // never gated behind the author-token filter below (a title match
+            // bypasses it outright).
+            var explicitTitle = TryExtractExplicitTitle(cleaned, out var requestedTitle);
+            var lookup = explicitTitle ? requestedTitle! : cleaned;
+
             // For "studies by X" the subject IS the author; for "who authored X"
             // it may be a title OR a name — semantic search handles both (the
             // validated planner recipe puts author names inside the query too).
-            var sources = await RetrieveDedupedAsync(subject, topK: 12, ct);
+            var sources = await RetrieveDedupedAsync(lookup, topK: 12, ct);
+
+            if (explicitTitle)
+            {
+                var exact = sources.FirstOrDefault(s => IsTitleMatch(requestedTitle!, s.Title));
+                if (exact is null)
+                {
+                    _logger.LogInformation(
+                        "Deterministic exact-title lookup found no match for '{Title}'",
+                        requestedTitle);
+                    return NotFoundAnswer(requestedTitle!);
+                }
+                return SingleThesisAnswer(exact);
+            }
+
             if (sources.Count == 0) return null;
 
-            var surname = ExtractSignificantNameTokens(subject);
+            // The subject may itself be a thesis title even without the
+            // titled/called/named marker ("who authored <title>") — an exact
+            // title match outranks author matching and pins the answer to ONE
+            // study instead of a "closest matches by topic" list.
+            var titleMatch = sources.FirstOrDefault(s => IsTitleMatch(cleaned, s.Title));
+            if (titleMatch is not null) return SingleThesisAnswer(titleMatch);
+
+            var surname = ExtractSignificantNameTokens(cleaned);
 
             // Prefer sources whose author metadata actually mentions the name.
-            var authorMatches = sources
-                .Where(s => !string.IsNullOrWhiteSpace(s.Authors) &&
-                            surname.All(token =>
-                                s.Authors.Contains(token, StringComparison.OrdinalIgnoreCase)))
-                .Take(5)
-                .ToList();
+            List<ChatSourceDto> authorMatches = [];
+            if (surname.Count > 0)
+            {
+                authorMatches = sources
+                    .Where(s => !string.IsNullOrWhiteSpace(s.Authors) &&
+                                surname.All(token =>
+                                    s.Authors.Contains(token, StringComparison.OrdinalIgnoreCase)))
+                    .Take(5)
+                    .ToList();
+            }
 
-            var shown = authorMatches.Count > 0 ? authorMatches : sources.Take(3).ToList();
-            var confidence = authorMatches.Count > 0 ? null : " (closest matches by topic — the repository metadata may not list the author)";
+            // Neither a title nor an author match: the old fallback served the
+            // top-3 TOPIC matches as if they answered the question (the root
+            // cause of "wrong thesis presented as the answer"). Hand the query
+            // to the agent instead — one retrieval was already spent, so a
+            // misfire costs only one more.
+            if (authorMatches.Count == 0) return null;
 
             var sb = new StringBuilder();
             sb.Append(viaStudiesBy
                 ? "Here are the studies"
                 : "Here is what the repository holds");
-            sb.Append(" related to **").Append(subject).Append("**").Append(confidence).Append(":\n\n");
-            for (var i = 0; i < shown.Count; i++)
+            sb.Append(" by **").Append(cleaned).Append("**:\n\n");
+            for (var i = 0; i < authorMatches.Count; i++)
             {
-                var s = shown[i];
+                var s = authorMatches[i];
                 sb.Append((i + 1)).Append(". **").Append(s.Title ?? "Untitled").Append("**");
                 sb.Append(" — ").Append(string.IsNullOrWhiteSpace(s.Authors) ? "Author(s) unknown" : s.Authors);
                 if (!string.IsNullOrWhiteSpace(s.PublicationYear)) sb.Append(" (").Append(s.PublicationYear).Append(')');
@@ -178,19 +253,42 @@ namespace server.Services.AI
             }
             sb.Append("\nAsk about any of these for more detail.");
 
-            return new DeterministicAnswer(sb.ToString(), shown);
+            return new DeterministicAnswer(sb.ToString(), authorMatches);
         }
 
         private async Task<DeterministicAnswer?> AnswerYearAsync(string subject, CancellationToken ct)
         {
-            var sources = await RetrieveDedupedAsync(subject, topK: 8, ct);
+            var cleaned = CleanSubject(subject);
+            if (cleaned.Length < 3) return null;
 
-            var withYear = sources.FirstOrDefault(s =>
-                int.TryParse(s.PublicationYear, out var year) && year >= MinPlausibleYear);
+            var explicitTitle = TryExtractExplicitTitle(cleaned, out var requestedTitle);
+            var lookup = explicitTitle ? requestedTitle! : cleaned;
+
+            var sources = await RetrieveDedupedAsync(lookup, topK: 8, ct);
+            if (sources.Count == 0)
+            {
+                return explicitTitle ? NotFoundAnswer(requestedTitle!) : null;
+            }
+
+            // An explicit (or title-shaped) subject must answer from THAT
+            // thesis — a neighbouring study's year is simply wrong.
+            ChatSourceDto? withYear;
+            if (explicitTitle)
+            {
+                var exact = sources.FirstOrDefault(s => IsTitleMatch(requestedTitle!, s.Title));
+                if (exact is null) return NotFoundAnswer(requestedTitle!);
+                withYear = HasPlausibleYear(exact) ? exact : null;
+            }
+            else
+            {
+                withYear = sources.FirstOrDefault(s => IsTitleMatch(cleaned, s.Title) && HasPlausibleYear(s))
+                           ?? sources.FirstOrDefault(HasPlausibleYear);
+            }
+
             if (withYear is null) return null;
 
             var sb = new StringBuilder();
-            sb.Append("**").Append(withYear.Title ?? subject).Append("**")
+            sb.Append("**").Append(withYear.Title ?? cleaned).Append("**")
               .Append(" was published in **").Append(withYear.PublicationYear).Append("**");
             if (!string.IsNullOrWhiteSpace(withYear.Authors))
             {
@@ -202,6 +300,83 @@ namespace server.Services.AI
         }
 
         // ────────────────────── shared helpers ──────────────────────
+
+        /// <summary>True when the source carries a parseable, plausible publication year.</summary>
+        private static bool HasPlausibleYear(ChatSourceDto source) =>
+            int.TryParse(source.PublicationYear, out var year) && year >= MinPlausibleYear;
+
+        /// <summary>
+        /// Strips compound-question tails from a captured subject: everything
+        /// after the first "?" and any ", and what/when/how…"-style second
+        /// question after a comma. "Who authored X, and what year was it
+        /// published" must look up X — not the whole sentence.
+        /// </summary>
+        private static string CleanSubject(string subject)
+        {
+            var s = subject.Trim();
+
+            var q = s.IndexOf('?');
+            if (q >= 0) s = s[..q];
+
+            s = CompoundTailPattern.Replace(s, string.Empty);
+
+            return s.Trim().TrimEnd(',', '.', '!', '?', ':', ';').Trim();
+        }
+
+        /// <summary>True when the subject carries an explicit titled/called/named marker; <paramref name="title"/> is the text after it.</summary>
+        private static bool TryExtractExplicitTitle(string subject, out string title)
+        {
+            var match = ExplicitTitlePattern.Match(subject);
+            var candidate = match.Success ? CleanSubject(match.Groups["title"].Value) : string.Empty;
+            if (candidate.Length >= 3)
+            {
+                title = candidate;
+                return true;
+            }
+            title = string.Empty;
+            return false;
+        }
+
+        /// <summary>
+        /// Case/punctuation-insensitive title comparison: exact normalized
+        /// equality, or one title containing the other ("Effects of Modular
+        /// Learning" vs the full submitted title). Substring containment is a
+        /// safe signal here because both sides are full thesis titles.
+        /// </summary>
+        private static bool IsTitleMatch(string requested, string? candidate)
+        {
+            if (string.IsNullOrWhiteSpace(candidate)) return false;
+
+            var a = NormalizeTitle(requested);
+            var b = NormalizeTitle(candidate);
+            if (a.Length < 4 || b.Length < 4) return false;
+            if (string.Equals(a, b, StringComparison.Ordinal)) return true;
+
+            return (a.Length >= 8 && b.Contains(a, StringComparison.Ordinal)) ||
+                   (b.Length >= 8 && a.Contains(b, StringComparison.Ordinal));
+        }
+
+        /// <summary>Lowercased, punctuation-free, whitespace-collapsed title key.</summary>
+        private static string NormalizeTitle(string text) =>
+            Regex.Replace(text.ToLowerInvariant(), @"[^\p{L}\p{N}]+", " ").Trim();
+
+        /// <summary>Answer for an explicitly requested thesis that does not exist — EMPTY sources so the panel is cleared instead of showing neighbours.</summary>
+        private static DeterministicAnswer NotFoundAnswer(string requested) => new(
+            $"I couldn't find a thesis titled \"{requested}\" in the repository. " +
+            "It may not have been submitted yet, or the title may be slightly different — " +
+            "check the spelling, or ask me to search for studies about a related topic instead.",
+            []);
+
+        /// <summary>One-thesis answer: title, authors, year, single citation.</summary>
+        private static DeterministicAnswer SingleThesisAnswer(ChatSourceDto source)
+        {
+            var sb = new StringBuilder();
+            sb.Append("**").Append(source.Title ?? "Untitled").Append("**");
+            if (!string.IsNullOrWhiteSpace(source.Authors)) sb.Append(" — ").Append(source.Authors);
+            if (!string.IsNullOrWhiteSpace(source.PublicationYear)) sb.Append(" (").Append(source.PublicationYear).Append(')');
+            sb.Append(". [Source 1]");
+            return new DeterministicAnswer(sb.ToString(), [source]);
+        }
 
         /// <summary>
         /// One semantic retrieval, keeping only the best-scoring chunk per
@@ -232,6 +407,7 @@ namespace server.Services.AI
                     Authors = chunk.Authors,
                     PublicationYear = chunk.PublicationYear,
                     Snippet = chunk.Text.Length > 600 ? chunk.Text[..600] + "…" : chunk.Text,
+                    FullExcerpt = chunk.Text.Length > 4000 ? chunk.Text[..4000] + "…" : chunk.Text,
                     Score = double.TryParse(chunk.RelevanceScore, out var score) ? score : null,
                     Url = chunk.Url,
                 });
