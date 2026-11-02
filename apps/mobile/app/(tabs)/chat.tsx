@@ -22,6 +22,7 @@ import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { chatService } from '@/lib/chatService';
 import { MonteAvatar } from '@/components/MonteAvatar';
+import { getAvatarEmotion } from '@monteai/ui/src/avatar/emotion';
 import type { AvatarActivity, AvatarEmotion } from '@monteai/ui/src/avatar/types';
 import { ChatStreamAbortedError } from '@monteai/api';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
@@ -106,7 +107,7 @@ export default function ChatScreen() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   /** 3D avatar — what it is doing (idle/thinking/speaking). */
   const [avatarActivity, setAvatarActivity] = useState<AvatarActivity>('idle');
-  /** 3D avatar — mood from the latest answer (cheerful when theses matched). */
+  /** 3D avatar — mood from the latest reply, independent of its citations. */
   const [avatarEmotion, setAvatarEmotion] = useState<AvatarEmotion>('neutral');
   /** Incremented once per streamed delta — the avatar's mouth syncs to it. */
   const [avatarPulse, setAvatarPulse] = useState(0);
@@ -248,11 +249,7 @@ export default function ChatScreen() {
         const latestAssistant = [...s.messages]
           .filter((m) => m.role === 'assistant')
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-        if (latestAssistant) {
-          setAvatarEmotion(latestAssistant.sources?.length ? 'cheerful' : 'sad');
-        } else {
-          setAvatarEmotion('neutral');
-        }
+        setAvatarEmotion(getAvatarEmotion(latestAssistant?.content));
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
       } catch {
         setMessages((prev) => [
@@ -316,6 +313,7 @@ export default function ChatScreen() {
 
     /** True once the first token arrived — later status notes must not revert to "thinking". */
     let sawDelta = false;
+    let streamedContent = '';
 
     try {
       let activeSession = session;
@@ -349,9 +347,10 @@ export default function ChatScreen() {
           },
           onSources: (sources) => {
             patchDraft({ sources });
-            setAvatarEmotion(sources?.length ? 'cheerful' : 'sad');
           },
           onDelta: (fragment) => {
+            streamedContent += fragment;
+            setAvatarEmotion(getAvatarEmotion(streamedContent));
             if (!sawDelta) {
               sawDelta = true;
               setAvatarActivity('speaking');
@@ -366,8 +365,7 @@ export default function ChatScreen() {
       setMessages((prev) =>
         prev.map((m) => (m.id === draftId ? toMessage(res.role, res.content, res.id, res.sources) : m))
       );
-      // Cheerful when the answer cites relevant theses, politely sad when not.
-      setAvatarEmotion(res.sources?.length ? 'cheerful' : 'sad');
+      setAvatarEmotion(getAvatarEmotion(res.content));
       // Once the response is back, silently refresh the session list so a
       // newly created chat is pushed to the top of the history in real time.
       refresh(true);

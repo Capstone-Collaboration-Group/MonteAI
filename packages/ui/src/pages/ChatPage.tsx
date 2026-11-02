@@ -25,7 +25,7 @@ import { ChatView } from "../components/Chat/ChatView";
 import { ChatPageSkeleton } from "../components/Chat/skeletons";
 import { ConfirmDialog } from "../components/common";
 import { toast } from "../components/toast";
-import { MonteAvatar, type AvatarActivity, type AvatarEmotion } from "../avatar";
+import { MonteAvatar, getAvatarEmotion, type AvatarActivity, type AvatarEmotion } from "../avatar";
 
 const FALLBACK_USER_ID = "D7LkIIiFNKh6aymyFtoBRRZ7vxz1"; // dev fallback when no user is signed in (mock mode)
 
@@ -87,7 +87,7 @@ export function ChatPage({
   const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
   /** 3D avatar — what it is doing (idle/thinking/speaking). */
   const [avatarActivity, setAvatarActivity] = useState<AvatarActivity>("idle");
-  /** 3D avatar — mood from the latest answer (cheerful when theses matched). */
+  /** 3D avatar — mood from the latest reply, independent of its citations. */
   const [avatarEmotion, setAvatarEmotion] = useState<AvatarEmotion>("neutral");
   /** Incremented once per streamed delta — the avatar's mouth syncs to it. */
   const [avatarPulse, setAvatarPulse] = useState(0);
@@ -134,9 +134,7 @@ export function ChatPage({
             (newest, m) => (!newest || m.timestamp > newest.timestamp ? m : newest),
             null
           );
-        setAvatarEmotion(
-          latestAssistant ? (latestAssistant.sources?.length ? "cheerful" : "sad") : "neutral"
-        );
+        setAvatarEmotion(getAvatarEmotion(latestAssistant?.content));
       })
       .catch(() => {
         if (active) setMessages([]);
@@ -192,6 +190,7 @@ export function ChatPage({
           const placeholderId = crypto.randomUUID();
           /** True once the first token arrived — later status notes must not revert to "thinking". */
           let sawDelta = false;
+          let streamedContent = "";
           setStreamingAssistantId(placeholderId);
           setMessages((prev) => [
             ...prev,
@@ -216,12 +215,13 @@ export function ChatPage({
                   if (!sawDelta) setAvatarActivity("thinking");
                 },
                 onSources: (sources) => {
-                  setAvatarEmotion(sources?.length ? "cheerful" : "sad");
                   setMessages((prev) =>
                     prev.map((m) => (m.id === placeholderId ? { ...m, sources } : m))
                   );
                 },
                 onDelta: (text) => {
+                  streamedContent += text;
+                  setAvatarEmotion(getAvatarEmotion(streamedContent));
                   setStreamStatus(null);
                   if (!sawDelta) {
                     sawDelta = true;
@@ -239,8 +239,7 @@ export function ChatPage({
             setMessages((prev) =>
               prev.map((m) => (m.id === placeholderId ? finalMessage : m))
             );
-            // Cheerful when the answer cites relevant theses, politely sad when not.
-            setAvatarEmotion(finalMessage.sources?.length ? "cheerful" : "sad");
+            setAvatarEmotion(getAvatarEmotion(finalMessage.content));
           } catch (err) {
             if (err instanceof ChatStreamAbortedError) {
               // User tapped Stop: keep whatever partial content streamed into
@@ -275,7 +274,7 @@ export function ChatPage({
             content,
           });
           setMessages((prev) => [...prev, assistantMessage]);
-          setAvatarEmotion(assistantMessage.sources?.length ? "cheerful" : "sad");
+          setAvatarEmotion(getAvatarEmotion(assistantMessage.content));
         }
 
         onSessionActivity?.();
