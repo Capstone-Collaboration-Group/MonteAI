@@ -46,5 +46,17 @@ namespace server.Configuration
         /// top of the list while still cutting the tail. Default: 0.20.
         /// </summary>
         public double ScoreThreshold { get; set; } = 0.20;
+
+        /// <summary>
+        /// Relative cutoff applied AFTER ScoreThreshold: a match scoring more
+        /// than this below the BEST match of the same query is dropped. The
+        /// absolute threshold alone cannot tell "one exact-title hit plus four
+        /// off-topic neighbours" (scores ~0.45 vs ~0.26) from a uniformly
+        /// relevant list, so unrelated theses still reached the prompt and the
+        /// sources panel. Relevant matches cluster within ~0.08 of each other,
+        /// so a wider margin would start cutting real hits. Set to 0 to
+        /// disable. Default: 0.08.
+        /// </summary>
+        public double RelativeScoreMargin { get; set; } = 0.08;
     }
 }

@@ -103,6 +103,10 @@ namespace server.Repositories
         /// Exact-match (LIKE) search over titles and abstracts. LIKE
         /// wildcards inside the term are escaped so user input is matched
         /// literally. The result set is intentionally small (agent tool use).
+        /// Restricted to indexed theses: this feeds the chat agent's
+        /// keyword_search tool, so drafts/failed rows must not leak their
+        /// titles or abstracts to any authenticated student (mirrors the
+        /// Status filters on the catalog queries above and below).
         /// </summary>
         public async Task<IReadOnlyList<Thesis>> SearchByKeywordAsync(string term, int limit, CancellationToken cancellationToken = default)
         {
@@ -113,7 +117,9 @@ namespace server.Repositories
             var pattern = $"%{escaped}%";
 
             return await _db.Theses
-                .Where(t => EF.Functions.Like(t.Title!, pattern) || EF.Functions.Like(t.Abstract!, pattern))
+                .Where(t =>
+                    (t.Status == "Indexed" || t.PineconeStatus == "Indexed") &&
+                    (EF.Functions.Like(t.Title!, pattern) || EF.Functions.Like(t.Abstract!, pattern)))
                 .OrderByDescending(t => t.SubmittedAt)
                 .Take(Math.Clamp(limit, 1, 10))
                 .ToListAsync(cancellationToken);
