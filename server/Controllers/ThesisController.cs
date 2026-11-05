@@ -129,13 +129,13 @@ namespace server.Controllers
         // 404 means "no thesis submitted yet" (client renders its empty state).
         // Literal "my" takes precedence over the {id} route below.
         [HttpGet("my")]
-        [Authorize(Roles = "Student,Admin")]
+        [Authorize(Roles = "Student,Faculty,Admin")]
         public async Task<IActionResult> GetMyThesis()
         {
             var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(uid)) return Unauthorized();
 
-            var result = await _service.GetMyThesisAsync(uid);
+            var result = await _service.GetMyThesisAsync(uid, User.IsInRole("Faculty"));
             if (result is null) return NotFound(new { Message = "No thesis submitted yet." });
             return Ok(result);
         }
@@ -156,7 +156,7 @@ namespace server.Controllers
         }
 
         [HttpPost("submit")]
-        [Authorize(Roles = "Student,Admin")]
+        [Authorize(Roles = "Student,Faculty,Admin")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> SubmitThesis([FromForm] SubmitThesisDto dto)
         {
@@ -172,10 +172,13 @@ namespace server.Controllers
                 return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
+            var isFaculty = User.IsInRole("Faculty");
 
             // Admins may archive legacy (hard-copy) theses on behalf of the repository —
             // attribute the upload to the acting account instead of trusting the client.
-            if (isAdmin)
+            // Faculty submissions get the same treatment: the uploaded-by id is what
+            // ties a group-less manuscript to its author.
+            if (isAdmin || isFaculty)
                 dto.UploadedById = uploaderId;
 
             await using var stream = dto.File.OpenReadStream();
@@ -191,7 +194,7 @@ namespace server.Controllers
 
             try
             {
-                var result = await _service.SubmitAsync(dto, uploaderId, isAdmin);
+                var result = await _service.SubmitAsync(dto, uploaderId, isAdmin, isFaculty);
 
                 _logger.LogInformation("Thesis submitted successfully: {ThesisId}", result.Id);
 
@@ -251,7 +254,7 @@ namespace server.Controllers
             return Ok(new { result, Message = "Thesis metadata successfully indexed and added to the knowledge of MonteAI." });
         }
         [HttpPut("update/details/{id}")]
-        [Authorize(Roles = "Student,Admin")]
+        [Authorize(Roles = "Student,Faculty,Admin")]
         public async Task<IActionResult> UpdateThesisDetails([FromBody] UpdateThesisDto dto, Guid id)
         {
             var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -259,7 +262,8 @@ namespace server.Controllers
 
             try
             {
-                var result = await _service.UpdateDetailsAsync(id, dto, uid, User.IsInRole("Admin"));
+                var result = await _service.UpdateDetailsAsync(
+                    id, dto, uid, User.IsInRole("Admin"), User.IsInRole("Faculty"));
                 if (result is false) return StatusCode(500, "An error occurred while updating.");
 
                 _logger.LogInformation("Thesis Details with Id: {id} updated successfully", id);
@@ -371,7 +375,7 @@ namespace server.Controllers
         }
 
         [HttpPost("{thesisId}/versions")]
-        [Authorize(Roles = "Student")]
+        [Authorize(Roles = "Student,Faculty")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> CreateThesisVersion(Guid thesisId, [FromForm] CreateThesisVersionDto dto)
         {
@@ -402,7 +406,8 @@ namespace server.Controllers
                 dto.ThesisId = thesisId;
                 dto.FilePath = blobUrl;
 
-                var result = await _service.CreateThesisVersion(dto, uploadedById);
+                var result = await _service.CreateThesisVersion(
+                    dto, uploadedById, User.IsInRole("Faculty"));
                 if (!result) return StatusCode(500, "Failed to create thesis version.");
 
                 _logger.LogInformation("Thesis version created for ThesisId: {ThesisId} by UserId: {UserId}", thesisId, uploadedById);

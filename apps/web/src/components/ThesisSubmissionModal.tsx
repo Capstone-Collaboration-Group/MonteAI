@@ -10,6 +10,7 @@ import { getApiErrorMessage } from "@monteai/utils";
 import { profileService } from "../lib/authService";
 import { thesisService } from "../lib/thesisService";
 import type { SubmitThesisDto } from "@monteai/types";
+import { isStudent } from "@monteai/types";
 
 type Step = "metadata" | "upload" | "confirm";
 
@@ -45,7 +46,7 @@ export function ThesisSubmissionModal({
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="rounded-xl bg-surface-container-low p-8 shadow-xl">
-          Loading student profile...
+          Loading your profile...
         </div>
       </div>
     );
@@ -55,7 +56,7 @@ export function ThesisSubmissionModal({
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="rounded-xl bg-surface-container-low p-8 shadow-xl">
-          Unable to load your student profile.
+          Unable to load your profile.
         </div>
       </div>
     );
@@ -63,19 +64,22 @@ export function ThesisSubmissionModal({
 
 
 
-if (profile.role !== "Student") {
+// Students and faculty may submit (faculty need no research group or
+// leadership position — the server applies the year-level and group gates
+// to students only).
+if (profile.role === "Admin" || profile.role === "ProgramHead") {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="rounded-xl bg-surface-container-low p-8 shadow-xl">
-        Only students can submit a thesis.
+        Only students and faculty can submit a thesis.
       </div>
     </div>
   );
 }
 
 // Only 3rd/4th year students may submit (initial + revision) — the server
-// rejects the request too; this just fails fast in the UI.
-if (profile.yearLevel !== 3 && profile.yearLevel !== 4) {
+// rejects the request too; this just fails fast in the UI. Faculty skip it.
+if (profile.role === "Student" && profile.yearLevel !== 3 && profile.yearLevel !== 4) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="rounded-xl bg-surface-container-low p-8 shadow-xl">
@@ -84,6 +88,21 @@ if (profile.yearLevel !== 3 && profile.yearLevel !== 4) {
     </div>
   );
 }
+
+// Group-derived metadata is student-only; faculty fill the confirmation with
+// their own name and institute (the server stores Authors from that step).
+const studentProfile = isStudent(profile) ? profile : null;
+const groupProgram =
+  studentProfile?.researchGroup?.members
+    .map((member) => member.program)
+    .filter(Boolean)
+    .join(", ") || studentProfile?.program || "—";
+const groupInstitute =
+  studentProfile?.researchGroup?.institute || profile.institute;
+const groupMembers =
+  studentProfile?.researchGroup?.members
+    .map((member) => member.name)
+    .join(", ") || `${profile.firstName} ${profile.lastName}`;
 
 
 
@@ -215,14 +234,9 @@ if (profile.yearLevel !== 3 && profile.yearLevel !== 4) {
           <MetadataForm
             onNext={handleMetadataNext}
             initialData={metadata || undefined}
-            program={profile.researchGroup?.members
-            .map((member) => member.program)
-            .filter(Boolean)
-            .join(", ") || profile.program}
-            institute={profile.researchGroup?.institute || profile.institute}
-            members={profile.researchGroup?.members
-            .map((member) => member.name)
-            .join(", ") || `${profile.firstName} ${profile.lastName}`}
+            program={groupProgram}
+            institute={groupInstitute}
+            members={groupMembers}
             />
         )}
 
@@ -252,6 +266,7 @@ if (profile.yearLevel !== 3 && profile.yearLevel !== 4) {
               metadata={metadata ?? undefined}
               file={file}
               mode={mode}
+              isIndividual={profile.role === "Faculty"}
               onCancel={handleCancelFromConfirm}
               onReplaceFile={handleReplaceFile}
               onRemoveFile={handleRemoveFile}
