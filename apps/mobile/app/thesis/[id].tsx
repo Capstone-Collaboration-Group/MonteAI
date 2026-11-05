@@ -171,6 +171,8 @@ export default function ThesisViewerScreen() {
     annotationService,
     id ?? '',
     selectedVersionId ?? '',
+    profile?.role,
+    profile?.id,
   );
 
   const handleOutline = useCallback((items: PdfOutlineItem[]) => {

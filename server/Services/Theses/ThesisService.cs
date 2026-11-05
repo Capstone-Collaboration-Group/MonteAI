@@ -157,28 +157,47 @@ namespace server.Services.Theses
             return dto;
         }
 
-        public async Task<ThesisResponseDto?> GetMyThesisAsync(string callerId)
+        public async Task<ThesisResponseDto?> GetMyThesisAsync(string callerId, bool isFaculty = false)
         {
-            // Non-students (admins archiving via the modal) and students without
-            // a group simply have "no thesis yet".
+            // Students: the thesis owned by their research group.
             var student = await _studentRepo.GetByIdAsync(callerId);
-            if (student?.ResearchGroup is null) return null;
+            if (student?.ResearchGroup is not null)
+            {
+                var groupThesis = await _thesisRepo.GetByGroupIdAsync(student.ResearchGroup.Id);
+                if (groupThesis is null) return null;
+                return await ToResponseWithAbstractsAsync(groupThesis);
+            }
 
-            var thesis = await _thesisRepo.GetByGroupIdAsync(student.ResearchGroup.Id);
-            if (thesis is null) return null;
+            // Faculty have no research group — their manuscript is the one
+            // they uploaded themselves.
+            if (isFaculty)
+            {
+                var uploadedThesis = await _thesisRepo.GetLatestByUploadedByIdAsync(callerId);
+                if (uploadedThesis is null) return null;
+                return await ToResponseWithAbstractsAsync(uploadedThesis);
+            }
 
+            // Admins archiving via the modal have "no thesis yet" here.
+            return null;
+        }
+
+        private async Task<ThesisResponseDto> ToResponseWithAbstractsAsync(ThesisEntity thesis)
+        {
             var dto = _mapper.Map<ThesisResponseDto>(thesis);
             await _abstractService.ResolveAbstractsAsync(new[] { dto });
             return dto;
         }
-        public async Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false)
+        public async Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false, bool isFaculty = false)
         {
             var thesis = _mapper.Map<ThesisEntity>(submitDto);
 
-            // Admin archival upload (e.g. legacy hard-copy theses): skip the student /
-            // research-group checks — GroupId stays null (the one-thesis-per-group rule
-            // does not apply) and Status keeps the entity default "Pending".
-            if (!isAdmin)
+            // Admin archival upload (e.g. legacy hard-copy theses) and faculty
+            // submissions both skip the student / research-group checks —
+            // GroupId stays null (the one-thesis-per-group rule does not
+            // apply) and Status keeps the entity default "Pending". Faculty
+            // submissions are NOT auto-ingested below: they enter the normal
+            // desktop approve pipeline like any student submission.
+            if (!isAdmin && !isFaculty)
             {
                 var student = await _studentRepo.GetByIdAsync(uploaderId);
 
@@ -458,13 +477,25 @@ namespace server.Services.Theses
             return _blobService.GenerateSasUrl(thesis.FilePath, 15);
         }
 
-        public async Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateDto, string callerId, bool isAdmin)
+        public async Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateDto, string callerId, bool isAdmin, bool isFaculty = false)
         {
             var thesis = await _thesisRepo.GetThesisByIdAsync(id)
                 ?? throw new KeyNotFoundException("Thesis not found.");
 
-            // Students may only edit their own group's thesis (Admins bypass).
-            if (!isAdmin) await EnsureGroupLeaderAsync(thesis, callerId);
+            // Students may only edit their own group's thesis (Admins bypass);
+            // faculty may only edit the manuscript they uploaded themselves.
+            if (!isAdmin)
+            {
+                if (isFaculty)
+                {
+                    if (!string.Equals(thesis.UploadedById, callerId, StringComparison.Ordinal))
+                        throw new UnauthorizedAccessException("You may only edit the thesis you submitted.");
+                }
+                else
+                {
+                    await EnsureGroupLeaderAsync(thesis, callerId);
+                }
+            }
 
             var dto = _mapper.Map<ThesisEntity>(updateDto);
 
@@ -634,26 +665,8 @@ namespace server.Services.Theses
             return result;
         }
 
-        public async Task<bool> CreateThesisVersion(CreateThesisVersionDto thesisVersionDto, string uploadedById)
+        public async Task<bool> CreateThesisVersion(CreateThesisVersionDto thesisVersionDto, string uploadedById, bool isFaculty = false)
         {
-            var student = await _studentRepo.GetByIdAsync(uploadedById);
-
-            if (student == null)
-            {
-                throw new InvalidOperationException("Student profile could not be found.");
-            }
-
-            // Same gate as initial submission — only 3rd/4th years revise.
-            if (student.YearLevel is not (3 or 4))
-            {
-                throw new InvalidOperationException("Only 3rd and 4th year students may submit a revision.");
-            }
-
-            if (student.ResearchGroup == null)
-            {
-                throw new InvalidOperationException("You must be part of a research group to submit a revised thesis.");
-           }
-
             var thesis = await _thesisRepo.GetThesisByIdAsync(thesisVersionDto.ThesisId);
 
             if (thesis == null)
@@ -661,14 +674,44 @@ namespace server.Services.Theses
                 throw new InvalidOperationException("Thesis could not be found.");
             }
 
-            if (thesis.GroupId != student.ResearchGroup.Id)
+            // Faculty revise the manuscript they uploaded themselves — no
+            // research group, leadership or year-level gate applies.
+            if (isFaculty)
             {
-                throw new UnauthorizedAccessException("You are not authorized to submit a revision for this thesis.");
+                if (!string.Equals(thesis.UploadedById, uploadedById, StringComparison.Ordinal))
+                {
+                    throw new UnauthorizedAccessException("You are not authorized to submit a revision for this thesis.");
+                }
             }
-
-            if (!string.Equals(student.Position, "Leader", StringComparison.OrdinalIgnoreCase))
+            else
             {
-                throw new UnauthorizedAccessException("Only the research group leader can submit a revised thesis.");
+                var student = await _studentRepo.GetByIdAsync(uploadedById);
+
+                if (student == null)
+                {
+                    throw new InvalidOperationException("Student profile could not be found.");
+                }
+
+                // Same gate as initial submission — only 3rd/4th years revise.
+                if (student.YearLevel is not (3 or 4))
+                {
+                    throw new InvalidOperationException("Only 3rd and 4th year students may submit a revision.");
+                }
+
+                if (student.ResearchGroup == null)
+                {
+                    throw new InvalidOperationException("You must be part of a research group to submit a revised thesis.");
+                }
+
+                if (thesis.GroupId != student.ResearchGroup.Id)
+                {
+                    throw new UnauthorizedAccessException("You are not authorized to submit a revision for this thesis.");
+                }
+
+                if (!string.Equals(student.Position, "Leader", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new UnauthorizedAccessException("Only the research group leader can submit a revised thesis.");
+                }
             }
 
             var dto = _mapper.Map<ThesisVersion>(thesisVersionDto);

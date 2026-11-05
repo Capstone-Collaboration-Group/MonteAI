@@ -11,6 +11,10 @@ export type AnnotationErrorListener = (error: unknown) => void;
  * Firestore-backed annotation store. Annotations are intentionally NOT
  * persisted through the REST API / SQL database — they live only under
  * `theses/{thesisId}/versions/{thesisVersionId}/annotations` in Firestore.
+ *
+ * Comments carry an approval `status`: faculty/program-head comments are
+ * created "pending" and only become visible to everyone (and printable in the
+ * proceedings) after an Admin calls `approveAnnotation`.
  */
 export interface AnnotationService {
     /** One-shot read of every annotation for a thesis version. */
@@ -41,6 +45,17 @@ export interface AnnotationService {
         thesisVersionId: string,
         annotationId: string,
         dto: ResolveAnnotationDto
+    ): Promise<void>;
+
+    /**
+     * Admin-only publication of a pending comment: stamps
+     * `status: "approved"`, the approving uid and the timestamp so every
+     * subscribed viewer (and the server-side proceedings reader) picks it up.
+     */
+    approveAnnotation(
+        thesisId: string,
+        thesisVersionId: string,
+        annotationId: string
     ): Promise<void>;
 
     deleteAnnotation(

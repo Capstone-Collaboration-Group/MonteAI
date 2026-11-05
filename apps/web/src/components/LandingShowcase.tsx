@@ -192,6 +192,10 @@ export default function LandingShowcase() {
                 aria-label="MonteSkolar and MonteAI platform showcase"
                 autoPlay
                 controls
+                // Hides the browser's built-in download affordance (Chrome/Edge
+                // controls list + right-click menu) for the promo reel.
+                controlsList="nodownload"
+                onContextMenu={(e) => e.preventDefault()}
                 muted
                 playsInline
                 preload="metadata"

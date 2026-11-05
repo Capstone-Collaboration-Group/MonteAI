@@ -36,6 +36,12 @@ interface ThesisPDFViewerLayoutProps {
   isCreating: boolean;
   isResolving: boolean;
   canAnnotate: boolean;
+  /** Admin-only: shows the Approve action on pending comments. */
+  canApprove?: boolean;
+  isApproving?: boolean;
+  onApprove?: (annotationId: string) => void;
+  /** Per-comment delete gate (see AnnotationSidebar). */
+  canDeleteAnnotation?: (annotation: AnnotationResponseDto) => boolean;
   /** Show the delete-version button (leader/admin, latest version only). */
   canDeleteVersion?: boolean;
   deleteDialogOpen?: boolean;
@@ -53,6 +59,9 @@ interface ThesisPDFViewerLayoutProps {
   panelistPool?: PanelistCandidate[];
   scheduledBy?: string;
   onConfirmSchedule?: (data: CreateScheduleDto) => void | Promise<unknown>;
+  /** Hides the "Schedule For Defense" action — the web passes false for
+   *  ProgramHead (schedule editing is desktop-only there). */
+  canSchedule?: boolean;
   onSubmitRevision?: () => void;
 }
 
@@ -70,6 +79,10 @@ export function ThesisPDFViewerLayout({
   isCreating,
   isResolving,
   canAnnotate,
+  canApprove = false,
+  isApproving = false,
+  onApprove,
+  canDeleteAnnotation,
   canDeleteVersion = false,
   deleteDialogOpen = false,
   isDeletingVersion = false,
@@ -85,7 +98,8 @@ export function ThesisPDFViewerLayout({
   onSubmitRevision,
   panelistPool,
   scheduledBy,
-  onConfirmSchedule
+  onConfirmSchedule,
+  canSchedule = true
 }: ThesisPDFViewerLayoutProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [sections, setSections] = useState<PdfOutlineItem[]>([]);
@@ -206,7 +220,7 @@ export function ThesisPDFViewerLayout({
                 Submit a Revised Version
               </Button>
             ) : null
-          ) : (
+          ) : canSchedule ? (
             <Button
               type="button"
               onClick={() => setScheduleModalOpen(true)}
@@ -215,7 +229,7 @@ export function ThesisPDFViewerLayout({
               <Calendar className="h-4 w-4" />
               Schedule For Defense
             </Button>
-          )}
+          ) : null}
 
           {/* ── Generate Proceedings ── */}
           {canShowThesisWorkflow && (
@@ -280,6 +294,10 @@ export function ThesisPDFViewerLayout({
                 unresolvedCount={unresolvedCount}
                 resolvedCount={resolvedCount}
                 isResolving={isResolving}
+                canApprove={canApprove}
+                isApproving={isApproving}
+                canDeleteAnnotation={canDeleteAnnotation}
+                onApprove={onApprove}
                 onResolve={onResolve}
                 onDelete={onDelete}
                 onJumpToPage={handleJumpToPage}
@@ -340,6 +358,10 @@ export function ThesisPDFViewerLayout({
                 unresolvedCount={unresolvedCount}
                 resolvedCount={resolvedCount}
                 isResolving={isResolving}
+                canApprove={canApprove}
+                isApproving={isApproving}
+                canDeleteAnnotation={canDeleteAnnotation}
+                onApprove={onApprove}
                 onResolve={onResolve}
                 onDelete={onDelete}
                 onJumpToPage={handleJumpToPage}

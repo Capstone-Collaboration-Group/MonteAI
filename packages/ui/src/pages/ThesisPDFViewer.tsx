@@ -8,6 +8,7 @@ import type {
   AnnotationService,
 } from "@monteai/api";
 import type {
+  AnnotationResponseDto,
   CreateAnnotationDto,
   ResolveAnnotationDto,
   ViewerRole,
@@ -16,6 +17,7 @@ import {
   useThesisVersions,
   useAnnotationsLive,
   useCreateAnnotationLive,
+  useApproveAnnotationLive,
   useResolveAnnotationLive,
   useDeleteAnnotationLive,
   useGenerateProceedings,
@@ -46,6 +48,9 @@ interface ThesisPDFViewerProps {
   isGroupLeader?: boolean;
   /** The user's research-group id — must match thesis.groupId for ownership. */
   currentGroupId?: string | null;
+  /** Hides the "Schedule For Defense" action (default: shown). The web
+   *  passes false for ProgramHead — schedule editing is desktop-only. */
+  canSchedule?: boolean;
   onBack?: () => void;
   onSubmitRevision?: () => void;
 }
@@ -56,6 +61,18 @@ const ANNOTATOR_ROLES: ViewerRole[] = [
   "program_head",
   "admin",
 ];
+
+// Viewer vocabulary → the profile role stamped on the comment. The stamp
+// decides whether a comment is created "pending" (needs Admin approval) or
+// already "approved" (Admin). "adviser" is never produced by toViewerRole;
+// it's treated as a reviewer like faculty.
+const VIEWER_ROLE_TO_PROFILE_ROLE: Record<ViewerRole, string> = {
+  adviser: "Faculty",
+  faculty: "Faculty",
+  program_head: "ProgramHead",
+  admin: "Admin",
+  student: "Student",
+};
 
 function hasBlobErrorResponse(error: unknown): error is { response: { data: Blob } } {
   if (typeof error !== "object" || error === null || !("response" in error))
@@ -106,6 +123,7 @@ export function ThesisPDFViewerPage({
   role = "student",
   isGroupLeader = false,
   currentGroupId = null,
+  canSchedule = true,
   onBack,
   onSubmitRevision,
 }: ThesisPDFViewerProps) {
@@ -113,6 +131,7 @@ export function ThesisPDFViewerPage({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const canAnnotate = ANNOTATOR_ROLES.includes(role);
+  const { user } = useAuth();
 
   const { thesis } = useThesis(thesisService, thesisId);
 
@@ -133,14 +152,47 @@ export function ThesisPDFViewerPage({
 
   // Annotations are streamed live from Firestore for the active version.
   const {
-    annotations,
-    unresolvedCount,
-    resolvedCount,
+    annotations: allAnnotations,
     isLoading: annotationsLoading,
   } = useAnnotationsLive(annotationService, thesisId, activeVersionId ?? "");
 
+  // ── Approval gate ─────────────────────────────────────────────────────
+  // Faculty / program-head comments are created "pending": only an Admin and
+  // the comment's own author can see them until they're approved. Everyone
+  // else (students included) sees approved comments only. The server-side
+  // proceedings reader applies the same rule so pending comments never reach
+  // the printed PDF.
+  const currentUid = user?.uid ?? null;
+  const canApprove = role === "admin";
+  const annotations = allAnnotations.filter((annotation) => {
+    if ((annotation.status ?? "approved") !== "pending") return true;
+    if (canApprove) return true;
+    return currentUid != null && annotation.reviewerId === currentUid;
+  });
+  const unresolvedCount = annotations.filter((a) => !a.isResolved).length;
+  const resolvedCount = annotations.length - unresolvedCount;
+
+  // ── Delete gate ───────────────────────────────────────────────────────
+  // Students may only remove their own comments; anything authored by
+  // faculty, a program head or an admin is theirs alone to delete. (Students
+  // can't annotate at all today, so in practice a student never gets a
+  // trash button.) Everyone else keeps the existing behaviour.
+  const canDeleteAnnotation = useCallback(
+    (annotation: AnnotationResponseDto) => {
+      if (role !== "student") return true;
+      return (
+        annotation.authorRole === "Student" &&
+        currentUid != null &&
+        annotation.reviewerId === currentUid
+      );
+    },
+    [role, currentUid]
+  );
+
   const { mutate: createAnnotation, isPending: isCreating } =
     useCreateAnnotationLive(annotationService);
+  const { mutate: approveAnnotation, isPending: isApproving } =
+    useApproveAnnotationLive(annotationService);
   const { mutate: resolveAnnotation, isPending: isResolving } =
     useResolveAnnotationLive(annotationService);
   const { mutate: deleteAnnotation } = useDeleteAnnotationLive(annotationService);
@@ -153,10 +205,28 @@ export function ThesisPDFViewerPage({
       createAnnotation({
         thesisId,
         thesisVersionId: activeVersionId,
-        input: dto,
+        // Stamped on the document: Admin → approved, anyone else → pending.
+        input: { ...dto, authorRole: VIEWER_ROLE_TO_PROFILE_ROLE[role] },
       });
     },
-    [thesisId, activeVersionId, createAnnotation]
+    [thesisId, activeVersionId, createAnnotation, role]
+  );
+
+  const handleApprove = useCallback(
+    (annotationId: string) => {
+      if (!activeVersionId) return;
+      approveAnnotation(
+        { thesisId, thesisVersionId: activeVersionId, annotationId },
+        {
+          onSuccess: () => toast.success("Comment approved and published."),
+          onError: (error) =>
+            toast.error(
+              getApiErrorMessage(error, "Couldn't approve the comment.")
+            ),
+        }
+      );
+    },
+    [thesisId, activeVersionId, approveAnnotation]
   );
 
   const handleResolve = useCallback(
@@ -175,13 +245,21 @@ export function ThesisPDFViewerPage({
   const handleDelete = useCallback(
     (annotationId: string) => {
       if (!activeVersionId) return;
+      // Defense in depth: the sidebar hides the trash button for comments a
+      // student may not remove, but re-check here so a stale UI can't delete
+      // a faculty / program-head / admin comment.
+      const target = annotations.find((a) => a.id === annotationId);
+      if (target && !canDeleteAnnotation(target)) {
+        toast.error("You can only delete your own comments.");
+        return;
+      }
       deleteAnnotation({
         thesisId,
         thesisVersionId: activeVersionId,
         annotationId,
       });
     },
-    [thesisId, activeVersionId, deleteAnnotation]
+    [thesisId, activeVersionId, deleteAnnotation, annotations, canDeleteAnnotation]
   );
 
   const { mutate: deleteVersion, isPending: isDeletingVersion } =
@@ -243,7 +321,6 @@ export function ThesisPDFViewerPage({
     adminService
   );
   const { mutateAsync: createSchedule } = useCreateSchedule(scheduleService);
-  const { user } = useAuth();
   const scheduledBy = user?.displayName ?? user?.email ?? "";
 
   return (
@@ -261,6 +338,10 @@ export function ThesisPDFViewerPage({
       isCreating={isCreating}
       isResolving={isResolving}
       canAnnotate={canAnnotate}
+      canApprove={canApprove}
+      isApproving={isApproving}
+      onApprove={handleApprove}
+      canDeleteAnnotation={canDeleteAnnotation}
       canDeleteVersion={canDeleteVersion}
       deleteDialogOpen={deleteDialogOpen}
       isDeletingVersion={isDeletingVersion}
@@ -277,6 +358,7 @@ export function ThesisPDFViewerPage({
       panelistPool={panelistPool ?? []}
       scheduledBy={scheduledBy}
       onConfirmSchedule={(payload) => createSchedule(payload)}
+      canSchedule={canSchedule}
     />
   );
 }

@@ -99,6 +99,21 @@ namespace server.Repositories
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.GroupId == groupId);
 
+        public async Task<Thesis?> GetLatestByUploadedByIdAsync(string uploadedById)
+            // Same loaded graph as GetByGroupIdAsync — powers GET /thesis/my
+            // for faculty, whose submissions carry no research group.
+            => await _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .Where(t => t.UploadedById == uploadedById)
+                .OrderByDescending(t => t.SubmittedAt)
+                .FirstOrDefaultAsync();
+
         /// <summary>
         /// Exact-match (LIKE) search over titles and abstracts. LIKE
         /// wildcards inside the term are escaped so user input is matched

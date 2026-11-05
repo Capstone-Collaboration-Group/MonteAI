@@ -78,6 +78,7 @@ export class LiveAnnotationService implements AnnotationService {
         id: string,
         data: DocumentData
     ): AnnotationResponseDto {
+        const rawStatus = data.status;
         return {
             id,
             thesisId,
@@ -91,6 +92,12 @@ export class LiveAnnotationService implements AnnotationService {
             resolvedAt: data.resolvedAt ?? "",
             createdAt: data.createdAt ?? "",
             resolverNote: data.resolverNote ?? undefined,
+            authorRole: data.authorRole ?? undefined,
+            // Legacy documents predate the approval workflow — treat them as
+            // already approved so existing comments stay visible.
+            status: rawStatus === "pending" ? "pending" : "approved",
+            approvedBy: data.approvedBy ?? undefined,
+            approvedAt: data.approvedAt ?? undefined,
         };
     }
 
@@ -132,6 +139,10 @@ export class LiveAnnotationService implements AnnotationService {
     ): Promise<AnnotationResponseDto> {
         const createdAt = new Date().toISOString();
         const reviewerId = this.auth.currentUser?.uid ?? "unknown";
+        const authorRole = input.authorRole ?? "";
+        // Admin comments are their own approval; everyone else's (faculty,
+        // program heads — students can't annotate) waits for an Admin.
+        const status = authorRole === "Admin" ? "approved" : "pending";
 
         const ref = await addDoc(
             this.annotationsCollection(thesisId, thesisVersionId),
@@ -145,6 +156,8 @@ export class LiveAnnotationService implements AnnotationService {
                 resolvedAt: "",
                 resolverNote: null,
                 createdAt,
+                authorRole,
+                status,
             }
         );
 
@@ -161,6 +174,8 @@ export class LiveAnnotationService implements AnnotationService {
             resolvedAt: "",
             createdAt,
             resolverNote: undefined,
+            authorRole: authorRole || undefined,
+            status,
         };
     }
 
@@ -176,6 +191,21 @@ export class LiveAnnotationService implements AnnotationService {
                 isResolved: dto.isResolved,
                 resolverNote: dto.resolverNote ?? null,
                 resolvedAt: dto.isResolved ? new Date().toISOString() : "",
+            }
+        );
+    }
+
+    async approveAnnotation(
+        thesisId: string,
+        thesisVersionId: string,
+        annotationId: string
+    ): Promise<void> {
+        await updateDoc(
+            this.annotationDoc(thesisId, thesisVersionId, annotationId),
+            {
+                status: "approved",
+                approvedBy: this.auth.currentUser?.uid ?? "unknown",
+                approvedAt: new Date().toISOString(),
             }
         );
     }

@@ -22,10 +22,14 @@ namespace server.Services.Interfaces
         /// The thesis submitted by the caller's research group — powers the
         /// /submit page. Null when the caller isn't a student, has no group,
         /// or the group hasn't submitted yet (client renders its empty state).
+        /// Faculty have no group: when <paramref name="isFaculty"/> is true the
+        /// latest thesis they uploaded themselves is returned instead.
         /// </summary>
-        Task<ThesisResponseDto?> GetMyThesisAsync(string callerId);
+        Task<ThesisResponseDto?> GetMyThesisAsync(string callerId, bool isFaculty = false);
 
-        Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false);
+        /// <param name="isFaculty">Faculty submit their own manuscript — no
+        /// research group, leadership or year-level gate applies.</param>
+        Task<ThesisResponseDto> SubmitAsync(SubmitThesisDto submitDto, string uploaderId, bool isAdmin = false, bool isFaculty = false);
 
         /// <summary>
         /// METADATA-ONLY ingestion (POST /thesis/ingest): resolves authors/
@@ -36,7 +40,7 @@ namespace server.Services.Interfaces
         Task<IngestThesisResponseDto> IngestAsync(IngestThesisDto dto);
 
         Task<string?> GetDownloadUrlAsync(Guid thesisId);
-        Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateThesisdto, string callerId, bool isAdmin);
+        Task<bool> UpdateDetailsAsync(Guid id, UpdateThesisDto updateThesisdto, string callerId, bool isAdmin, bool isFaculty = false);
 
         Task<bool> UpdateStatusAsync(Guid id, UpdateThesisStatusDto updateStatusDto);
 
@@ -52,7 +56,9 @@ namespace server.Services.Interfaces
 
         Task<int> GetNextVersionNumber(Guid thesisId);
 
-        Task<bool> CreateThesisVersion(CreateThesisVersionDto thesisVersionDto, string uploadedById);
+        /// <param name="isFaculty">Faculty revise a thesis they uploaded
+        /// themselves instead of one owned by a research group.</param>
+        Task<bool> CreateThesisVersion(CreateThesisVersionDto thesisVersionDto, string uploadedById, bool isFaculty = false);
 
         Task<bool> DeleteThesisVersion(Guid thesisId, string callerId, bool isAdmin);
 

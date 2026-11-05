@@ -77,6 +77,10 @@ export default function SubmitThesis() {
 
   const studentProfile = profile?.role === "Student" ? profile : null;
   const isStudent = studentProfile !== null;
+  // Faculty submit their own manuscript — no research group, no leadership,
+  // no year-level gate (the server applies those only to students).
+  const isFaculty = profile?.role === "Faculty";
+  const canSubmit = isStudent || isFaculty;
   const position = studentProfile?.position;
   const isLeader = !!position && position.trim().toLowerCase() === "leader";
   const groupName = studentProfile?.researchGroup?.groupName;
@@ -85,11 +89,11 @@ export default function SubmitThesis() {
     thesis: myThesis,
     isLoading: thesisLoading,
     error: thesisError,
-  } = useMyThesis(thesisService, isStudent);
+  } = useMyThesis(thesisService, canSubmit);
 
   const [modalMode, setModalMode] = useState<"initial" | "revision" | null>(null);
 
-  if (profileLoading || (isStudent && thesisLoading)) {
+  if (profileLoading || (canSubmit && thesisLoading)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface-container-low/60">
         <Spinner size="xl" />
@@ -112,8 +116,8 @@ export default function SubmitThesis() {
     );
   }
 
-  // Non-students never call /thesis/my, so they always see the empty state.
-  const thesis = isStudent ? myThesis : null;
+  // Profiles that can't submit never call /thesis/my, so they see the empty state.
+  const thesis = canSubmit ? myThesis : null;
   const lifecycle = toLifecycleStatus(thesis?.status);
   const rejected = lifecycle === "Rejected";
   const milestones = thesis ? buildMilestones(thesis, rejected) : [];
@@ -125,7 +129,7 @@ export default function SubmitThesis() {
           eyebrow="Thesis Submission"
           title="My Submission"
           actions={
-            thesis && isLeader ? (
+            thesis && (isLeader || isFaculty) ? (
               <Button variant="primary" onClick={() => setModalMode("revision")}>
                 Submit Revision
               </Button>
@@ -144,10 +148,12 @@ export default function SubmitThesis() {
             description={
               isStudent
                 ? "Your research group hasn't submitted a manuscript. Once submitted, you can track its application status on this page."
-                : "Thesis submissions are tracked here for student research groups."
+                : isFaculty
+                  ? "You haven't submitted a manuscript yet. Once submitted, you can track its application status on this page."
+                  : "Thesis submissions are tracked here for student research groups."
             }
             action={
-              isStudent ? (
+              canSubmit ? (
                 <Button variant="primary" onClick={() => setModalMode("initial")}>
                   Submit Thesis
                 </Button>
@@ -228,7 +234,7 @@ export default function SubmitThesis() {
                 >
                   Open thesis
                 </Button>
-                {!isLeader && (
+                {!isLeader && !isFaculty && (
                   <p className="flex items-center gap-1.5 text-xs text-on-surface-variant">
                     <Lock className="h-3.5 w-3.5 shrink-0" />
                     Only the group leader can edit this submission.

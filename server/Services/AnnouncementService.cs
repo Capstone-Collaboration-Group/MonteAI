@@ -116,8 +116,33 @@ namespace server.Services
 
             return result;
         }
-        public async Task<bool> DeleteAsync(Guid id)
+        // Scope check: a ProgramHead may only delete announcements they authored.
+        // Announcement audience is derived from the author (Admin => college-wide
+        // "All", ProgramHead => that head's institute — see MappingProfile and
+        // FanOutAsync above), so authorship is the scope boundary. This mirrors
+        // getAnnouncementPermissions in packages/ui (withinOwnInstitute &&
+        // isOwnAnnouncement) which is what the frontends use to show the button.
+        // Admins may delete anything (controller policy restricts to Admin/ProgramHead).
+        public async Task<bool> DeleteAsync(Guid id, string userId, string role)
         {
+            if (role != "Admin")
+            {
+                var announcement = await _repo.GetAnnouncementByIdAsync(id);
+                if (announcement == null)
+                {
+                    _logger.LogWarning("Announcement {Id} not found for deletion.", id);
+                    return false;
+                }
+
+                if (!string.Equals(announcement.CreatedByProgramHeadId, userId, StringComparison.Ordinal))
+                {
+                    _logger.LogWarning(
+                        "ProgramHead {UserId} denied deleting Announcement {Id} (not its author).",
+                        userId, id);
+                    throw new UnauthorizedAccessException("Program heads may only delete their own announcements.");
+                }
+            }
+
             var result = await _repo.DeleteAnnouncementAsync(id);
             _logger.LogInformation("Performed Delete Query on Announcement ID: {Id}", id);
             return result;

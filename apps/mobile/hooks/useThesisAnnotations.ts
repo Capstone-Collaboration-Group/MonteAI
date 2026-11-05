@@ -9,10 +9,18 @@ import { useEffect, useState } from 'react';
 import type { AnnotationService } from '@monteai/api';
 import type { AnnotationResponseDto } from '@monteai/types';
 
+/**
+ * `viewerRole` / `viewerUid` drive the approval gate: comments still pending
+ * admin approval are only shown to admins and to their own author — students
+ * (mobile's usual audience) see approved comments only. Legacy documents with
+ * no status count as approved.
+ */
 export function useThesisAnnotations(
   service: AnnotationService | null,
   thesisId: string,
   thesisVersionId: string,
+  viewerRole?: string | null,
+  viewerUid?: string | null,
 ) {
   const [annotations, setAnnotations] = useState<AnnotationResponseDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +40,13 @@ export function useThesisAnnotations(
       thesisVersionId,
       (next) => {
         if (!active) return;
-        setAnnotations(next);
+        setAnnotations(
+          next.filter((annotation) => {
+            if ((annotation.status ?? 'approved') !== 'pending') return true;
+            if (viewerRole === 'Admin') return true;
+            return !!viewerUid && annotation.reviewerId === viewerUid;
+          }),
+        );
         setIsLoading(false);
       },
       () => {
@@ -46,7 +60,7 @@ export function useThesisAnnotations(
       active = false;
       unsubscribe();
     };
-  }, [service, thesisId, thesisVersionId]);
+  }, [service, thesisId, thesisVersionId, viewerRole, viewerUid]);
 
   const unresolvedCount = annotations.filter((a) => !a.isResolved).length;
   const resolvedCount = annotations.length - unresolvedCount;
