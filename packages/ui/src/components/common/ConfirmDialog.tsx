@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type ConfirmVariant = "danger" | "success" | "warning";
 
@@ -40,9 +41,13 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   if (!open) return null;
 
-  return (
+  // Portaled to <body> and stacked above Modal's z-[60]: a confirm raised
+  // from INSIDE another modal (e.g. ScheduleDefenseModal's "Confirm
+  // Schedule" step) used to render inline in the page, where the modal
+  // portal — appended later to <body> at the same z-index — painted over it.
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
       onClick={onCancel}
@@ -75,6 +80,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
