@@ -7,7 +7,7 @@
 // model:
 //   activity — what it is doing right now (idle / thinking / speaking)
 //   emotion  — persistent mood derived from the latest answer
-//              (cheerful when relevant theses were found, sad when not)
+//              (friendly replies are cheerful; explicit failures are sad)
 
 /** What the avatar is doing right now. */
 export type AvatarActivity = "idle" | "thinking" | "speaking";
