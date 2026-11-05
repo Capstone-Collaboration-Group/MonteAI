@@ -6,6 +6,7 @@ import type {
   UpdateScheduleTimesDto,
   ScheduleResponseDto,
 } from "@monteai/types";
+import { thesesKeys } from "../thesis/useTheses";
 
 export const scheduleKeys = { 
     all: ["schedules"] as const,
@@ -26,7 +27,12 @@ export function useCreateSchedule(scheduleService: ScheduleService) {
     const queryClient = useQueryClient();
     return useMutation( { 
        mutationFn: (dto: CreateScheduleDto) => scheduleService.createSchedule(dto),
-       onSuccess: () => queryClient.invalidateQueries({ queryKey: scheduleKeys.all }),
+       // Creating a schedule flips the group's thesis status to "Scheduled"
+       // on the server — refresh thesis queries too, not just the calendar.
+       onSuccess: () => {
+           queryClient.invalidateQueries({ queryKey: scheduleKeys.all });
+           queryClient.invalidateQueries({ queryKey: thesesKeys.all });
+       },
     });
 }
 
@@ -70,7 +76,13 @@ export function useDeleteSchedule(scheduleService: ScheduleService) {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (scheduleId: string) => scheduleService.deleteSchedule(scheduleId),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: scheduleKeys.all }),
+        // Deleting a schedule reverts the group's thesis status on the
+        // server — invalidate thesis queries so the status badge / timeline
+        // don't keep showing the stale "Scheduled" state.
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: scheduleKeys.all });
+            queryClient.invalidateQueries({ queryKey: thesesKeys.all });
+        },
     });
 }
 
