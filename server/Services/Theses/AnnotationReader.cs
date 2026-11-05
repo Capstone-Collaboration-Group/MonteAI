@@ -9,7 +9,8 @@ namespace server.Services.Theses
     // Firestore layout (mirrors packages/api/src/annotation/liveAnnotationService.ts):
     // theses/{thesisId}/versions/{versionId}/annotations — one document per
     // panelist comment: { reviewerId (Firebase UID), comment, pageNumber,
-    // isResolved, resolverNote, createdAt }.
+    // isResolved, resolverNote, createdAt, authorRole,
+    // status ("pending" | "approved"), approvedBy, approvedAt }.
     public class AnnotationReader : IAnnotationReader
     {
         private const string RootCollection = "theses";
@@ -44,7 +45,10 @@ namespace server.Services.Theses
                     .OrderBy("createdAt")
                     .GetSnapshotAsync(cancellationToken);
 
-                return snapshot.Documents.Select(ToDto).ToList();
+                return snapshot.Documents
+                    .Where(doc => !IsPending(doc))
+                    .Select(ToDto)
+                    .ToList();
             }).ToList();
 
             try
@@ -62,6 +66,18 @@ namespace server.Services.Theses
                 .OrderBy(r => r.CreatedAt, StringComparer.Ordinal)
                 .ThenBy(r => r.ReviewerId, StringComparer.Ordinal)
                 .ToList();
+        }
+
+        // Faculty/program-head comments are created with status "pending" and
+        // only an Admin's approval publishes them — proceedings must never
+        // print an unapproved comment. Documents written before the approval
+        // workflow (no status field) are treated as approved.
+        private static bool IsPending(DocumentSnapshot doc)
+        {
+            var data = doc.ToDictionary();
+            return data != null
+                && data.TryGetValue("status", out var status)
+                && string.Equals(status?.ToString(), "pending", StringComparison.OrdinalIgnoreCase);
         }
 
         private static ProceedingsAnnotationDto ToDto(DocumentSnapshot doc)

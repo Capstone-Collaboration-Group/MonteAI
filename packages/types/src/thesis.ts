@@ -151,6 +151,15 @@ export interface ThesisVersion {
   changeNote?: string;
 }
 
+/**
+ * Publication state of a comment on a thesis. Faculty/program-head comments
+ * are created "pending" and only become visible to everyone (and printable in
+ * the proceedings) once an Admin approves them. Admin-authored comments are
+ * approved immediately; documents written before this field existed have no
+ * status and are treated as "approved".
+ */
+export type AnnotationStatus = "pending" | "approved";
+
 export interface AnnotationResponseDto { 
   id: string; 
   thesisId: string;
@@ -164,6 +173,13 @@ export interface AnnotationResponseDto {
   resolvedAt: string;
   createdAt: string;
   resolverNote?: string;
+  /** Profile role of the author ("Student" | "Faculty" | "ProgramHead" | "Admin"). */
+  authorRole?: string;
+  /** Missing = legacy document → treated as approved. */
+  status?: AnnotationStatus;
+  /** Admin uid that approved the comment. */
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 export interface CreateAnnotationDto {
@@ -172,6 +188,8 @@ export interface CreateAnnotationDto {
   highlightedText?: string;
   positionJson: string;
   pageNumber: number;
+  /** Author's profile role — drives the pending/approved status on create. */
+  authorRole?: string;
 }
 
 export interface ResolveAnnotationDto { 

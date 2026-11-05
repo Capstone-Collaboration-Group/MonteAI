@@ -160,6 +160,7 @@ export const mockAnnotationService: AnnotationService = {
     ) {
         await delay(200);
         const createdAt = new Date().toISOString();
+        const authorRole = input.authorRole ?? "";
         const annotation: AnnotationResponseDto = {
             id: crypto.randomUUID(),
             thesisId,
@@ -172,6 +173,9 @@ export const mockAnnotationService: AnnotationService = {
             isResolved: false,
             resolvedAt: "",
             createdAt,
+            authorRole: authorRole || undefined,
+            // Admin comments are approved on creation; everyone else's wait.
+            status: authorRole === "Admin" ? "approved" : "pending",
         };
         upsertIntoVersion(thesisId, thesisVersionId, annotation);
         return annotation;
@@ -195,6 +199,24 @@ export const mockAnnotationService: AnnotationService = {
             isResolved: dto.isResolved,
             resolverNote: dto.resolverNote,
             resolvedAt: dto.isResolved ? new Date().toISOString() : "",
+        };
+        annotationsMap.set(key, updated);
+        emit(key);
+    },
+
+    async approveAnnotation(thesisId, thesisVersionId, annotationId) {
+        await delay(200);
+        const key = annotationKey(thesisId, thesisVersionId);
+        const items = annotationsMap.get(key) ?? [];
+        const idx = items.findIndex((a) => a.id === annotationId);
+        if (idx === -1) return;
+
+        const updated = [...items];
+        updated[idx] = {
+            ...updated[idx],
+            status: "approved",
+            approvedBy: "mock-admin",
+            approvedAt: new Date().toISOString(),
         };
         annotationsMap.set(key, updated);
         emit(key);

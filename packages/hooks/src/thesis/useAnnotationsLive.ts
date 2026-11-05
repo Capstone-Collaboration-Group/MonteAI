@@ -66,6 +66,21 @@ export function useCreateAnnotationLive(service: AnnotationService) {
     });
 }
 
+/** Admin publication of a pending faculty/program-head comment. */
+export function useApproveAnnotationLive(service: AnnotationService) {
+    return useMutation({
+        mutationFn: ({
+            thesisId,
+            thesisVersionId,
+            annotationId,
+        }: {
+            thesisId: string;
+            thesisVersionId: string;
+            annotationId: string;
+        }) => service.approveAnnotation(thesisId, thesisVersionId, annotationId),
+    });
+}
+
 export function useResolveAnnotationLive(service: AnnotationService) {
     return useMutation({
         mutationFn: ({

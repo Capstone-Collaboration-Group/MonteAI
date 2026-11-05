@@ -36,6 +36,12 @@ interface ThesisPDFViewerLayoutProps {
   isCreating: boolean;
   isResolving: boolean;
   canAnnotate: boolean;
+  /** Admin-only: shows the Approve action on pending comments. */
+  canApprove?: boolean;
+  isApproving?: boolean;
+  onApprove?: (annotationId: string) => void;
+  /** Per-comment delete gate (see AnnotationSidebar). */
+  canDeleteAnnotation?: (annotation: AnnotationResponseDto) => boolean;
   /** Show the delete-version button (leader/admin, latest version only). */
   canDeleteVersion?: boolean;
   deleteDialogOpen?: boolean;
@@ -70,6 +76,10 @@ export function ThesisPDFViewerLayout({
   isCreating,
   isResolving,
   canAnnotate,
+  canApprove = false,
+  isApproving = false,
+  onApprove,
+  canDeleteAnnotation,
   canDeleteVersion = false,
   deleteDialogOpen = false,
   isDeletingVersion = false,
@@ -280,6 +290,10 @@ export function ThesisPDFViewerLayout({
                 unresolvedCount={unresolvedCount}
                 resolvedCount={resolvedCount}
                 isResolving={isResolving}
+                canApprove={canApprove}
+                isApproving={isApproving}
+                canDeleteAnnotation={canDeleteAnnotation}
+                onApprove={onApprove}
                 onResolve={onResolve}
                 onDelete={onDelete}
                 onJumpToPage={handleJumpToPage}
@@ -340,6 +354,10 @@ export function ThesisPDFViewerLayout({
                 unresolvedCount={unresolvedCount}
                 resolvedCount={resolvedCount}
                 isResolving={isResolving}
+                canApprove={canApprove}
+                isApproving={isApproving}
+                canDeleteAnnotation={canDeleteAnnotation}
+                onApprove={onApprove}
                 onResolve={onResolve}
                 onDelete={onDelete}
                 onJumpToPage={handleJumpToPage}
