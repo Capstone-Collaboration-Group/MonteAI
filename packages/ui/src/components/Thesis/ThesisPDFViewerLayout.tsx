@@ -59,6 +59,9 @@ interface ThesisPDFViewerLayoutProps {
   panelistPool?: PanelistCandidate[];
   scheduledBy?: string;
   onConfirmSchedule?: (data: CreateScheduleDto) => void | Promise<unknown>;
+  /** Hides the "Schedule For Defense" action — the web passes false for
+   *  ProgramHead (schedule editing is desktop-only there). */
+  canSchedule?: boolean;
   onSubmitRevision?: () => void;
 }
 
@@ -95,7 +98,8 @@ export function ThesisPDFViewerLayout({
   onSubmitRevision,
   panelistPool,
   scheduledBy,
-  onConfirmSchedule
+  onConfirmSchedule,
+  canSchedule = true
 }: ThesisPDFViewerLayoutProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [sections, setSections] = useState<PdfOutlineItem[]>([]);
@@ -216,7 +220,7 @@ export function ThesisPDFViewerLayout({
                 Submit a Revised Version
               </Button>
             ) : null
-          ) : (
+          ) : canSchedule ? (
             <Button
               type="button"
               onClick={() => setScheduleModalOpen(true)}
@@ -225,7 +229,7 @@ export function ThesisPDFViewerLayout({
               <Calendar className="h-4 w-4" />
               Schedule For Defense
             </Button>
-          )}
+          ) : null}
 
           {/* ── Generate Proceedings ── */}
           {canShowThesisWorkflow && (

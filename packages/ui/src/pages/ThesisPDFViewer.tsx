@@ -48,6 +48,9 @@ interface ThesisPDFViewerProps {
   isGroupLeader?: boolean;
   /** The user's research-group id — must match thesis.groupId for ownership. */
   currentGroupId?: string | null;
+  /** Hides the "Schedule For Defense" action (default: shown). The web
+   *  passes false for ProgramHead — schedule editing is desktop-only. */
+  canSchedule?: boolean;
   onBack?: () => void;
   onSubmitRevision?: () => void;
 }
@@ -120,6 +123,7 @@ export function ThesisPDFViewerPage({
   role = "student",
   isGroupLeader = false,
   currentGroupId = null,
+  canSchedule = true,
   onBack,
   onSubmitRevision,
 }: ThesisPDFViewerProps) {
@@ -354,6 +358,7 @@ export function ThesisPDFViewerPage({
       panelistPool={panelistPool ?? []}
       scheduledBy={scheduledBy}
       onConfirmSchedule={(payload) => createSchedule(payload)}
+      canSchedule={canSchedule}
     />
   );
 }
