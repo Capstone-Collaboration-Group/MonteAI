@@ -4,6 +4,7 @@
 // Dashboard monitoring section and chat suggestions render in mock mode.
 import type { AnalyticsOverviewDto } from "@monteai/types";
 import type { AnalyticsService } from "./types";
+import { normalizeQuerySuggestions, TOP_QUERY_LIMIT } from "./querySuggestions";
 
 const overview: AnalyticsOverviewDto = {
   rangeDays: 30,
@@ -45,11 +46,15 @@ const overview: AnalyticsOverviewDto = {
 };
 
 export const mockAnalyticsService: AnalyticsService = {
-  async getOverview(): Promise<AnalyticsOverviewDto> {
-    return overview;
+  async getOverview(days = 30): Promise<AnalyticsOverviewDto> {
+    return {
+      ...overview,
+      rangeDays: Math.max(1, Math.min(365, days)),
+      topQueries: overview.topQueries.slice(0, TOP_QUERY_LIMIT),
+    };
   },
 
-  async getSuggestions(limit = 6): Promise<string[]> {
-    return overview.topQueries.slice(0, limit).map((q) => q.query);
+  async getSuggestions(limit = TOP_QUERY_LIMIT): Promise<string[]> {
+    return normalizeQuerySuggestions(overview.topQueries.map((q) => q.query), limit);
   },
 };

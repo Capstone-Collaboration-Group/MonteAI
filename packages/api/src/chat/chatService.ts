@@ -33,6 +33,7 @@ import type {
 import type { ChatService, ChatStreamHandlers } from "./types";
 import { ChatStreamAbortedError } from "./errors";
 import { handle404 } from "@monteai/utils";
+import { clampTopQueryLimit, normalizeQuerySuggestions, TOP_QUERY_LIMIT } from "../analytics/querySuggestions";
 
 /** Shape of the SSE "done" event payload. */
 interface DoneEvent {
@@ -264,13 +265,13 @@ export class LiveChatService implements ChatService {
    * fetch returns [] so chat surfaces fall back to their static prompts
    * instead of showing an error for a decorative feature.
    */
-  async getQuerySuggestions(limit = 6): Promise<string[]> {
+  async getQuerySuggestions(limit = TOP_QUERY_LIMIT): Promise<string[]> {
     try {
       const { data } = await this.client.get<AnalyticsSuggestionsDto>(
         "/analytics/suggestions",
-        { params: { limit } }
+        { params: { limit: clampTopQueryLimit(limit) } }
       );
-      return data?.suggestions ?? [];
+      return normalizeQuerySuggestions(data?.suggestions, limit);
     } catch {
       return [];
     }

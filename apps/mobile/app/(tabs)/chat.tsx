@@ -24,7 +24,7 @@ import { chatService } from '@/lib/chatService';
 import { MonteAvatar } from '@/components/MonteAvatar';
 import { getAvatarEmotion } from '@monteai/ui/src/avatar/emotion';
 import type { AvatarActivity, AvatarEmotion } from '@monteai/ui/src/avatar/types';
-import { ChatStreamAbortedError } from '@monteai/api';
+import { ChatStreamAbortedError, normalizeQuerySuggestions, TOP_QUERY_LIMIT } from '@monteai/api';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
 import type {
   ApaCitationDto,
@@ -119,14 +119,14 @@ export default function ChatScreen() {
   useEffect(() => {
     let active = true;
     chatService
-      .getQuerySuggestions(4)
+      .getQuerySuggestions(TOP_QUERY_LIMIT)
       .then((list) => {
         if (!active) return;
-        const cleaned = (list ?? []).map((t) => t?.trim()).filter(Boolean);
-        if (cleaned.length > 0) setSuggestions(cleaned);
+        const cleaned = normalizeQuerySuggestions(list);
+        setSuggestions(cleaned.length > 0 ? cleaned : DEFAULT_SUGGESTIONS);
       })
       .catch(() => {
-        /* keep DEFAULT_SUGGESTIONS */
+        if (active) setSuggestions(DEFAULT_SUGGESTIONS);
       });
     return () => {
       active = false;

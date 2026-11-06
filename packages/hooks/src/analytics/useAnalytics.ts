@@ -3,6 +3,7 @@
 // Query & Activity Monitoring reads for the desktop Dashboard.
 import { useQuery } from "@tanstack/react-query";
 import type { AnalyticsService } from "@monteai/api";
+import { TOP_QUERY_LIMIT } from "@monteai/api";
 
 export const analyticsKeys = {
   all: ["analytics"] as const,
@@ -20,7 +21,7 @@ export function useAnalyticsOverview(analyticsService: AnalyticsService, days = 
 }
 
 /** Top query strings — chat/home suggestion cards. */
-export function useQuerySuggestions(analyticsService: AnalyticsService, limit = 6) {
+export function useQuerySuggestions(analyticsService: AnalyticsService, limit = TOP_QUERY_LIMIT) {
   return useQuery({
     queryKey: analyticsKeys.suggestions(limit),
     queryFn: () => analyticsService.getSuggestions(limit),

@@ -6,6 +6,7 @@
 
 import type { ChatService, ChatStreamHandlers } from "./types";
 import { ChatStreamAbortedError } from "./errors";
+import { normalizeQuerySuggestions, TOP_QUERY_LIMIT } from "../analytics/querySuggestions";
 import type {
   ChatSessionResponseDto,
   ChatSessionResponseListDto,
@@ -307,16 +308,16 @@ export const mockChatService: ChatService = {
     return assistantMessage;
   },
 
-  async getQuerySuggestions(limit = 6): Promise<string[]> {
+  async getQuerySuggestions(limit = TOP_QUERY_LIMIT): Promise<string[]> {
     await delay(100);
-    return [
+    return normalizeQuerySuggestions([
       "studies about gamification in education",
       "IoT-based smart irrigation",
       "student benefits on cloud platforms",
       "research methodologies for capstone projects",
       "secondary science pedagogy literacy interventions",
       "digital marketing and startup sustainability in Montalban",
-    ].slice(0, limit);
+    ], limit);
   },
 
   async formatCitations(sources: ChatSourceDto[]): Promise<ApaCitationDto[]> {
