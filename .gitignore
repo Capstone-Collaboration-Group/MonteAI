@@ -508,6 +508,7 @@ apps/web/.vite/
 .env
 .env.local
 .env.production
+.env.*.local
 
 # Logs
 *.log

@@ -1,23 +1,34 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, protocol } from 'electron';
 import path from 'node:path';
-import started from 'electron-squirrel-startup';
 import { registerBackupHandlers } from './handlers/backup';
+import { DESKTOP_PARTITION, registerAppProtocol } from './handlers/appProtocol';
 
+app.setName('MonteSkolar');
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (started) {
-  app.quit();
-}
+// Honor Chromium's explicit profile override (also useful for isolated smoke tests).
+const userDataDir = app.commandLine.getSwitchValue('user-data-dir');
+if (userDataDir) app.setPath('userData', path.resolve(userDataDir));
+
+// Unlike file://, this is a secure, allowlisted origin with persistent browser
+// storage independent of the install directory. Never disable webSecurity.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'monteskolar',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+  },
+]);
 
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
+    title: 'MonteSkolar',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      partition: DESKTOP_PARTITION,
     },
   });
 
@@ -25,19 +36,20 @@ const createWindow = () => {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
+    mainWindow.loadURL('monteskolar://app/index.html');
   }
 
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  if (!app.isPackaged) mainWindow.webContents.openDevTools();
 };
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs. 
 app.on('ready', () => { 
+  if (process.platform === 'win32') app.setAppUserModelId('edu.cdm.monteskolar');
+  if (app.isPackaged) {
+    registerAppProtocol(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`));
+  }
   registerBackupHandlers();
   createWindow();
 });

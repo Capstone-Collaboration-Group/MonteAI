@@ -423,6 +423,8 @@ try
                 "https://localhost:8080",
                 "https://localhost:5173",
                 "https://monteskolar.pnm.edu.ph",
+                // Stable, secure origin of the installed desktop app.
+                "monteskolar://app",
                 "http://192.168.100.9:8081"
                 )
             .AllowAnyHeader()
