@@ -47,35 +47,45 @@ namespace server.Repositories
         /// <summary>Lowercase, collapse internal whitespace — the GROUP BY key.</summary>
         private static string Normalize(string text)
         {
-            var normalized = string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+            var normalized = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
             return normalized.Length > 500 ? normalized[..500] : normalized;
         }
 
-        public async Task<List<TopQueryRow>> GetTopQueriesAsync(DateTime since, int take, CancellationToken ct = default)
+        public async Task<List<TopQueryRow>> GetTopQueriesAsync(DateTime since, DateTime until, int skip, int take, CancellationToken ct = default)
         {
             if (take <= 0) return [];
 
-            var groups = await _db.ActivityLogs
-                .Where(a => a.OccurredAt >= since && a.NormalizedQuery != null && QueryTypes.Contains(a.Type))
+            // Freeze the upper bound across pages so newly recorded queries
+            // cannot move groups between pages while analytics filters them.
+            var queries = _db.ActivityLogs.AsNoTracking()
+                .Where(a => a.OccurredAt >= since && a.OccurredAt <= until &&
+                            a.NormalizedQuery != null && a.Query != null && QueryTypes.Contains(a.Type));
+
+            var groups = await queries
                 .GroupBy(a => a.NormalizedQuery)
                 .Select(g => new { Normalized = g.Key!, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .ThenBy(x => x.Normalized)
+                .Skip(Math.Max(0, skip))
                 .Take(take)
                 .ToListAsync(ct);
 
             if (groups.Count == 0) return [];
 
             var norms = groups.Select(g => g.Normalized).ToList();
-            var display = await _db.ActivityLogs
-                .Where(a => a.NormalizedQuery != null && norms.Contains(a.NormalizedQuery) && a.Query != null)
-                .OrderByDescending(a => a.OccurredAt)
-                .Select(a => new { a.NormalizedQuery, a.Query })
+            var display = await queries
+                .Where(a => norms.Contains(a.NormalizedQuery!))
+                .GroupBy(a => a.NormalizedQuery)
+                .Select(g => new
+                {
+                    Normalized = g.Key!,
+                    Query = g.OrderByDescending(a => a.OccurredAt)
+                        .ThenByDescending(a => a.Id)
+                        .Select(a => a.Query)
+                        .FirstOrDefault(),
+                })
                 .ToListAsync(ct);
-            var displayByNorm = display
-                .Where(x => x.NormalizedQuery != null)
-                .GroupBy(x => x.NormalizedQuery!)
-                .ToDictionary(g => g.Key, g => g.First().Query);
+            var displayByNorm = display.ToDictionary(x => x.Normalized, x => x.Query);
 
             return groups
                 .Select(g => new TopQueryRow(g.Normalized, displayByNorm.GetValueOrDefault(g.Normalized), g.Count))

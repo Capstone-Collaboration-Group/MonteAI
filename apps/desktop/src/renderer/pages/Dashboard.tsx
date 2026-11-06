@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAnalyticsOverview, useTheses } from "@monteai/hooks";
+import { TOP_QUERY_LIMIT } from "@monteai/api";
 import {
   ArrowRight,
   BadgeCheck,
@@ -43,6 +44,8 @@ export default function Dashboard() {
     isError: overviewError,
     refetch: refetchOverview,
   } = useAnalyticsOverview(analyticsService, rangeDays);
+
+  const topQueries = overview?.topQueries.slice(0, TOP_QUERY_LIMIT) ?? [];
 
   const metrics = useMemo(() => {
     const pending = theses.filter(
@@ -248,13 +251,13 @@ export default function Dashboard() {
             ) : (
               <div className="mt-6 grid gap-6 lg:grid-cols-2">
                 <div>
-                  <h4 className="text-sm font-semibold text-on-surface">Top queries</h4>
+                  <h4 className="text-sm font-semibold text-on-surface">Top 3 queries</h4>
                   <p className="mt-0.5 text-xs text-on-surface-variant">
-                    Most frequent chat and catalog searches
+                    Most frequent research questions and catalog searches
                   </p>
-                  {overview && overview.topQueries.length > 0 ? (
+                  {topQueries.length > 0 ? (
                     <ol className="mt-3 flex flex-col divide-y divide-outline-variant/40">
-                      {overview.topQueries.map((query, index) => (
+                      {topQueries.map((query, index) => (
                         <li
                           key={`${query.query}-${index}`}
                           className="flex items-center gap-3 py-2.5 text-sm"
@@ -273,7 +276,7 @@ export default function Dashboard() {
                     </ol>
                   ) : (
                     <p className="mt-3 text-sm text-on-surface-variant">
-                      No queries recorded in this window yet.
+                      No eligible research queries in this window yet.
                     </p>
                   )}
                 </div>

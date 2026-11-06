@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatService } from "@monteai/api";
-import { ChatStreamAbortedError } from "@monteai/api";
+import { ChatStreamAbortedError, normalizeQuerySuggestions, TOP_QUERY_LIMIT } from "@monteai/api";
 import type { ChatMessageResponseDto, ChatSourceDto } from "@monteai/types";
 import { useDeleteChatSession } from "@monteai/hooks";
 import { ChatView } from "../components/Chat/ChatView";
@@ -101,14 +101,14 @@ export function ChatPage({
   useEffect(() => {
     let active = true;
     chatService
-      .getQuerySuggestions(6)
+      .getQuerySuggestions(TOP_QUERY_LIMIT)
       .then((list) => {
         if (!active) return;
-        const cleaned = (list ?? []).map((s) => s?.trim()).filter(Boolean);
-        if (cleaned.length > 0) setSuggestions(cleaned);
+        const cleaned = normalizeQuerySuggestions(list);
+        setSuggestions(cleaned.length > 0 ? cleaned : DEFAULT_SUGGESTIONS);
       })
       .catch(() => {
-        /* keep DEFAULT_SUGGESTIONS */
+        if (active) setSuggestions(DEFAULT_SUGGESTIONS);
       });
     return () => {
       active = false;

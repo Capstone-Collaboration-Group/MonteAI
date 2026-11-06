@@ -10,3 +10,4 @@ export function createAnalyticsService(client: AxiosInstance, useMock: boolean):
 export type { AnalyticsService } from "./types";
 export { mockAnalyticsService } from "./mockAnalyticsService";
 export { LiveAnalyticsService } from "./analyticsService";
+export { TOP_QUERY_LIMIT, normalizeQuerySuggestions } from "./querySuggestions";

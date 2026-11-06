@@ -177,8 +177,10 @@ namespace server.Services.AI
             //    retrieval, no LLM, no cache). Checked ahead of the scope
             //    patterns so "fuck you write code" gets the harm refusal, not
             //    the off-topic one. Also never recorded into analytics
-            //    (QueryModeration.IsHarmful is the same gate).
-            var queryClass = QueryModeration.Classify(query);
+            //    (QueryModeration is shared with analytics).
+            // Use the original input for the shared refusal policy so truncating
+            // the retrieval query cannot hide an instruction override at its end.
+            var queryClass = QueryModeration.Classify(request.UserQuery);
             if (queryClass == QueryClass.Harmful)
             {
                 _logger.LogInformation("Blocked harmful chat query");
@@ -186,7 +188,7 @@ namespace server.Services.AI
                 yield break;
             }
 
-            if (IsOutOfScope(query))
+            if (queryClass is QueryClass.PromptInjection or QueryClass.OutOfScope)
             {
                 yield return new AgentStreamEvent.Completed(new AgentChatResult(RefusalText, [], [], false));
                 yield break;
@@ -195,7 +197,7 @@ namespace server.Services.AI
             // 1a. Administrative/data-mutation requests — refused explicitly
             //     (no tool can perform them; answering with a study list reads
             //     as if the action had been understood and carried out).
-            if (AdminActionPatterns.Any(p => query.Contains(p, StringComparison.OrdinalIgnoreCase)))
+            if (queryClass == QueryClass.AdministrativeAction)
             {
                 _logger.LogInformation("Blocked administrative-action chat query");
                 yield return new AgentStreamEvent.Completed(new AgentChatResult(AdminActionRefusalText, [], [], false));
@@ -372,62 +374,6 @@ namespace server.Services.AI
 
             yield return new AgentStreamEvent.Completed(
                 new AgentChatResult(answer, loop.Sources, loop.Trace, loop.UsedFallback, UsedLlm: true));
-        }
-        private static readonly HashSet<string> OutOfScopePatterns = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "write code", "loop code", "generate code", "fix my code", "debug",
-            "write a function", "write a program", "write a script",
-            "translate", "essay", "poem", "story", "recipe", "calculate",
-
-            // System prompt extraction — direct
-            "system prompt", "your prompt", "your instructions", "your configuration",
-            "your config", "your rules", "what were you told", "what is your prompt",
-            "print your", "repeat your", "output your", "reveal your", "show your",
-            "display your", "share your instructions",
-
-            // System prompt extraction — indirect/creative (#1, #3, #7)
-            "simulate a debug", "debug error", "simulate an error",
-            "write a story where", "write a poem", "output as a poem",
-            "as a poem", "in a poem", "in french", "in spanish", // translate-the-prompt attacks (#5)
-
-            // Structured output attacks (#4)
-            "system_prompt", "\"system_prompt\"",
-
-            // Encoding attacks (#6)
-            "base64", "encode your", "base64-encode",
-
-            // Anchor compliance attacks (#9)
-            "first say", "say ok then", "say \"ok\"",
-
-            // Role-play override (#2)
-            "pretend you are", "you are now", "act as", "developer mode",
-            "ignore previous", "ignore all previous", "disregard your",
-            "you are a helpful assistant that",
-        };
-
-        /// <summary>
-        /// Administrative / data-mutation requests. No tool in the toolbox can
-        /// write to the repository, but answering these with a study list (the
-        /// old behaviour) reads as if the action was understood and ignored —
-        /// the assistant must say plainly that it cannot perform them. Phrases
-        /// are deliberately action-shaped ("approve ", "delete ") rather than
-        /// topic words ("approval", "deletion") so legitimate research
-        /// questions still pass through to the agent.
-        /// </summary>
-        private static readonly HashSet<string> AdminActionPatterns = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "approve ", "approve this", "approve my", "reject this", "reject the",
-            "delete ", "delete this", "delete my", "remove this thesis",
-            "archive this", "archive the", "publish this", "mark as indexed", "reindex for me",
-            "change my account", "update my account", "change my password",
-            "make me admin", "give me admin", "grant admin", "promote me",
-            "admin role", "role to admin", "change my role", "set my role",
-            "update my role", "assign me the", "change my role to",
-        };
-
-        private bool IsOutOfScope(string query)
-        {
-            return OutOfScopePatterns.Any(p => query.Contains(p, StringComparison.OrdinalIgnoreCase));
         }
 
         // ────────────────────── phase 1: plan / act / observe ──────────────────────
