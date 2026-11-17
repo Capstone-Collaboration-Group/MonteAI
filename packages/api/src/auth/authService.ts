@@ -1,5 +1,5 @@
 // packages/api/src/auth/authService.ts
-import type { AxiosInstance } from "axios";
+import { isAxiosError, type AxiosInstance } from "axios";
 import { signOut, type Auth} from "firebase/auth";
 import type {
   LoginDto,
@@ -27,8 +27,24 @@ export function createAuthService(client: AxiosInstance, auth: Auth): AuthServic
       return data;
     },
     async register(dto) {
-      const { data } = await client.post<boolean>("/auth/register", dto);
-      return data;
+      try {
+        const { data } = await client.post<boolean>("/auth/register", dto);
+        return data;
+      } catch (error) {
+        // Axios errors retain the request body, which contains the short-lived
+        // ID-verification receipt. Replace them with a plain, sanitized error.
+        if (isAxiosError(error)) {
+          const body = error.response?.data as
+            | { message?: string; Message?: string }
+            | undefined;
+          throw new Error(
+            body?.message ??
+              body?.Message ??
+              "Unable to reach the registration service.",
+          );
+        }
+        throw new Error("Unable to complete registration right now.");
+      }
     },
     async verifyOtp(dto) {
       const { data } = await client.post<boolean>("/auth/verify-email", dto);

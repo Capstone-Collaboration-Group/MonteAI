@@ -22,3 +22,4 @@ export * from "./src/student";
 export * from "./src/review";
 export * from "./src/user";
 export * from "./src/backup";
+export * from "./src/id-verification";

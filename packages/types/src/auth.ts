@@ -65,6 +65,8 @@ export interface RegisterUserRequest {
   privacyNoticeVersion: string;
   termsAccepted: boolean;
   termsVersion: string;
+  /** Student only. Keep this short-lived receipt in memory and submit immediately. */
+  idVerificationReceipt?: string;
 }
 
 export interface VerifyOTPDto {

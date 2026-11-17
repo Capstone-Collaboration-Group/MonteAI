@@ -14,9 +14,9 @@ export function emailDomainForRole(role: EmailRole): string {
   return role === "Student" ? STUDENT_EMAIL_DOMAIN : FACULTY_EMAIL_DOMAIN;
 }
 
-/** Students register with name@student.pnm.edu.ph, faculty with name@pnm.edu.ph. */
+/** Students may use any valid address; faculty retain the @pnm.edu.ph policy. */
 export function isValidEmailForRole(email: string, role: EmailRole): boolean {
   const value = email.trim().toLowerCase();
   if (!isValidEmail(value)) return false;
-  return value.endsWith(emailDomainForRole(role).toLowerCase());
+  return role === "Student" || value.endsWith(FACULTY_EMAIL_DOMAIN.toLowerCase());
 }
