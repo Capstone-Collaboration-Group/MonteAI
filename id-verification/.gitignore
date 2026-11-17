@@ -1,0 +1,26 @@
+.venv/
+.python_packages/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+.coverage
+htmlcov/
+local.settings.json
+.secrets/
+*.local.json
+*.local.bicepparam
+infra/main.json
+models/*.onnx
+models/*.partial
+models/*_keys.txt
+dist/
+demo/config.js
+# Captured IDs must never become project artifacts.
+captures/
+*.jpg
+*.jpeg
+*.webp
+*.heic
+*.png
+!templates/assets/*.png

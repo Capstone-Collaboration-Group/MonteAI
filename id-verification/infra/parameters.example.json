@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "functionAppName": {"value": "your-unique-monteai-idv-name"},
+    "firebaseProjectId": {"value": "your-firebase-project-id"},
+    "allowedOrigins": {"value": ["https://your-portal.example"]},
+    "alertEmails": {"value": ["your-budget-alert-email@example.com"]},
+    "billingCurrency": {"value": "USD"},
+    "receiptKeyId": {"value": "idv-2026-01"},
+    "receiptPrivateKeyB64": {"value": "REPLACE_IN_GITIGNORED_LOCAL_FILE"},
+    "quotaHmacKeyB64": {"value": "REPLACE_IN_GITIGNORED_LOCAL_FILE"}
+  }
+}

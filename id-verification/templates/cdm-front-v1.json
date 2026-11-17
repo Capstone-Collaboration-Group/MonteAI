@@ -1,0 +1,25 @@
+{
+  "id": "cdm-front-v1",
+  "status": "pilot",
+  "school_name": "COLEGIO DE MONTALBAN",
+  "width": 720,
+  "height": 1120,
+  "regions": {
+    "school": [0.18, 0.005, 0.99, 0.082],
+    "name": [0.003, 0.47, 0.997, 0.549],
+    "number": [0.04, 0.545, 0.98, 0.632],
+    "logo": [0.015, 0.0, 0.25, 0.145],
+    "seal": [0.65, 0.77, 1.0, 1.0]
+  },
+  "artwork": {
+    "logo": {"file": "assets/cdm-logo.png", "minimum_score": 0.48},
+    "seal": {"file": "assets/montalban-seal.png", "minimum_score": 0.42}
+  },
+  "colors": [
+    {"name": "green_header", "box": [0.03, 0.095, 0.55, 0.14], "lower": [32, 45, 25], "upper": [98, 255, 255], "minimum_fraction": 0.50},
+    {"name": "yellow_curve", "box": [0.04, 0.23, 0.14, 0.26], "lower": [15, 60, 60], "upper": [40, 255, 255], "minimum_fraction": 0.40},
+    {"name": "yellow_program", "box": [0.025, 0.65, 0.97, 0.695], "lower": [15, 60, 60], "upper": [40, 255, 255], "minimum_fraction": 0.45}
+  ],
+  "minimum_confidence": {"school": 0.82, "name": 0.90, "number": 0.90},
+  "minimum_laplacian_variance": 30.0
+}

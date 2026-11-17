@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <title>MonteAI ID verification demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>School ID verification</h1>
+      <p class="notice">
+        Pilot demo only. It accepts a live camera capture of the front of the ID—never a file
+        upload—and does not perform liveness checking.
+      </p>
+
+      <section id="login-panel">
+        <h2>1. Sign in</h2>
+        <form id="login-form" autocomplete="on">
+          <label>Email <input id="email" type="email" autocomplete="username" required /></label>
+          <label>
+            Password
+            <input id="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">Sign in</button>
+        </form>
+        <div id="session" hidden>
+          <span id="session-email"></span>
+          <button id="sign-out" type="button" class="secondary">Sign out</button>
+        </div>
+      </section>
+
+      <section id="identity-panel" hidden>
+        <h2>2. Confirm registration details</h2>
+        <form id="identity-form" autocomplete="off">
+          <label>
+            Student number
+            <input id="student-number" inputmode="numeric" placeholder="00-00123" pattern="[0-9]{2}-[0-9]{5}" required />
+          </label>
+          <label>First name(s) <input id="first-name" maxlength="50" required /></label>
+          <label>Middle initial <input id="middle-initial" maxlength="1" pattern="[A-Za-z]?" /></label>
+          <label>Last name <input id="last-name" maxlength="50" required /></label>
+          <label>
+            Suffix
+            <select id="suffix">
+              <option value="">None</option>
+              <option>Jr.</option><option>Sr.</option><option>II</option>
+              <option>III</option><option>IV</option><option>V</option>
+            </select>
+          </label>
+          <button id="start-camera" type="submit">Continue to camera</button>
+        </form>
+      </section>
+
+      <section id="camera-panel" hidden>
+        <h2>3. Capture the front</h2>
+        <p>Use even lighting. Fit all four card edges inside the guide and hold still.</p>
+        <div id="preview">
+          <video id="camera" autoplay muted playsinline></video>
+          <div id="guide" aria-hidden="true"></div>
+        </div>
+        <div class="actions">
+          <button id="capture" type="button" disabled>Capture and verify</button>
+          <button id="cancel" type="button" class="secondary">Cancel</button>
+        </div>
+      </section>
+
+      <p id="status" role="status" aria-live="polite"></p>
+      <pre id="receipt" hidden></pre>
+      <canvas id="capture-buffer" width="1" height="1" hidden></canvas>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
