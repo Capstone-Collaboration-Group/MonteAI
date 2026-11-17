@@ -92,7 +92,6 @@ namespace server.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("MiddleInitial")
-                        .IsRequired()
                         .HasColumnType("nvarchar(1)");
 
                     b.Property<string>("Position")
@@ -241,6 +240,40 @@ namespace server.Migrations
                     b.ToTable("ChatSessions", (string)null);
                 });
 
+            modelBuilder.Entity("server.Models.Entities.ConsumedIdVerificationReceipt", b =>
+                {
+                    b.Property<string>("Jti")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)");
+
+                    b.Property<DateTime>("ConsumedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FirebaseUid")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RegistrationFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TemplateId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Jti");
+
+                    b.HasIndex("FirebaseUid");
+
+                    b.ToTable("ConsumedIdVerificationReceipts", (string)null);
+                });
+
             modelBuilder.Entity("server.Models.Entities.Faculty", b =>
                 {
                     b.Property<string>("Id")
@@ -274,7 +307,6 @@ namespace server.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("MiddleInitial")
-                        .IsRequired()
                         .HasColumnType("nvarchar(1)");
 
                     b.Property<DateTime?>("PrivacyNoticeAcceptedAt")
@@ -435,7 +467,6 @@ namespace server.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("MiddleInitial")
-                        .IsRequired()
                         .HasColumnType("nvarchar(1)");
 
                     b.Property<DateTime?>("PrivacyNoticeAcceptedAt")
@@ -646,7 +677,6 @@ namespace server.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("MiddleInitial")
-                        .IsRequired()
                         .HasColumnType("nvarchar(1)");
 
                     b.Property<string>("Position")
