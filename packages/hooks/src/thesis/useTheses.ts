@@ -3,6 +3,7 @@ import type { ThesisService } from "@monteai/api";
 import type { SubmitThesisDto, UpdateThesisDto, IngestThesisDto,
     CreateAnnotationDto,
     ResolveAnnotationDto,
+    ProceedingsRole,
  } from "@monteai/types";
 
 
@@ -192,8 +193,9 @@ export function useDeleteAnnotation(thesisService: ThesisService) {
 
 export function useGenerateProceedings(thesisService: ThesisService) { 
     return useMutation({ 
-        mutationFn: (thesisId: string) => thesisService.generateProceedings(thesisId), 
-        onSuccess: (blob, thesisId) => { 
+        mutationFn: ({ thesisId, role }: { thesisId: string; role?: ProceedingsRole }) => 
+            thesisService.generateProceedings(thesisId, role), 
+        onSuccess: (blob, { thesisId }) => { 
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
