@@ -42,6 +42,8 @@ interface ThesisPDFViewerLayoutProps {
   canApprove?: boolean;
   isApproving?: boolean;
   onApprove?: (annotationId: string) => void;
+  /** Admin bulk approval: publishes every pending comment at once. */
+  onApproveAll?: () => void;
   /** Per-comment delete gate (see AnnotationSidebar). */
   canDeleteAnnotation?: (annotation: AnnotationResponseDto) => boolean;
   /** Show the delete-version button (leader/admin, latest version only). */
@@ -85,6 +87,7 @@ export function ThesisPDFViewerLayout({
   canApprove = false,
   isApproving = false,
   onApprove,
+  onApproveAll,
   canDeleteAnnotation,
   canDeleteVersion = false,
   deleteDialogOpen = false,
@@ -310,6 +313,7 @@ export function ThesisPDFViewerLayout({
                 isApproving={isApproving}
                 canDeleteAnnotation={canDeleteAnnotation}
                 onApprove={onApprove}
+                onApproveAll={onApproveAll}
                 onResolve={onResolve}
                 onDelete={onDelete}
                 onJumpToPage={handleJumpToPage}
@@ -374,6 +378,7 @@ export function ThesisPDFViewerLayout({
                 isApproving={isApproving}
                 canDeleteAnnotation={canDeleteAnnotation}
                 onApprove={onApprove}
+                onApproveAll={onApproveAll}
                 onResolve={onResolve}
                 onDelete={onDelete}
                 onJumpToPage={handleJumpToPage}

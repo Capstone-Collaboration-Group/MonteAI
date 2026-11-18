@@ -58,6 +58,16 @@ export interface AnnotationService {
         annotationId: string
     ): Promise<void>;
 
+    /**
+     * Bulk publication of EVERY pending comment on a thesis version in one
+     * call, so an admin approves a whole thesis's comments at once instead of
+     * clicking each card. Returns how many comments were approved.
+     */
+    approveAllAnnotations(
+        thesisId: string,
+        thesisVersionId: string
+    ): Promise<number>;
+
     deleteAnnotation(
         thesisId: string,
         thesisVersionId: string,

@@ -19,6 +19,7 @@ import {
   useAnnotationsLive,
   useCreateAnnotationLive,
   useApproveAnnotationLive,
+  useApproveAllAnnotationsLive,
   useResolveAnnotationLive,
   useDeleteAnnotationLive,
   useGenerateProceedings,
@@ -194,6 +195,8 @@ export function ThesisPDFViewerPage({
     useCreateAnnotationLive(annotationService);
   const { mutate: approveAnnotation, isPending: isApproving } =
     useApproveAnnotationLive(annotationService);
+  const { mutate: approveAllAnnotations, isPending: isApprovingAll } =
+    useApproveAllAnnotationsLive(annotationService);
   const { mutate: resolveAnnotation, isPending: isResolving } =
     useResolveAnnotationLive(annotationService);
   const { mutate: deleteAnnotation } = useDeleteAnnotationLive(annotationService);
@@ -229,6 +232,27 @@ export function ThesisPDFViewerPage({
     },
     [thesisId, activeVersionId, approveAnnotation]
   );
+
+  // One click for the whole thesis version: every pending comment becomes
+  // approved instead of the admin clicking each card's Approve button.
+  const handleApproveAll = useCallback(() => {
+    if (!activeVersionId) return;
+    approveAllAnnotations(
+      { thesisId, thesisVersionId: activeVersionId },
+      {
+        onSuccess: (approvedCount) =>
+          toast.success(
+            approvedCount === 1
+              ? "1 comment approved and published."
+              : `${approvedCount} comments approved and published.`
+          ),
+        onError: (error) =>
+          toast.error(
+            getApiErrorMessage(error, "Couldn't approve the comments.")
+          ),
+      }
+    );
+  }, [thesisId, activeVersionId, approveAllAnnotations]);
 
   const handleResolve = useCallback(
     (annotationId: string, dto: ResolveAnnotationDto) => {
@@ -347,8 +371,9 @@ export function ThesisPDFViewerPage({
       isResolving={isResolving}
       canAnnotate={canAnnotate}
       canApprove={canApprove}
-      isApproving={isApproving}
+      isApproving={isApproving || isApprovingAll}
       onApprove={handleApprove}
+      onApproveAll={handleApproveAll}
       canDeleteAnnotation={canDeleteAnnotation}
       canDeleteVersion={canDeleteVersion}
       deleteDialogOpen={deleteDialogOpen}
