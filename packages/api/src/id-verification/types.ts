@@ -12,8 +12,8 @@ export interface IdVerificationService {
 export interface IdVerificationServiceConfig {
   /** Full POST endpoint, including /api/v1/id-verification. */
   endpoint?: string;
-  getAuthToken: () => Promise<string | undefined>;
-  refreshAuthToken?: () => Promise<string | undefined>;
+  /** Firebase only: reload the user and getIdToken(true). Do not use an MFA/session provider. */
+  getFreshFirebaseIdToken: () => Promise<string | undefined>;
   useMock?: boolean;
   timeoutMs?: number;
 }

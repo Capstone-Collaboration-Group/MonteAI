@@ -24,6 +24,8 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
+import type { RegisterUserResponse } from '@monteai/types';
+import { createFirebaseTokenAccessors, sanitizeRegistrationError } from '@monteai/api';
 import { firebaseAuth } from './firebase';
 import { getMfaAccessToken, refreshMfaAccessToken } from './mfaSession';
 
@@ -56,18 +58,22 @@ interface ResolveLoginResponse {
   email: string;
 }
 
+// Signup/ID verification must bypass the generic MFA-preferred accessors below.
+export const { getFirebaseIdToken, refreshFirebaseIdToken, getFreshFirebaseIdToken } =
+  createFirebaseTokenAccessors(firebaseAuth);
+
 /** Bearer token for authenticated API calls (cached ~1h by the SDK). */
 export async function getAuthToken(): Promise<string | undefined> {
   const mfaToken = await getMfaAccessToken();
   if (mfaToken) return mfaToken;
-  return firebaseAuth.currentUser?.getIdToken();
+  return getFirebaseIdToken();
 }
 
 /** Force-refreshed token — used by the API client's 401 retry path. */
 export async function refreshAuthToken(): Promise<string | undefined> {
   const mfaToken = await refreshMfaAccessToken();
   if (mfaToken) return mfaToken;
-  return firebaseAuth.currentUser?.getIdToken(true);
+  return refreshFirebaseIdToken();
 }
 
 /**
@@ -127,31 +133,25 @@ export async function createStudentAccount(input: {
 export async function completeProfileRegistration(input: {
   buildProfile: (uid: string) => Record<string, unknown>;
 }): Promise<User> {
-  const user = firebaseAuth.currentUser;
-  if (!user) throw authError('auth/no-current-user');
-  if (!user.emailVerified) throw authError(EMAIL_NOT_VERIFIED_CODE);
-
-  const token = await user.getIdToken();
   try {
-    await axios.post(`${baseURL}/auth/register`, input.buildProfile(user.uid), {
+    const token = await getFreshFirebaseIdToken();
+    const user = firebaseAuth.currentUser;
+    if (!token || !user) throw authError('auth/no-current-user');
+    if (!user.emailVerified) throw authError(EMAIL_NOT_VERIFIED_CODE);
+
+    await axios.post<RegisterUserResponse>(`${baseURL}/auth/register`, input.buildProfile(user.uid), {
       timeout: 10000,
       headers: { Authorization: `Bearer ${token}` },
     });
+    return user;
   } catch (err) {
-    if (axios.isAxiosError(err) && err.response) {
-      const data = err.response.data as
-        | { message?: string; Message?: string }
-        | undefined;
-      const message =
-        data?.message ??
-        data?.Message ??
-        `Registration failed (HTTP ${err.response.status}).`;
-      // Plain Error — describeAuthError surfaces err.message directly.
-      throw new Error(message);
+    const code = (err as { code?: string } | null)?.code;
+    if (code === 'auth/no-current-user' || code === EMAIL_NOT_VERIFIED_CODE) {
+      throw authError(code);
     }
-    throw err;
+    // Includes offline/timeouts and Firebase refresh failures, not just HTTP responses.
+    throw sanitizeRegistrationError(err);
   }
-  return user;
 }
 
 /** Sends (or re-sends) the verification link to the signed-in user. */
@@ -185,7 +185,8 @@ export async function checkEmailVerified(): Promise<boolean> {
 export async function deleteUnverifiedAccount(): Promise<void> {
   const user = firebaseAuth.currentUser;
   if (!user || user.emailVerified) return;
-  await user.delete();
+  await user.reload();
+  if (firebaseAuth.currentUser?.uid === user.uid && !user.emailVerified) await user.delete();
 }
 
 /**

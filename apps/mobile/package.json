@@ -16,6 +16,7 @@
     "@monteai/api": "workspace:*",
     "@monteai/types": "workspace:*",
     "@monteai/ui": "workspace:*",
+    "@monteai/utils": "workspace:*",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",

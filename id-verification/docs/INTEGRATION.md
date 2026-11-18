@@ -67,13 +67,13 @@ Claims:
 The JWT is signed, **not encrypted**. Treat it as sensitive personal data even though it expires after
 600 seconds. Never store it in local/session storage, URLs, crash reports, analytics, or logs.
 
-## Required `/auth/register` enforcement (pending)
+## `/auth/register` enforcement (implemented in the main API)
 
-The main API and clients have not been modified yet. Before removing the institutional-email rule for
-students, add `idVerificationReceipt` to student registration and enforce all of the following locally
-in the ASP.NET API:
+The ASP.NET API accepts personal student emails only with a verified Firebase identity and a valid
+`idVerificationReceipt`. Faculty still require `@pnm.edu.ph` and do not submit an ID receipt.
+The following controls are implemented; production rollout and migrations require separate approval:
 
-1. Allow personal email syntax for students; keep the deferred faculty policy unchanged.
+1. Allow personal email syntax for students; keep the faculty policy unchanged.
 2. Validate signature using a configured public key selected only from an allowlist by `kid`.
 3. Pin `RS256`, `typ`, issuer, audience, purpose, version, normalization version, and an allowed active
    template. Reject missing/extra semantic variants; allow only small clock skew.
@@ -93,11 +93,13 @@ least the receipt TTL plus clock skew, then remove the old public key.
 
 ## Client sequence
 
-All web, desktop, and mobile student flows should use the same state machine:
+The camera/state-machine integration is a later phase. The existing application signup screens do not
+yet collect receipts and therefore cannot finish live student registration with enforcement enabled.
+All web, desktop, and mobile student flows must eventually use this sequence:
 
-1. Create/sign in the Firebase account using the personal email.
+1. Collect registration details and genuine privacy/terms acceptance; create/sign in the Firebase account.
 2. Send Firebase verification email; wait for verification; reload user and force-refresh ID token.
-3. Collect the structured name and `NN-NNNNN` student number.
+3. Confirm the structured name and `NN-NNNNN` student number before capture.
 4. Request a live camera, show a full-card guide, capture **front only**, and call this endpoint.
 5. On `retake`, discard the capture and allow another live capture. Never offer gallery/file selection.
 6. On success, immediately pass the receipt in `/auth/register`; drop all client references afterward.
@@ -106,10 +108,77 @@ For browser/Electron, use `getUserMedia`, stop tracks on completion/cancel/unmou
 revoke any object URLs. Electron must request camera permission explicitly; do not restore the removed
 TLS bypass.
 
-For Expo, `takePictureAsync` may create a cache file even without gallery access. Read it only for the
-request and delete that exact URI in `finally` on success, failure, cancellation, and unmount. Do not
-copy it to MediaLibrary/Documents or enable base64 fields that outlive the request. Keep the existing
-`VITE_USE_MOCK` live/mock service pattern when adding the shared API client.
+For Expo, ordinary `takePictureAsync` can create a cache file even without gallery access.
+**Capture followed by file deletion does not meet this project's no-persistence requirement.**
+Prove a memory-only native capture/crop/encoding path before choosing camera dependencies or integrating
+the mobile flow. Keep the existing live/mock service toggle; no gallery, uploads, or liveness.
 
 The server remains authoritative: client-side email verification, pattern checks, and capture guides
 are usability checks, not security controls.
+
+## Phase 1 shared foundation
+
+- `RegistrationDraft` and `StudentRegistrationDraft` explicitly list persistable details, independently
+  of the receipt-bearing `RegisterUserRequest`. `toRegistrationDraft`/`toStudentRegistrationDraft` also
+  whitelist primitives at runtime; never serialize a request DTO directly.
+- Web/desktop pending storage rewrites valid legacy drafts without unknown/receipt/password fields and
+  removes invalid drafts. Mobile uses the same projection and sanitizes saved details on restore/read.
+  Missing legacy consent is never silently accepted. Mobile consent UI remains a later phase.
+- `createRegistrationReceiptStore` creates a per-signup closure, not a global store. It refuses expired
+  or over-600-second receipts and drops receipts on an identity mismatch or expired `get`. Do not decode
+  the JWT on clients. Call `clear` on success, any identity edit, cancellation, sign-out, and unmount;
+  retry registration with the same valid receipt only when the original payload is unchanged.
+- `createFirebaseTokenAccessors(auth).getFreshFirebaseIdToken` waits for Firebase restore, reloads the
+  user, then calls `getIdToken(true)`. ID-verification config requires this Firebase-only provider, not
+  the generic MFA-preferred `getAuthToken`. The verification transport retries only an HTTP 401 once.
+- Shared registration supplies an explicit fresh Firebase `Authorization` header. API interceptors
+  preserve it and do not substitute MFA credentials on a 401. Registration returns `RegisterUserResponse`
+  (the created/existing profile), not a boolean.
+- Registration and verification errors contain only static safe messages/codes/status/cooldown fields,
+  never Axios request/config/response objects, causes, captures, OCR, or receipts.
+
+### Local main-API trust
+
+Configure these in the gitignored `server/appsettings.Development.json`, then restart the API:
+
+```text
+IdVerification:Issuer                              = exact local signer's normalized issuer
+IdVerification:Audience                            = monteai-registration (or the matching local value)
+IdVerification:PublicKeys:0:KeyId                    = local signer's key ID
+IdVerification:PublicKeys:0:PublicKeyPemBase64        = base64 of the matching public PEM
+IdVerification:MaximumReceiptLifetimeSeconds        = 600
+IdVerification:ClockSkewSeconds                     = 30
+IdVerification:AllowedTemplateIds:0                 = cdm-front-v1
+```
+
+Verify the public key matches the active signer before trusting it. Do not copy the private signing key
+into the API, replace existing development keys, deploy, or run production migrations as part of this
+local foundation work. Production must use separate signing/HMAC material and its deployed issuer.
+
+### Local regression checks
+
+From the repository root (Node >=22.15 and the existing Python/.NET dependencies):
+
+```powershell
+pnpm test:registration
+pnpm typecheck:all
+pnpm lint
+
+# Opt-in real Python signer -> real ASP.NET controller, with synthetic Firebase auth and SQLite :memory:.
+$env:MONTEAI_IDV_CONTRACT_PYTHON = (Resolve-Path id-verification/.venv/Scripts/python.exe).Path
+# Optional: also check the existing local signer against server/appsettings.Development.json public trust.
+$env:MONTEAI_IDV_CONTRACT_LOCAL_SETTINGS = "1"
+dotnet test server/server.Tests/server.Tests.csproj
+```
+
+Two `IDVerificationContract` tests use an ephemeral Python RSA key and redirected process pipes.
+A third, separately opted-in test uses the existing development signer and the API's configured public
+trust, still with SQLite `:memory:` and synthetic Firebase authentication. No receipt/private-key/capture
+data is written to files or test output, and existing signing/configuration files are never rewritten.
+Without the interpreter variable, all three tests are skipped; without the local-settings flag, only the
+third is skipped. This proves signature/claim interoperability and registration/idempotency,
+**not** a live Firebase account, OCR scan, camera UI, or Azure deployment.
+
+From `id-verification/`, run `python -m pytest` and `python -m ruff check .` using its virtual environment.
+The four Table integration tests require an explicitly local `IDV_TEST_TABLE_CONNECTION_STRING`; they
+create and remove only randomly named `IdvTest...` Azurite tables, not the application's quota table.

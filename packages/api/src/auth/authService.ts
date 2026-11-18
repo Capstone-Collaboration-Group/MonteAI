@@ -1,18 +1,21 @@
 // packages/api/src/auth/authService.ts
-import { isAxiosError, type AxiosInstance } from "axios";
+import type { AxiosInstance } from "axios";
 import { signOut, type Auth} from "firebase/auth";
 import type {
   LoginDto,
   LoginResponseDto,
   RegisterUserRequest,
+  RegisterUserResponse,
   VerifyOTPDto,
   ForgotPasswordDto,
   ResetPasswordDto,
 } from "@monteai/types";
+import { createFirebaseTokenAccessors } from "./firebaseTokenAccessors";
+import { RegistrationError, sanitizeRegistrationError } from "./registrationError";
 
 export interface AuthService {
   login(dto: LoginDto): Promise<LoginResponseDto>;
-  register(dto: RegisterUserRequest): Promise<boolean>;
+  register(dto: RegisterUserRequest): Promise<RegisterUserResponse>;
   verifyOtp(dto: VerifyOTPDto): Promise<boolean>;
   resendOtp(email: string): Promise<boolean>;
   forgotPassword(dto: ForgotPasswordDto): Promise<boolean>;
@@ -21,6 +24,7 @@ export interface AuthService {
 }
 
 export function createAuthService(client: AxiosInstance, auth: Auth): AuthService {
+  const { getFreshFirebaseIdToken } = createFirebaseTokenAccessors(auth);
   return {
     async login(dto) {
       const { data } = await client.post<LoginResponseDto>("/auth/login", dto);
@@ -28,22 +32,21 @@ export function createAuthService(client: AxiosInstance, auth: Auth): AuthServic
     },
     async register(dto) {
       try {
-        const { data } = await client.post<boolean>("/auth/register", dto);
+        const token = await getFreshFirebaseIdToken();
+        const user = auth.currentUser;
+        if (!token || !user) throw new RegistrationError("authentication_required", 401);
+        if (!user.emailVerified) throw new RegistrationError("email_unverified", 403);
+        if (
+          dto.id !== user.uid ||
+          dto.email.trim().toLowerCase() !== user.email?.trim().toLowerCase()
+        ) throw new RegistrationError("identity_mismatch", 400);
+
+        const { data } = await client.post<RegisterUserResponse>("/auth/register", dto, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         return data;
       } catch (error) {
-        // Axios errors retain the request body, which contains the short-lived
-        // ID-verification receipt. Replace them with a plain, sanitized error.
-        if (isAxiosError(error)) {
-          const body = error.response?.data as
-            | { message?: string; Message?: string }
-            | undefined;
-          throw new Error(
-            body?.message ??
-              body?.Message ??
-              "Unable to reach the registration service.",
-          );
-        }
-        throw new Error("Unable to complete registration right now.");
+        throw sanitizeRegistrationError(error);
       }
     },
     async verifyOtp(dto) {

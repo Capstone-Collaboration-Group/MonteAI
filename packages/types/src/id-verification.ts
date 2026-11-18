@@ -8,12 +8,13 @@ export interface StudentIdVerificationIdentity {
 
 export interface StudentIdVerificationRequest {
   student: StudentIdVerificationIdentity;
-  /** Raw JPEG/PNG bytes encoded as base64; never include a data-URL prefix. */
+  /** In-memory JPEG/PNG base64, without a data-URL prefix. Never store, log, or report captures. */
   imageBase64: string;
 }
 
 export interface StudentIdVerificationResponse {
   outcome: "verified";
+  /** Sensitive, unencrypted 600-second JWT. Memory only; never storage, URLs, logs, or analytics. */
   receipt: string;
   expiresAt: string;
   templateId: string;

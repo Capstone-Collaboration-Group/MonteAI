@@ -11,7 +11,8 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import type { MfaChallengeResponse, MfaVerifyResponse } from '@monteai/types';
+import type { MfaChallengeResponse, MfaVerifyResponse, StudentRegistrationDraft } from '@monteai/types';
+import { parseStudentRegistrationDraft, toStudentRegistrationDraft } from '@monteai/utils';
 import { firebaseAuth } from '@/lib/firebase';
 import { anonymousMfaService } from '@/lib/mfaService';
 import { clearMfaTokens, getMfaAccessToken, storeMfaTokens } from '@/lib/mfaSession';
@@ -34,23 +35,12 @@ export interface AuthSession {
   studentNumber?: string;
 }
 
-export interface StudentRegistration {
-  studentNumber: string;
-  firstName: string;
-  middleInitial?: string;
-  lastName: string;
-  suffix?: string;
-  email: string;
-  institute: string;
-  program: string;
-  yearLevel: number;
-  section: string;
-  position: string;
+export interface StudentRegistration extends StudentRegistrationDraft {
   password: string;
 }
 
 /** What gets persisted while waiting for the verification link. */
-export type PendingRegistration = Omit<StudentRegistration, 'password'>;
+export type PendingRegistration = StudentRegistrationDraft;
 
 export interface BeginRegistrationResult {
   /** False in mock mode (and verified resumes) — skip the email step. */
@@ -114,19 +104,25 @@ async function safeRemove(key: string): Promise<void> {
 }
 
 function buildPending(payload: StudentRegistration): PendingRegistration {
-  return {
-    studentNumber: payload.studentNumber.trim(),
-    firstName: payload.firstName.trim(),
-    middleInitial: payload.middleInitial?.trim() || undefined,
-    lastName: payload.lastName.trim(),
-    suffix: payload.suffix?.trim() || undefined,
-    email: payload.email.trim(),
-    institute: payload.institute,
-    program: payload.program,
-    yearLevel: payload.yearLevel,
-    section: payload.section,
-    position: payload.position,
-  };
+  const pending = toStudentRegistrationDraft(payload);
+  if (!pending) throw authError('auth/registration-missing');
+  return pending;
+}
+
+async function readPendingRegistration(): Promise<PendingRegistration | null> {
+  const raw = await safeGet(PENDING_REGISTRATION_KEY);
+  if (!raw) return null;
+  const pending = parseStudentRegistrationDraft(raw);
+  if (!pending) {
+    await safeRemove(PENDING_REGISTRATION_KEY);
+    return null;
+  }
+  const clean = JSON.stringify(pending);
+  if (clean !== raw) {
+    await safeRemove(PENDING_REGISTRATION_KEY);
+    await safeSet(PENDING_REGISTRATION_KEY, clean);
+  }
+  return pending;
 }
 
 /**
@@ -164,6 +160,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         const [mockRaw, studentNumberRaw] = await Promise.all([
           AsyncStorage.getItem(MOCK_SESSION_KEY),
           AsyncStorage.getItem(STUDENT_NUMBER_KEY),
+          readPendingRegistration(),
         ]);
         if (!active) return;
         if (mockRaw) setMockSession(JSON.parse(mockRaw) as AuthSession);
@@ -366,8 +363,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
    * pending payload and open the session.
    */
   const completeRegistration = useCallback(async () => {
-    const raw = await safeGet(PENDING_REGISTRATION_KEY);
-    const pending = raw ? (JSON.parse(raw) as PendingRegistration) : null;
+    const pending = await readPendingRegistration();
     if (!pending) throw authError('auth/registration-missing');
 
     if (useMock) {

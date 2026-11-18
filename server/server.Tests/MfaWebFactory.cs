@@ -83,6 +83,12 @@ public sealed class MfaWebFactory : WebApplicationFactory<Program>
     // disposed connection throws, which surfaces as the host never building.
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
     private readonly RSA _receiptSigningKey = RSA.Create(2048);
+    private readonly IReadOnlyDictionary<string, string?>? _idVerificationSettings;
+
+    public MfaWebFactory(IReadOnlyDictionary<string, string?>? idVerificationSettings = null)
+    {
+        _idVerificationSettings = idVerificationSettings;
+    }
 
     public FakeFirebaseTokenVerifier Firebase { get; } = new();
     public FakeEmailService Email { get; } = new();
@@ -99,7 +105,7 @@ public sealed class MfaWebFactory : WebApplicationFactory<Program>
         // in the next, and the factory spins up multiple scopes per test.
         builder.ConfigureAppConfiguration((_, config) =>
         {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
+            var settings = new Dictionary<string, string?>
             {
                 ["Auth:JwtSigningKey"] = Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)i).ToArray()),
                 ["IdVerification:Issuer"] = ReceiptIssuer,
@@ -108,7 +114,11 @@ public sealed class MfaWebFactory : WebApplicationFactory<Program>
                 ["IdVerification:PublicKeys:0:KeyId"] = ReceiptKeyId,
                 ["IdVerification:PublicKeys:0:PublicKeyPemBase64"] = Convert.ToBase64String(
                     Encoding.UTF8.GetBytes(_receiptSigningKey.ExportSubjectPublicKeyInfoPem())),
-            });
+            };
+            if (_idVerificationSettings is not null)
+                foreach (var setting in _idVerificationSettings)
+                    settings[$"IdVerification:{setting.Key}"] = setting.Value;
+            config.AddInMemoryCollection(settings);
         });
 
         builder.ConfigureServices(services =>
@@ -216,9 +226,10 @@ public sealed class MfaWebFactory : WebApplicationFactory<Program>
         string nameKey,
         string? jti = null,
         TimeSpan? lifetime = null,
-        string templateId = "cdm-front-v1")
+        string templateId = "cdm-front-v1",
+        DateTime? issuedAt = null)
     {
-        var now = DateTime.UtcNow.AddSeconds(-1);
+        var now = issuedAt ?? DateTime.UtcNow.AddSeconds(-1);
         var key = new RsaSecurityKey(_receiptSigningKey) { KeyId = ReceiptKeyId };
         var descriptor = new SecurityTokenDescriptor
         {

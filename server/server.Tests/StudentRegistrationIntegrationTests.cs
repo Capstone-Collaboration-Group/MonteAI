@@ -143,6 +143,57 @@ public sealed class StudentRegistrationIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, wrongUid.StatusCode);
     }
 
+    [Theory]
+    [InlineData("expired")]
+    [InlineData("wrong-name")]
+    [InlineData("wrong-email")]
+    [InlineData("wrong-uid")]
+    [InlineData("unsupported-template")]
+    public async Task InvalidReceiptClaims_AreRejectedWithoutDatabaseWrites(string variant)
+    {
+        using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+        var receipt = factory.IssueIdVerificationReceipt(
+            variant == "wrong-uid" ? "different-uid" : Uid,
+            variant == "wrong-email" ? "different@example.com" : Email,
+            StudentNumber,
+            variant == "wrong-name" ? "MARTA|Q|DELA CRUZ|JR" : NameKey,
+            templateId: variant == "unsupported-template" ? "unknown-front" : "cdm-front-v1",
+            issuedAt: variant == "expired" ? DateTime.UtcNow.AddMinutes(-11) : null);
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(receipt));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.False(body.Contains(receipt, StringComparison.Ordinal), "Receipt rejections must not echo the token.");
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Empty(await db.Students.ToListAsync());
+        Assert.Empty(await db.ConsumedIdVerificationReceipts.ToListAsync());
+    }
+
+    [Fact]
+    public async Task FacultyStillRequiresInstitutionalEmail_ButNoIdReceipt()
+    {
+        using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+        var payload = RegistrationPayload(null);
+        payload["Role"] = "Faculty";
+
+        var personalEmail = await client.PostAsJsonAsync("/api/v1/auth/register", payload);
+        Assert.Equal(HttpStatusCode.BadRequest, personalEmail.StatusCode);
+
+        const string facultyEmail = "teacher@pnm.edu.ph";
+        factory.Firebase.Register(FirebaseToken, new FakeFirebaseUser(Uid, facultyEmail));
+        payload["Email"] = facultyEmail;
+        var institutionalEmail = await client.PostAsJsonAsync("/api/v1/auth/register", payload);
+        Assert.Equal(HttpStatusCode.Created, institutionalEmail.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Single(await db.Faculties.ToListAsync());
+        Assert.Empty(await db.ConsumedIdVerificationReceipts.ToListAsync());
+    }
+
     private static MfaWebFactory CreateFactory()
     {
         var factory = new MfaWebFactory();

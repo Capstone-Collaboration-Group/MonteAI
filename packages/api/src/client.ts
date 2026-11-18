@@ -25,11 +25,20 @@ export function createApiClient({
       'Content-Type': 'application/json',
 } });
 
-  type RetriableRequestConfig = AxiosRequestConfig & { _retried?: boolean };
+  type RetriableRequestConfig = AxiosRequestConfig & {
+    _retried?: boolean;
+    _explicitAuthorization?: boolean;
+  };
   client.interceptors.request.use(async (config) => {
-    const token = await getAuthToken?.();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const request = config as typeof config & RetriableRequestConfig;
+    if (request._explicitAuthorization === undefined) {
+      request._explicitAuthorization = config.headers.has("Authorization");
+    }
+    // Explicit Firebase registration tokens (and freshly retried tokens) must not be
+    // replaced by the default provider, which may return an MFA session JWT.
+    if (!config.headers.has("Authorization")) {
+      const token = await getAuthToken?.();
+      if (token) config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   });
@@ -44,6 +53,8 @@ export function createApiClient({
     }
 
     const original = error.config as RetriableRequestConfig | undefined;
+    // The caller owns explicitly supplied credentials; do not retry them with an MFA token.
+    if (original?._explicitAuthorization) throw error;
     if (!original || original._retried) {
       onAuthExpired?.();
       throw error;

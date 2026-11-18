@@ -153,6 +153,9 @@ importers:
       '@monteai/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@monteai/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@react-native-async-storage/async-storage':
         specifier: ~2.2.0
         version: 2.2.0(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))
@@ -401,6 +404,9 @@ importers:
 
   packages/utils:
     dependencies:
+      '@monteai/types':
+        specifier: workspace:*
+        version: link:../types
       clsx:
         specifier: ^2.1.1
         version: 2.1.1

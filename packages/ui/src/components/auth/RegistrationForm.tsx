@@ -33,6 +33,7 @@ import { FirebaseError } from "firebase/app";
 import {
   PRIVACY_NOTICE_VERSION,
   TERMS_AND_CONDITIONS_VERSION,
+  type RegistrationDraft,
   type RegisterUserRequest,
   type RegistrationRole,
 } from "@monteai/types";
@@ -236,8 +237,8 @@ export function RegistrationForm({
     return null;
   };
 
-  const buildPayload = (uid: string): RegisterUserRequest => {
-    const base: RegisterUserRequest = {
+  const buildPayload = (uid: string): RegistrationDraft => {
+    const base: RegistrationDraft = {
       id: uid,
       email: form.email.trim(),
       firstName: form.firstName.trim(),
@@ -261,7 +262,7 @@ export function RegistrationForm({
     return base;
   };
 
-  const hydrateForm = useCallback((payload: RegisterUserRequest) => {
+  const hydrateForm = useCallback((payload: RegistrationDraft) => {
     setForm({
       role: payload.role,
       firstName: payload.firstName,
@@ -491,9 +492,11 @@ export function RegistrationForm({
     const current = auth.currentUser;
     if (current) {
       try {
-        await current.delete();
+        // A verified, resumable Firebase account must survive registration/receipt failures.
+        await current.reload();
+        if (auth.currentUser?.uid === current.uid && !current.emailVerified) await current.delete();
       } catch {
-        // Deleting may require a recent sign-in — sign out either way.
+        // If verification cannot be checked, retain the account and sign out instead.
       }
     }
     try {
