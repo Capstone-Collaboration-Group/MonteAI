@@ -58,8 +58,8 @@ interface ThesisPDFViewerLayoutProps {
   onAddAnnotation: (dto: Omit<CreateAnnotationDto, "thesisVersionId">) => void;
   onResolve: (annotationId: string, dto: ResolveAnnotationDto) => void;
   onDelete: (annotationId: string) => void;
-  /** Opens the role picker first — the role is recorded on the PDF, not signed. */
-  onGenerateProceedings: (role: ProceedingsRole) => void;
+  /** Opens the role picker first (staff only) — students generate with no recorded role. */
+  onGenerateProceedings: (role?: ProceedingsRole) => void;
   onBack?: () => void;
   panelistPool?: PanelistCandidate[];
   scheduledBy?: string;
@@ -133,6 +133,13 @@ export function ThesisPDFViewerLayout({
     setRoleDialogOpen(false);
     onGenerateProceedings(proceedingsRole);
   }, [proceedingsRole, onGenerateProceedings]);
+
+  // Students aren't a panel member or the adviser, so there is no role to
+  // record on the document — they generate directly without the picker.
+  const handleGenerateClick = useCallback(() => {
+    if (role === "student") onGenerateProceedings();
+    else setRoleDialogOpen(true);
+  }, [role, onGenerateProceedings]);
 
   return (
     <PageLayout className="relative">
@@ -250,7 +257,7 @@ export function ThesisPDFViewerLayout({
           {canShowThesisWorkflow && (
             <Button
               type="button"
-              onClick={() => setRoleDialogOpen(true)}
+              onClick={handleGenerateClick}
               disabled={isGenerating}
               className="flex items-center gap-2 text-sm"
             >
