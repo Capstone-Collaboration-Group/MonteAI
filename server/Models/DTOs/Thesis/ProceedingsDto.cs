@@ -11,6 +11,21 @@ namespace server.Models.DTOs.Thesis
 
         public DateOnly? DefenseDate { get; set; }
 
+        /// <summary>Start of the group's latest defense schedule.</summary>
+        public TimeOnly? StartTime { get; set; }
+
+        /// <summary>End of the group's latest defense schedule.</summary>
+        public TimeOnly? EndingTime { get; set; }
+
+        /// <summary>Room/venue of the latest defense schedule.</summary>
+        public string? RoomVenue { get; set; }
+
+        /// <summary>
+        /// Section / Year Level shared by the group, e.g. "3-A" — derived from
+        /// <c>Student.Section</c> + <c>Student.YearLevel</c> (blank when mixed).
+        /// </summary>
+        public string? SectionYearLevel { get; set; }
+
         /// <summary>Group members in defense order (leader first), already formatted.</summary>
         public List<ProceedingsMemberDto> Members { get; set; } = [];
 
@@ -31,6 +46,19 @@ namespace server.Models.DTOs.Thesis
     public class ProceedingsMemberDto
     {
         public string Name { get; set; } = string.Empty;
+
+        /// <summary>"Dela Cruz, Juan" — the Section X acknowledgment format.</summary>
+        public string LastFirst { get; set; } = string.Empty;
+
+        /// <summary>Last name, lower-cased — A–Z ordering for Section X.</summary>
+        public string SortKey { get; set; } = string.Empty;
+    }
+
+    /// <summary>Body of POST /thesis/{id}/proceedings — records who generated the PDF.</summary>
+    public class GenerateProceedingsDto
+    {
+        /// <summary>Panel Chairperson | Panel Member | Capstone Adviser.</summary>
+        public string? Role { get; set; }
     }
 
     public class ProceedingsPanelistDto

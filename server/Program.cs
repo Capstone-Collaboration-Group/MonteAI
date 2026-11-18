@@ -81,6 +81,14 @@ try
         Environment.Exit(await server.Tools.RepairAbstractsRunner.RunAsync(args));
     }
 
+    // Proceedings layout preview — runs INSTEAD of the web host and needs no DB:
+    //   dotnet run --project server -- --proceedings-preview [out.pdf] [--blank] [--role "Panel Member"]
+    // Renders the form from fixture data so layout changes can be eyeballed.
+    if (args.Contains("--proceedings-preview", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.ProceedingsPreviewRunner.RunAsync(args));
+    }
+
     Log.Information("Starting MonteAI Server Application...");
 
     var builder = WebApplication.CreateBuilder(args);

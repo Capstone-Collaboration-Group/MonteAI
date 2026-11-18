@@ -57,9 +57,25 @@ namespace server.Repositories
                 .OrderBy(s => s.Id == group.LeaderId ? 0 : 1) // leader signs first
                 .ThenBy(s => s.LastName)
                 .ThenBy(s => s.FirstName)
-                .Select(s => new ProceedingsMemberDto { Name = FormatName(s) })
-                .Where(m => m.Name.Length > 0)
+                .Select(s => new ProceedingsMemberDto
+                {
+                    Name = FormatName(s),
+                    LastFirst = FormatLastFirst(s),
+                    SortKey = (s.LastName ?? string.Empty).Trim().ToLowerInvariant(),
+                })
+                .Where(m => m.Name.Length > 0 || m.LastFirst.Length > 0)
                 .ToList();
+
+            // Section / Year Level is one value for the whole group; a group
+            // that spans sections prints each distinct one, comma-separated.
+            var sectionLabels = students
+                .Select(SectionYearLabel)
+                .Where(label => label.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            data.SectionYearLevel = sectionLabels.Count > 0
+                ? string.Join(", ", sectionLabels)
+                : null;
 
             data.Programs = students
                 .Select(s => s.Program ?? s.Institute)
@@ -80,6 +96,11 @@ namespace server.Repositories
                 .ThenByDescending(s => s.StartTime)
                 .FirstOrDefault();
             data.DefenseDate = schedule?.Date;
+            data.StartTime = schedule?.StartTime;
+            data.EndingTime = schedule?.EndingTime;
+            data.RoomVenue = string.IsNullOrWhiteSpace(schedule?.RoomVenue)
+                ? null
+                : schedule!.RoomVenue;
 
             var panelistRows = (schedule?.Panelists ?? [])
                 .OrderByDescending(p => p.Role != null && p.Role.Contains("chair", StringComparison.OrdinalIgnoreCase))
@@ -171,6 +192,29 @@ namespace server.Repositories
             if (!string.IsNullOrWhiteSpace(user.Suffix)) parts.Add(user.Suffix.Trim());
 
             return string.Join(' ', parts);
+        }
+
+        /// <summary>"Dela Cruz, Juan" — the format Section X of the proceedings prints.</summary>
+        private static string FormatLastFirst(User user)
+        {
+            var last = user.LastName?.Trim() ?? string.Empty;
+            var first = user.FirstName?.Trim() ?? string.Empty;
+            var suffix = user.Suffix?.Trim() ?? string.Empty;
+
+            if (last.Length == 0) return FormatName(user);
+
+            var name = first.Length == 0 ? last : $"{last}, {first}";
+            return suffix.Length == 0 ? name : $"{name} {suffix}";
+        }
+
+        /// <summary>One student's "3-A" (Year Level + Section) label.</summary>
+        private static string SectionYearLabel(Student student)
+        {
+            var year = student.YearLevel?.ToString() ?? string.Empty;
+            var section = student.Section != '\0' ? student.Section.ToString() : string.Empty;
+
+            if (year.Length == 0) return section;
+            return section.Length == 0 ? $"Year {year}" : $"{year}-{section}";
         }
     }
 }
