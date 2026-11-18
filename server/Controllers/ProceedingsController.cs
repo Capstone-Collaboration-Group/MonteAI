@@ -41,6 +41,8 @@ namespace server.Controllers
             GenerateProceedingsDto? request,
             CancellationToken cancellationToken)
         {
+            var role = request?.Role?.Trim();
+
             if (User.IsInRole("Student"))
             {
                 var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -52,9 +54,16 @@ namespace server.Controllers
                     studentId,
                     cancellationToken))
                     return Forbid();
+
+                // Students are never the panel or the adviser, so their copy
+                // records no generating role (the cell stays blank).
+                if (role?.Length > 0)
+                    return BadRequest(new
+                    {
+                        Message = "Students generate proceedings without a recorded role.",
+                    });
             }
 
-            var role = request?.Role?.Trim();
             if (role?.Length > 0 && !GeneratedByRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
             {
                 return BadRequest(new
