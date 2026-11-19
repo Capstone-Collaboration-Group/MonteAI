@@ -11,6 +11,8 @@ import {
     orderBy,
     query,
     updateDoc,
+    where,
+    writeBatch,
     type DocumentData,
     type Firestore,
     type QuerySnapshot,
@@ -216,5 +218,33 @@ export class LiveAnnotationService implements AnnotationService {
         annotationId: string
     ): Promise<void> {
         await deleteDoc(this.annotationDoc(thesisId, thesisVersionId, annotationId));
+    }
+
+    async approveAllAnnotations(
+        thesisId: string,
+        thesisVersionId: string
+    ): Promise<number> {
+        // Legacy documents carry no status field and already count as
+        // approved, so querying `status == "pending"` selects exactly the
+        // comments still waiting on an admin.
+        const snap = await getDocs(
+            query(
+                this.annotationsCollection(thesisId, thesisVersionId),
+                where("status", "==", "pending")
+            )
+        );
+
+        if (snap.empty) return 0;
+
+        const approvedBy = this.auth.currentUser?.uid ?? "unknown";
+        const approvedAt = new Date().toISOString();
+        const batch = writeBatch(this.db);
+
+        snap.docs.forEach((d) =>
+            batch.update(d.ref, { status: "approved", approvedBy, approvedAt })
+        );
+
+        await batch.commit();
+        return snap.size;
     }
 }

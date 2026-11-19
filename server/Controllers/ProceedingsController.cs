@@ -44,7 +44,9 @@ namespace server.Controllers
 
             try
             {
-                var pdf = await _proceedingsService.GenerateProceedingsAsync(thesisId, cancellationToken);
+                var pdf = await _proceedingsService.GenerateProceedingsAsync(
+                    thesisId,
+                    cancellationToken);
                 if (pdf is null)
                     return NotFound(new { Message = $"Thesis {thesisId} not found." });
 
