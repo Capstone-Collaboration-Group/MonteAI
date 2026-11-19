@@ -6,8 +6,14 @@ import type {
   UpdateScheduleDto,
   PanelistCandidate,
   PanelistType,
+  PanelRole,
 } from "@monteai/types";
-import { getPanelistDisplayName } from "@monteai/types";
+import {
+  assignPanelRole,
+  defaultPanelRole,
+  getPanelistDisplayName,
+} from "@monteai/types";
+import { PanelistRoleRow } from "./PanelistRoleRow";
 
 interface ScheduleEditModalProps {
   schedule: ScheduleResponseDto | null;
@@ -26,6 +32,17 @@ interface SelectedPanelist {
   id: string;
   label: string;
   type: string;
+  /** Defense-panel role recorded for the proceedings. */
+  panelRole: PanelRole;
+}
+
+/** Maps a stored role (incl. the old "Chairman"/"Member" fallback) onto a PanelRole. */
+function fromStoredRole(role: string | null | undefined): PanelRole | null {
+  const value = (role ?? "").trim().toLowerCase();
+  if (value.includes("advis")) return "Capstone Adviser";
+  if (value.includes("chair")) return "Panel Chairperson";
+  if (value.includes("member")) return "Panel Member";
+  return null;
 }
 
 function typeColor(type: string): string {
@@ -40,34 +57,6 @@ function hasValidRange(start: string, end: string): boolean {
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
   return eh * 60 + em - (sh * 60 + sm) > 0;
-}
-
-function PanelistChip({
-  panelist,
-  onRemove,
-}: {
-  panelist: SelectedPanelist;
-  onRemove: () => void;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline/20 bg-surface-container px-2.5 py-1 text-sm text-on-surface">
-      <span
-        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-        style={{ backgroundColor: typeColor(panelist.type) }}
-      >
-        {panelist.label.slice(0, 2).toUpperCase()}
-      </span>
-      <span className="max-w-[140px] truncate sm:max-w-none">{panelist.label}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${panelist.label}`}
-        className="ml-0.5 leading-none text-on-surface-variant transition-colors hover:text-error"
-      >
-        ×
-      </button>
-    </span>
-  );
 }
 
 function SectionLabel({ number, label }: { number: number; label: string }) {
@@ -98,14 +87,24 @@ export function ScheduleEditModal({
   const [selected, setSelected] = useState<SelectedPanelist[]>(() => {
     if (!schedule) return [];
     const byId = new Map(panelistPool.map((p) => [p.id, p]));
-    return schedule.panelists.map((p) => {
+    const stored = schedule.panelists.map((p) => fromStoredRole(p.role));
+    // Legacy rows carry no role: fill the missing chair from the first row
+    // that doesn't already sit as Capstone Adviser / Panel Member.
+    let hasChair = stored.some((r) => r === "Panel Chairperson");
+    return schedule.panelists.map((p, i) => {
       const candidate = byId.get(p.panelistId);
+      let panelRole = stored[i];
+      if (!panelRole && !hasChair) {
+        hasChair = true;
+        panelRole = "Panel Chairperson";
+      }
       return {
         id: p.panelistId,
         label: candidate
           ? getPanelistDisplayName(candidate)
           : (p.panelistName || p.panelistId),
         type: candidate ? candidate.panelistType : p.panelistType,
+        panelRole: panelRole ?? "Panel Member",
       };
     });
   });
@@ -118,13 +117,15 @@ export function ScheduleEditModal({
   }, [rooms, schedule]);
 
   const validRange = hasValidRange(startTime, endTime);
+  const hasChair = selected.some((p) => p.panelRole === "Panel Chairperson");
   const canSave =
     !!defenseDate &&
     !!startTime &&
     !!endTime &&
     validRange &&
     !!venue &&
-    selected.length >= 3;
+    selected.length >= 3 &&
+    hasChair;
 
   const suggestions = useMemo(() => {
     if (!search.trim()) return [];
@@ -136,7 +137,7 @@ export function ScheduleEditModal({
           getPanelistDisplayName(p).toLowerCase().includes(q),
       )
       .map(
-        (p): SelectedPanelist => ({
+        (p): Omit<SelectedPanelist, "panelRole"> => ({
           id: p.id,
           label: getPanelistDisplayName(p),
           type: p.panelistType,
@@ -144,9 +145,16 @@ export function ScheduleEditModal({
       );
   }, [search, selected, panelistPool]);
 
-  function addPanelist(p: SelectedPanelist) {
-    setSelected((prev) => [...prev, p]);
+  function addPanelist(p: Omit<SelectedPanelist, "panelRole">) {
+    // First pick becomes the Panel Chairperson; the rest Panel Members.
+    setSelected((prev) => [...prev, { ...p, panelRole: defaultPanelRole(prev) }]);
     setSearch("");
+  }
+
+  // Chairperson and Adviser are exclusive — assignPanelRole clears the role
+  // from whoever held it so the panel can never end up with two chairs.
+  function handleRoleChange(id: string, role: PanelRole) {
+    setSelected((prev) => assignPanelRole(prev, id, role));
   }
 
   function handleConfirm() {
@@ -168,6 +176,8 @@ export function ScheduleEditModal({
         scheduleId: schedule.scheduleId,
         panelistId: sel.id,
         panelistType: toServerPanelistType(sel.type),
+        // The proceedings read this back for Section II's Designation/Role.
+        role: sel.panelRole,
       })),
     };
     onConfirm(dto);
@@ -311,17 +321,25 @@ export function ScheduleEditModal({
             </div>
 
             {selected.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <ul className="mt-3 flex flex-col gap-2">
                 {selected.map((p) => (
-                  <PanelistChip
+                  <PanelistRoleRow
                     key={p.id}
-                    panelist={p}
+                    label={p.label}
+                    type={p.type}
+                    panelRole={p.panelRole}
+                    onRoleChange={(role) => handleRoleChange(p.id, role)}
                     onRemove={() =>
                       setSelected((prev) => prev.filter((x) => x.id !== p.id))
                     }
                   />
                 ))}
-              </div>
+              </ul>
+            )}
+            {selected.length > 0 && !hasChair && (
+              <p className="mt-2 text-xs text-error">
+                Assign exactly one panelist as Panel Chairperson before saving.
+              </p>
             )}
           </section>
         </div>

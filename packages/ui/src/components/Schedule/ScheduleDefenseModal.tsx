@@ -4,8 +4,19 @@ import { Button } from "../Button";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { showToast } from "../common";
 import { getApiErrorMessage } from "@monteai/utils";
-import type { CreateScheduleDto, PanelistCandidate, PanelistType } from "@monteai/types";
-import { getPanelistDisplayName, getPanelistInitials } from "@monteai/types";
+import type {
+  CreateScheduleDto,
+  PanelistCandidate,
+  PanelistType,
+  PanelRole,
+} from "@monteai/types";
+import {
+  assignPanelRole,
+  defaultPanelRole,
+  getPanelistDisplayName,
+  getPanelistInitials,
+} from "@monteai/types";
+import { PanelistRoleRow } from "./PanelistRoleRow";
 
 interface ScheduleDefenseModalProps {
   isOpen: boolean;
@@ -50,37 +61,11 @@ function calcDuration(start: string, end: string): string | null {
   return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ""}` : `${m}m`;
 }
 
-// ── PanelistChip now accepts PanelistCandidate directly ───────────────────────
-function PanelistChip({
-  panelist,
-  onRemove,
-}: {
-  panelist: PanelistCandidate;
-  onRemove: () => void;
-}) {
-  const name     = getPanelistDisplayName(panelist);
-  const initials = getPanelistInitials(panelist);
-  const color    = PANELIST_TYPE_COLORS[panelist.panelistType];
-
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline/20 bg-surface-container px-2.5 py-1 text-sm text-on-surface">
-      <span
-        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-        style={{ backgroundColor: color }}
-      >
-        {initials}
-      </span>
-      <span className="max-w-[140px] truncate sm:max-w-none">{name}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${name}`}
-        className="ml-0.5 leading-none text-on-surface-variant transition-colors hover:text-error"
-      >
-        ×
-      </button>
-    </span>
-  );
+// ── A picked panelist plus the defense-panel role recorded for the proceedings ──
+interface ScheduledPanelist {
+  id: string;
+  panelRole: PanelRole;
+  candidate: PanelistCandidate;
 }
 
 function SectionLabel({ number, label }: { number: number; label: string }) {
@@ -107,7 +92,7 @@ export function ScheduleDefenseModal({
   const [defenseDate, setDefenseDate]         = useState("");
   const [startTime, setStartTime]             = useState("");
   const [endTime, setEndTime]                 = useState("");
-  const [selectedPanelists, setSelectedPanelists] = useState<PanelistCandidate[]>([]);
+  const [selectedPanelists, setSelectedPanelists] = useState<ScheduledPanelist[]>([]);
   const [search, setSearch]                   = useState("");
   const [venue, setVenue]                     = useState("");
   const [confirmOpen, setConfirmOpen]         = useState(false);
@@ -115,7 +100,9 @@ export function ScheduleDefenseModal({
   const [isSubmitting, setIsSubmitting]       = useState(false);
 
   const duration   = useMemo(() => calcDuration(startTime, endTime), [startTime, endTime]);
-  const canConfirm = defenseDate && startTime && endTime && selectedPanelists.length >= 3 && venue;
+  const hasChair   = selectedPanelists.some((p) => p.panelRole === "Panel Chairperson");
+  const canConfirm =
+    defenseDate && startTime && endTime && selectedPanelists.length >= 3 && venue && hasChair;
 
   const suggestions = useMemo(() => {
     if (!search.trim()) return [];
@@ -129,8 +116,18 @@ export function ScheduleDefenseModal({
 
   // ── addPanelist now accepts PanelistCandidate, not old Panelist ──────────
   function addPanelist(p: PanelistCandidate) {
-    setSelectedPanelists((prev) => [...prev, p]);
+    // First pick becomes the Panel Chairperson; the rest Panel Members.
+    setSelectedPanelists((prev) => [
+      ...prev,
+      { id: p.id, panelRole: defaultPanelRole(prev), candidate: p },
+    ]);
     setSearch("");
+  }
+
+  // Chairperson and Adviser are exclusive — assignPanelRole clears the role
+  // from whoever held it so the panel can never end up with two chairs.
+  function handleRoleChange(id: string, role: PanelRole) {
+    setSelectedPanelists((prev) => assignPanelRole(prev, id, role));
   }
 
   function handleConfirm() {
@@ -148,7 +145,9 @@ export function ScheduleDefenseModal({
       roomVenue: venue,
       panelists: selectedPanelists.map((p) => ({
         panelistId: p.id,
-        panelistType: toServerPanelistType(p.panelistType),
+        panelistType: toServerPanelistType(p.candidate.panelistType),
+        // The proceedings read this back for Section II's Designation/Role.
+        role: p.panelRole,
       })),
     };
     setPendingPayload(payload);
@@ -370,17 +369,26 @@ export function ScheduleDefenseModal({
               </div>
 
               {selectedPanelists.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
+                <ul className="mt-3 flex flex-col gap-2">
                   {selectedPanelists.map((p) => (
-                    <PanelistChip
+                    <PanelistRoleRow
                       key={p.id}
-                      panelist={p}
+                      label={getPanelistDisplayName(p.candidate)}
+                      initials={getPanelistInitials(p.candidate)}
+                      type={p.candidate.panelistType}
+                      panelRole={p.panelRole}
+                      onRoleChange={(role) => handleRoleChange(p.id, role)}
                       onRemove={() =>
                         setSelectedPanelists((prev) => prev.filter((x) => x.id !== p.id))
                       }
                     />
                   ))}
-                </div>
+                </ul>
+              )}
+              {selectedPanelists.length > 0 && !hasChair && (
+                <p className="mt-2 text-xs text-error">
+                  Assign exactly one panelist as Panel Chairperson before confirming.
+                </p>
               )}
             </section>
 
@@ -461,9 +469,15 @@ export function ScheduleDefenseModal({
               <span className="text-on-surface-variant">Venue</span>
               <span className="font-medium text-on-surface">{pendingPayload.roomVenue}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-3">
               <span className="text-on-surface-variant">Panelists</span>
-              <span className="font-medium text-on-surface">{pendingPayload.panelists.length} selected</span>
+              <span className="text-right font-medium text-on-surface">
+                {selectedPanelists.map((p) => (
+                  <span key={p.id} className="block">
+                    {getPanelistDisplayName(p.candidate)} — {p.panelRole}
+                  </span>
+                ))}
+              </span>
             </div>
           </div>
         )}

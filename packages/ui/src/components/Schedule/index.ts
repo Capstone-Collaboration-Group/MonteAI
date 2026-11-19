@@ -4,3 +4,4 @@ export * from "./ScheduleDetailPanel";
 export * from "./ScheduleEditModal";
 export * from "./skeletons";
 export * from "./ScheduleDefenseModal"
+export * from "./PanelistRoleRow";
