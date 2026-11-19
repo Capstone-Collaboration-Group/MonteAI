@@ -186,7 +186,7 @@ export function ScheduleEditModal({
   const groupName = schedule?.researchGroup?.groupName ?? "Defense Schedule";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" className="!max-w-4xl">
+    <Modal isOpen={isOpen} onClose={onClose} size="xl" className="!max-w-4xl max-h-[calc(100vh-2rem)]">
       <ModalHeader onClose={onClose}>
         <div className="min-w-0">
           <p className="text-base font-semibold leading-tight text-on-surface">
@@ -198,7 +198,7 @@ export function ScheduleEditModal({
         </div>
       </ModalHeader>
 
-      <div className="flex max-h-[70vh] min-h-0 flex-col overflow-y-auto p-4 sm:p-6">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
         <div className="flex flex-col gap-7">
           {/* 1. Date & Time */}
           <section>

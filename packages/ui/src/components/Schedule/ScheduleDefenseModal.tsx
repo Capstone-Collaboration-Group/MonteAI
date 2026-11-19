@@ -199,7 +199,7 @@ export function ScheduleDefenseModal({
   return (
     <>
     
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" className="!max-w-5xl">
+    <Modal isOpen={isOpen} onClose={onClose} size="xl" className="!max-w-5xl max-h-[calc(100vh-2rem)]">
 
       {/* ── Header ── */}
       <ModalHeader onClose={onClose}>
@@ -222,7 +222,7 @@ export function ScheduleDefenseModal({
       </ModalHeader>
 
       {/* ── Body ── */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
 
         {/* ── Sidebar ── */}
         <aside className="
