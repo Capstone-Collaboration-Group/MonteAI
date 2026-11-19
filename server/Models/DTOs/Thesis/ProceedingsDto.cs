@@ -54,13 +54,6 @@ namespace server.Models.DTOs.Thesis
         public string SortKey { get; set; } = string.Empty;
     }
 
-    /// <summary>Body of POST /thesis/{id}/proceedings — records who generated the PDF.</summary>
-    public class GenerateProceedingsDto
-    {
-        /// <summary>Panel Chairperson | Panel Member | Capstone Adviser.</summary>
-        public string? Role { get; set; }
-    }
-
     public class ProceedingsPanelistDto
     {
         /// <summary>Firebase UID — matches Annotation.reviewerId.</summary>

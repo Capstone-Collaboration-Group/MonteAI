@@ -2,13 +2,9 @@ namespace server.Services.Interfaces
 {
     public interface IProceedingsService
     {
-        /// <summary>
-        /// Null when the thesis does not exist. <paramref name="generatedByRole"/>
-        /// records who asked for the PDF in its Document Control block.
-        /// </summary>
+        /// <summary>Null when the thesis does not exist.</summary>
         Task<byte[]?> GenerateProceedingsAsync(
             Guid thesisId,
-            string? generatedByRole,
             CancellationToken cancellationToken);
 
         Task<bool> IsStudentThesisMemberAsync(

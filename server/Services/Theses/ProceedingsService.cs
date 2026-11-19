@@ -43,7 +43,6 @@ namespace server.Services.Theses
 
         public async Task<byte[]?> GenerateProceedingsAsync(
             Guid thesisId,
-            string? generatedByRole,
             CancellationToken cancellationToken)
         {
             var data = await _repository.GetProceedingsDataAsync(thesisId, cancellationToken);
@@ -69,7 +68,7 @@ namespace server.Services.Theses
             var renderer = new ProceedingsRenderer(document, LoadHeaderImage());
             try
             {
-                DrawProceedings(renderer, data, rows, generatedByRole);
+                DrawProceedings(renderer, data, rows);
             }
             finally
             {

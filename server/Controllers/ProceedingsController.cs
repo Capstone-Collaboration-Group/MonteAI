@@ -1,9 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.RateLimiting;
-using server.Models.DTOs.Thesis;
 using server.Services.Interfaces;
 using server.Services.Theses;
 
@@ -13,14 +11,6 @@ namespace server.Controllers
     [Route("api/v1/thesis")]
     public class ProceedingsController : ControllerBase
     {
-        /// <summary>Roles the pre-generation picker offers — and the only ones we record.</summary>
-        private static readonly string[] GeneratedByRoles =
-        {
-            "Panel Chairperson",
-            "Panel Member",
-            "Capstone Adviser",
-        };
-
         private readonly ILogger<ProceedingsController> _logger;
         private readonly IProceedingsService _proceedingsService;
 
@@ -37,12 +27,8 @@ namespace server.Controllers
         [EnableRateLimiting("ProceedingsLimit")]
         public async Task<IActionResult> GenerateProceedings(
             Guid thesisId,
-            [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)]
-            GenerateProceedingsDto? request,
             CancellationToken cancellationToken)
         {
-            var role = request?.Role?.Trim();
-
             if (User.IsInRole("Student"))
             {
                 var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -54,29 +40,12 @@ namespace server.Controllers
                     studentId,
                     cancellationToken))
                     return Forbid();
-
-                // Students are never the panel or the adviser, so their copy
-                // records no generating role (the cell stays blank).
-                if (role?.Length > 0)
-                    return BadRequest(new
-                    {
-                        Message = "Students generate proceedings without a recorded role.",
-                    });
-            }
-
-            if (role?.Length > 0 && !GeneratedByRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
-            {
-                return BadRequest(new
-                {
-                    Message = $"Unknown generating role \"{role}\". Expected one of: {string.Join(", ", GeneratedByRoles)}.",
-                });
             }
 
             try
             {
                 var pdf = await _proceedingsService.GenerateProceedingsAsync(
                     thesisId,
-                    role,
                     cancellationToken);
                 if (pdf is null)
                     return NotFound(new { Message = $"Thesis {thesisId} not found." });
