@@ -6,6 +6,7 @@ import ts from "typescript";
 
 const root = new URL("../../", import.meta.url);
 const entries = new Map([
+  ["@monteai/api", new URL("packages/api/index.ts", root).href],
   ["@monteai/utils", new URL("packages/utils/src/index.ts", root).href],
   ["@monteai/types", new URL("packages/types/src/index.ts", root).href],
 ]);

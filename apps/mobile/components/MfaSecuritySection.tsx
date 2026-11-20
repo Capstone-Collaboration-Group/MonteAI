@@ -1,14 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/ui/ScaledText';
 import type { MfaEnrollResponse, MfaStatusResponse } from '@monteai/types';
 import { mfaService } from '@/lib/mfaService';
 import { storeMfaTokens } from '@/lib/mfaSession';
+import { getAuthToken } from '@/lib/authService';
+import { firebaseAuth } from '@/lib/firebase';
+import { registrationUsesMock as useMock } from '@/lib/registration/config';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 type Mode = 'idle' | 'enroll' | 'disable' | 'regenerate';
 
 export default function MfaSecuritySection() {
+  const { session } = useAuthSession();
+  const uid = session?.uid ?? null;
+  const currentUid = useRef(uid);
+  currentUid.current = uid;
+  const mounted = useRef(false);
+  const lifetime = useRef(0);
+  const busy = useRef<object | null>(null);
+  const [ownerUid, setOwnerUid] = useState<string | null>(null);
   const heading = useThemeColor({}, 'text');
   const body = useThemeColor({}, 'icon');
   const primary = useThemeColor({}, 'primary');
@@ -21,77 +33,131 @@ export default function MfaSecuritySection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const reloadStatus = async () => {
-    const next = await mfaService.status();
-    setStatus(next);
-  };
+  const ownsAccount = useCallback((owner: string) => currentUid.current === owner &&
+    (useMock || (firebaseAuth.currentUser?.uid === owner && firebaseAuth.currentUser.emailVerified)), []);
 
   useEffect(() => {
-    let active = true;
-    mfaService.status()
-      .then((next) => {
-        if (active) setStatus(next);
-      })
-      .catch((err: unknown) => {
-        if (active) setError(err instanceof Error ? err.message : 'Could not load two-factor status.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    mounted.current = true;
+    const epoch = ++lifetime.current;
+    busy.current = null;
+    setOwnerUid(uid);
+    setStatus(null);
+    setEnrollment(null);
+    setRecoveryCodes(null);
+    setMode('idle');
+    setCode('');
+    setError(null);
+    setLoading(!!uid);
+    const isCurrent = () => mounted.current && epoch === lifetime.current && !!uid && ownsAccount(uid);
+    if (uid) void (async () => {
+      try {
+        const token = await getAuthToken();
+        if (!isCurrent()) return;
+        if (!token && !useMock) throw new Error('No current session.');
+        const next = await mfaService.status(token);
+        if (isCurrent()) setStatus(next);
+      } catch {
+        if (isCurrent()) setError('Could not load two-factor status.');
+      } finally {
+        if (isCurrent()) setLoading(false);
+      }
+    })();
     return () => {
-      active = false;
+      mounted.current = false;
+      lifetime.current = epoch + 1;
+      busy.current = null;
     };
-  }, []);
+  }, [ownsAccount, uid]);
 
-  const startEnrollment = async () => {
+  function beginWork() {
+    if (!mounted.current || !uid || ownerUid !== uid || !ownsAccount(uid) || loading || busy.current) return null;
+    const work = {};
+    const epoch = lifetime.current;
+    busy.current = work;
     setLoading(true);
     setError(null);
-    try {
-      setEnrollment(await mfaService.enroll());
-      setMode('enroll');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start authenticator setup.');
-    } finally {
+    const isCurrent = () => mounted.current && busy.current === work && epoch === lifetime.current && ownsAccount(uid);
+    return { isCurrent, finish() {
+      if (!isCurrent()) return;
+      busy.current = null;
       setLoading(false);
-    }
+    } };
+  }
+
+  const startEnrollment = async () => {
+    const work = beginWork();
+    if (!work) return;
+    try {
+      const token = await getAuthToken();
+      if (!work.isCurrent()) return;
+      if (!token && !useMock) throw new Error('No current session.');
+      const result = await mfaService.enroll(token);
+      if (!work.isCurrent()) return;
+      setEnrollment(result);
+      setRecoveryCodes(null);
+      setMode('enroll');
+    } catch {
+      if (work.isCurrent()) setError('Could not start authenticator setup.');
+    } finally { work.finish(); }
   };
 
   const submitCode = async () => {
-    if (!code.trim() || loading) return;
-    setLoading(true);
-    setError(null);
+    if (!code.trim() || mode === 'idle') return;
+    const work = beginWork();
+    if (!work) return;
     try {
+      let token = await getAuthToken();
+      if (!work.isCurrent()) return;
+      if (!token && !useMock) throw new Error('No current session.');
       if (mode === 'enroll') {
-        const result = await mfaService.confirmEnroll({ code: code.trim() });
-        await storeMfaTokens({
+        const result = await mfaService.confirmEnroll({ code: code.trim() }, token);
+        if (!work.isCurrent()) return;
+        const stored = await storeMfaTokens({
           accessToken: result.accessToken,
           refreshToken: result.refreshToken,
           expiresAt: result.expiresAt,
-        });
+        }, work.isCurrent);
+        if (!stored || !work.isCurrent()) return;
+        token = result.accessToken;
         setRecoveryCodes(result.recoveryCodes);
         setEnrollment(null);
       } else if (mode === 'disable') {
-        await mfaService.disable({ code: code.trim() });
+        await mfaService.disable({ code: code.trim() }, token);
+        if (!work.isCurrent()) return;
       } else if (mode === 'regenerate') {
-        const result = await mfaService.regenerateRecoveryCodes({ code: code.trim() });
+        const result = await mfaService.regenerateRecoveryCodes({ code: code.trim() }, token);
+        if (!work.isCurrent()) return;
         setRecoveryCodes(result.recoveryCodes);
       }
       setCode('');
       setMode('idle');
-      await reloadStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'The code could not be verified.');
-    } finally {
-      setLoading(false);
-    }
+      const next = await mfaService.status(token);
+      if (work.isCurrent()) setStatus(next);
+    } catch {
+      if (work.isCurrent()) setError('The code could not be verified.');
+    } finally { work.finish(); }
   };
 
   const cancelStep = () => {
+    if (!mounted.current || !uid || !ownsAccount(uid) || busy.current) return;
     setMode('idle');
     setEnrollment(null);
     setCode('');
     setError(null);
   };
+
+  const chooseMode = (next: 'disable' | 'regenerate') => {
+    if (mounted.current && uid && ownsAccount(uid) && !busy.current) setMode(next);
+  };
+
+  // Hide the old account's secrets immediately; effect cleanup then drops its
+  // references. Late network/storage work never owns another account's view.
+  if (!uid || ownerUid !== uid) return (
+    <View style={[styles.card, { borderColor: border }]}>
+      <Text style={[styles.title, { color: heading }]}>Two-Factor Authentication</Text>
+      <Text style={[styles.description, { color: body }]}>Sign in to manage two-factor authentication.</Text>
+    </View>
+  );
 
   return (
     <View style={[styles.card, { borderColor: border }]}>
@@ -156,8 +222,8 @@ export default function MfaSecuritySection() {
                 {status.recoveryCodesRemaining} recovery code(s) remain.
               </Text>
               <View style={styles.actions}>
-                <ActionButton title="Regenerate codes" onPress={() => setMode('regenerate')} disabled={loading} primary={primary} secondary />
-                <ActionButton title="Disable" onPress={() => setMode('disable')} disabled={loading} primary={primary} secondary />
+                <ActionButton title="Regenerate codes" onPress={() => chooseMode('regenerate')} disabled={loading} primary={primary} secondary />
+                <ActionButton title="Disable" onPress={() => chooseMode('disable')} disabled={loading} primary={primary} secondary />
               </View>
             </>
           ) : (

@@ -91,27 +91,53 @@ The following controls are implemented; production rollout and migrations requir
 Key rotation order: configure the new public key in the main API, deploy the new signer/key ID, wait at
 least the receipt TTL plus clock skew, then remove the old public key.
 
-## Client sequence
+## Client status and sequence
 
-The camera/state-machine integration is a later phase. The existing application signup screens do not
-yet collect receipts and therefore cannot finish live student registration with enforcement enabled.
-All web, desktop, and mobile student flows must eventually use this sequence:
+The Android student signup integration is implemented in Phase 3, using shared orchestration in
+`packages/api/src/auth/studentSignupFlow.ts` and platform-specific capture in
+`apps/mobile/components/StudentIdCapture.tsx`. **Live signup acceptance is still pending.** Web and
+desktop capture/receipt integration remain separate work; their existing signup screens do not yet
+complete this sequence. iOS capture is unsupported under the agreed Android-only scope.
 
-1. Collect registration details and genuine privacy/terms acceptance; create/sign in the Firebase account.
-2. Send Firebase verification email; wait for verification; reload user and force-refresh ID token.
-3. Confirm the structured name and `NN-NNNNN` student number before capture.
-4. Request a live camera, show a full-card guide, capture **front only**, and call this endpoint.
-5. On `retake`, discard the capture and allow another live capture. Never offer gallery/file selection.
-6. On success, immediately pass the receipt in `/auth/register`; drop all client references afterward.
+1. Collect structured registration details and separately accept the privacy notice and terms. Reading,
+   dismissing, or pressing Back in a notice is not acceptance. Create/resume the owned Firebase account.
+2. Send the Firebase verification email and wait for verification. A pending signup, including a restored
+   verified Firebase account, is not a normal application session or a completed API registration.
+3. Reload the owned account and force-refresh its Firebase ID token. Confirm the structured name and
+   exact `NN-NNNNN` student number against the printed front of the ID before explicitly opening the camera.
+4. After screen protection and user-granted camera permission, capture **front only** into RAM using the
+   audited native path. Close the preview after encoding without cancelling the JPEG's cleanup owner.
+5. Verify using a fresh Firebase token, never an MFA session JWT. Only verification HTTP 401 gets one
+   fresh-token retry. `retake`/`unmatched` discard the image and require an explicit new capture; quota
+   cooldowns never start automatic verification. There is no gallery/file fallback or liveness step.
+6. On success, immediately submit the closure-held receipt to `/auth/register` with a fresh Firebase
+   header. Wipe owned image/request/response references; never decode the receipt or put it in UI state,
+   context, storage, navigation, diagnostics, or analytics.
+7. An uncertain registration failure may offer an explicit **registration-only** retry with the same
+   unexpired receipt and exact unchanged draft. No new OCR request is made. Expiry, any draft edit,
+   cancellation, background/window/route blur, sign-out/account switch, or unmount discards verification.
+   Restored focus or permission never automatically reopens the camera.
+8. Promote the completed session only for the still-owned signup. Keep the route alive until capture
+   cleanup finishes before navigating; cancelled late native/service results cannot promote a session.
 
-For browser/Electron, use `getUserMedia`, stop tracks on completion/cancel/unmount, clear canvases, and
-revoke any object URLs. Electron must request camera permission explicitly; do not restore the removed
-TLS bypass.
+The capture/encoding watchdog remains 15 seconds. Android signup gives only the post-encoding consumer
+50 seconds around the controller's 45-second verification/registration budget; the isolated Phase-2
+proof retains its total 15-second deadline. Further still allocations remain blocked until cancelled
+native cleanup settles, including across route remounts.
 
-For Expo, ordinary `takePictureAsync` can create a cache file even without gallery access.
-**Capture followed by file deletion does not meet this project's no-persistence requirement.**
-Prove a memory-only native capture/crop/encoding path before choosing camera dependencies or integrating
-the mobile flow. Keep the existing live/mock service toggle; no gallery, uploads, or liveness.
+Ordinary Expo `takePictureAsync` can create a cache file even without gallery access.
+**Capture followed by file deletion does not meet this project's no-persistence requirement.** Keep
+`expo-camera` pinned to **17.0.10**, with `pictureRef: true`, `skipProcessing: false`, `exif: false`, and
+`base64: false`; `skipProcessing: true` writes a cache file even with `pictureRef`. The local encoder
+accepts `SharedRef<Bitmap>` directly and has no save/URI/file path. Preserve the portrait **720/1120**
+guide, default `FILL_CENTER`, no camera `ratio` prop, bounded requested/actual frames, and bounded JPEG.
+See [the Phase-2 source audit and accepted physical-camera evidence](ANDROID_CAPTURE_PROOF.md).
+
+The Phase-2 proof passed on **2026-11-19** on the tested TECNO LJ8k (Android API 35), but made no
+verification/registration request. Phase-3 synthetic coverage, configuration prerequisites, privacy
+limits, and the entirely pending live matrix are recorded in
+[Android signup acceptance](ANDROID_SIGNUP_ACCEPTANCE.md). No Azure deployment or production database
+change is authorized by either phase.
 
 The server remains authoritative: client-side email verification, pattern checks, and capture guides
 are usability checks, not security controls.
@@ -123,7 +149,8 @@ are usability checks, not security controls.
   whitelist primitives at runtime; never serialize a request DTO directly.
 - Web/desktop pending storage rewrites valid legacy drafts without unknown/receipt/password fields and
   removes invalid drafts. Mobile uses the same projection and sanitizes saved details on restore/read.
-  Missing legacy consent is never silently accepted. Mobile consent UI remains a later phase.
+  Missing legacy consent is never silently accepted. Phase 3 adds separate mobile consent actions using
+  the current privacy/terms versions (`2026-10-23` for both).
 - `createRegistrationReceiptStore` creates a per-signup closure, not a global store. It refuses expired
   or over-600-second receipts and drops receipts on an identity mismatch or expired `get`. Do not decode
   the JWT on clients. Call `clear` on success, any identity edit, cancellation, sign-out, and unmount;
@@ -155,12 +182,21 @@ Verify the public key matches the active signer before trusting it. Do not copy 
 into the API, replace existing development keys, deploy, or run production migrations as part of this
 local foundation work. Production must use separate signing/HMAC material and its deployed issuer.
 
+Android additionally requires `EXPO_PUBLIC_ID_VERIFICATION_ENDPOINT` as the **full** verification URL
+and `EXPO_PUBLIC_API_BASE_URL` as the main API's `/api/v1` base URL. Verification and registration share
+`EXPO_PUBLIC_USE_MOCK`; real service failures or missing live configuration never fall back to mock.
+See [the mobile setup instructions](../../apps/mobile/README.md). The recorded development audit found
+the verification endpoint missing and the API database nonlocal; an approved endpoint/API/database
+target and a separate decision on exposed development-key rotation are required before live acceptance.
+
 ### Local regression checks
 
 From the repository root (Node >=22.15 and the existing Python/.NET dependencies):
 
 ```powershell
 pnpm test:registration
+pnpm test:capture
+pnpm test:signup
 pnpm typecheck:all
 pnpm lint
 
@@ -178,6 +214,12 @@ data is written to files or test output, and existing signing/configuration file
 Without the interpreter variable, all three tests are skipped; without the local-settings flag, only the
 third is skipped. This proves signature/claim interoperability and registration/idempotency,
 **not** a live Firebase account, OCR scan, camera UI, or Azure deployment.
+
+`pnpm test:signup` runs shared orchestration/transport, mobile helper, and actual React TS/TSX runtime
+regressions. The runtime uses pinned development-only `react-test-renderer@19.1.0`, synthetic
+native/Firebase/service boundaries, in-memory storage, and network-blocking adapters. It also exercises
+the real MFA storage/refresh module and account-bound security settings. It is not live Android signup
+acceptance; see the Phase-3 document for the recorded counts and pending device checks.
 
 From `id-verification/`, run `python -m pytest` and `python -m ruff check .` using its virtual environment.
 The four Table integration tests require an explicitly local `IDV_TEST_TABLE_CONNECTION_STRING`; they

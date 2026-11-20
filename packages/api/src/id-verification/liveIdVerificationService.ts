@@ -7,6 +7,7 @@ import type {
 import type {
   IdVerificationService,
   IdVerificationServiceConfig,
+  IdVerificationRequestOptions,
 } from "./types";
 import { IdVerificationError } from "./types";
 
@@ -14,6 +15,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 
 // Keep the service's stable codes, but never trust arbitrary response messages with capture data.
 const SAFE_MESSAGES: Record<string, string> = {
+  cancelled: "ID verification was cancelled. Reopen the camera to try again.",
   client_not_configured: "ID verification is not configured for this application.",
   invalid_request: "Check the registration details and capture format.",
   image_too_large: "Capture the ID again at a lower resolution.",
@@ -51,7 +53,9 @@ export class LiveIdVerificationService implements IdVerificationService {
 
   async verifyStudentId(
     request: StudentIdVerificationRequest,
+    options: IdVerificationRequestOptions = {},
   ): Promise<StudentIdVerificationResponse> {
+    assertNotAborted(options.signal);
     if (!this.endpoint) {
       throw new IdVerificationError({
         code: "client_not_configured",
@@ -61,16 +65,20 @@ export class LiveIdVerificationService implements IdVerificationService {
 
     try {
       const initialToken = await this.requireFreshToken();
+      assertNotAborted(options.signal);
       try {
-        return await this.post(request, initialToken);
+        return await this.post(request, initialToken, options.signal);
       } catch (error) {
         // Authentication rejection occurs before OCR/quota admission. Retry it once only.
         // Do not automatically retry scans on quota, mismatch, timeout, or network failures.
+        assertNotAborted(options.signal);
         if (!axios.isAxiosError(error) || error.response?.status !== 401) throw error;
-        return await this.post(request, await this.requireFreshToken());
+        const token = await this.requireFreshToken();
+        assertNotAborted(options.signal);
+        return await this.post(request, token, options.signal);
       }
     } catch (error) {
-      throw sanitizeError(error);
+      throw sanitizeIdVerificationError(error);
     }
   }
 
@@ -89,23 +97,42 @@ export class LiveIdVerificationService implements IdVerificationService {
   private async post(
     request: StudentIdVerificationRequest,
     token: string,
+    signal?: AbortSignal,
   ): Promise<StudentIdVerificationResponse> {
     const { data } = await axios.post<StudentIdVerificationResponse>(
       this.endpoint!,
       request,
       {
         timeout: this.timeoutMs,
+        signal,
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       },
     );
-    return data;
+    assertNotAborted(signal);
+    // Never forward extra response fields, including reflected captures or OCR.
+    if (!data || data.outcome !== "verified" || typeof data.receipt !== "string" ||
+      !data.receipt || data.receipt.length > 4096 || typeof data.expiresAt !== "string" ||
+      !Number.isFinite(Date.parse(data.expiresAt)) || typeof data.templateId !== "string" ||
+      !data.templateId || data.templateId.length > 80 || typeof data.requestId !== "string" ||
+      !data.requestId || data.requestId.length > 80) {
+      throw new IdVerificationError({ code: "service_unavailable", message: SAFE_MESSAGES.service_unavailable });
+    }
+    return { outcome: "verified", receipt: data.receipt, expiresAt: data.expiresAt,
+      templateId: data.templateId, requestId: data.requestId };
   }
 }
 
-function sanitizeError(error: unknown): IdVerificationError {
+function assertNotAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new IdVerificationError({ code: "cancelled", message: SAFE_MESSAGES.cancelled });
+}
+
+export function sanitizeIdVerificationError(error: unknown): IdVerificationError {
+  if (axios.isCancel(error)) {
+    return new IdVerificationError({ code: "cancelled", message: SAFE_MESSAGES.cancelled });
+  }
   if (error instanceof IdVerificationError || axios.isAxiosError(error)) {
     const failure = error instanceof IdVerificationError
       ? error

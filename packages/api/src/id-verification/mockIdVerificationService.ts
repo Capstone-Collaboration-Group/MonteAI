@@ -1,7 +1,10 @@
-import type { IdVerificationService } from "./types";
+import { IdVerificationError, type IdVerificationService } from "./types";
 
 export const mockIdVerificationService: IdVerificationService = {
-  async verifyStudentId() {
+  async verifyStudentId(_request, options) {
+    if (options?.signal?.aborted) {
+      throw new IdVerificationError({ code: "cancelled", message: "ID verification was cancelled. Reopen the camera to try again." });
+    }
     return {
       outcome: "verified",
       receipt: "mock-id-verification-receipt",

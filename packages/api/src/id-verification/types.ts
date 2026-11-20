@@ -6,7 +6,13 @@ import type {
 export interface IdVerificationService {
   verifyStudentId(
     request: StudentIdVerificationRequest,
+    options?: IdVerificationRequestOptions,
   ): Promise<StudentIdVerificationResponse>;
+}
+
+export interface IdVerificationRequestOptions {
+  /** Abort on cancellation, navigation, backgrounding, or identity edits. */
+  signal?: AbortSignal;
 }
 
 export interface IdVerificationServiceConfig {

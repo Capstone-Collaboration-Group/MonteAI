@@ -18,6 +18,8 @@
     "typecheck:packages": "pnpm --filter @monteai/api --filter @monteai/ui --filter @monteai/hooks --filter @monteai/types --filter @monteai/utils run typecheck",
     "typecheck:all": "pnpm run typecheck:packages && pnpm run typecheck:apps",
     "test:registration": "node --import ./tools/tests/typescript-loader.mjs --test ./tools/tests/registration-foundation.test.mjs",
+    "test:capture": "node --import ./tools/tests/typescript-loader.mjs --test ./apps/mobile/tests/memory-capture.test.mjs",
+    "test:signup": "node --import ./tools/tests/typescript-loader.mjs --test ./tools/tests/student-signup-flow.test.mjs ./apps/mobile/tests/student-signup.test.mjs ./apps/mobile/tests/signup-runtime.test.mjs",
     "precommit": "pnpm run typecheck:all && pnpm run lint",
     "prepare": "husky"
   },

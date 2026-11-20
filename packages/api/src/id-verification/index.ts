@@ -14,5 +14,6 @@ export function createIdVerificationService(
 }
 
 export { LiveIdVerificationService, mockIdVerificationService };
+export { sanitizeIdVerificationError } from "./liveIdVerificationService";
 export { IdVerificationError } from "./types";
-export type { IdVerificationService, IdVerificationServiceConfig } from "./types";
+export type { IdVerificationService, IdVerificationServiceConfig, IdVerificationRequestOptions } from "./types";

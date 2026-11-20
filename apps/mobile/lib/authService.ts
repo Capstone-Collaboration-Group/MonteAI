@@ -3,9 +3,9 @@
 // Real authentication pipeline for the mobile app:
 //   1. POST /auth/resolve-login  (anonymous) — student number → Firebase email
 //   2. Firebase email/password sign-in (session persists via AsyncStorage)
-//   3. Sign-up runs in two phases: create the Firebase account + send the
-//      Firebase email-verification link, then (once verified) register the
-//      profile server-side via POST /auth/register.
+//   3. Android signup creates/resumes Firebase + verifies email, then uses
+//      front-ID RAM capture/verification before receipt-bearing profile
+//      registration via POST /auth/register.
 //   4. AuthSessionContext mirrors onAuthStateChanged for routing
 //
 // The token accessors below are shared by every service module in lib/
@@ -24,8 +24,8 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
-import type { RegisterUserResponse } from '@monteai/types';
-import { createFirebaseTokenAccessors, sanitizeRegistrationError } from '@monteai/api';
+import type { RegisterUserRequest } from '@monteai/types';
+import { createAuthService, createFirebaseTokenAccessors, sanitizeRegistrationError } from '@monteai/api';
 import { firebaseAuth } from './firebase';
 import { getMfaAccessToken, refreshMfaAccessToken } from './mfaSession';
 
@@ -125,24 +125,22 @@ export async function createStudentAccount(input: {
 }
 
 /**
- * Phase 2 of sign-up: registers the student profile server-side with the
+ * Final sign-up step: registers the student profile server-side with the
  * verified account's fresh Firebase Bearer token (POST /auth/register,
  * which requires the token — the server owns the student-number → email
  * mapping future logins depend on). Requires a signed-in, verified user.
  */
 export async function completeProfileRegistration(input: {
-  buildProfile: (uid: string) => Record<string, unknown>;
+  profile: RegisterUserRequest;
+  signal?: AbortSignal;
 }): Promise<User> {
   try {
-    const token = await getFreshFirebaseIdToken();
+    // Bare client + the shared Firebase-only registration method: no MFA
+    // interceptor, automatic receipt retries, or unsafe request diagnostics.
+    const client = axios.create({ baseURL, timeout: 10000, headers: { 'Content-Type': 'application/json' } });
+    await createAuthService(client, firebaseAuth).register(input.profile, { signal: input.signal });
     const user = firebaseAuth.currentUser;
-    if (!token || !user) throw authError('auth/no-current-user');
-    if (!user.emailVerified) throw authError(EMAIL_NOT_VERIFIED_CODE);
-
-    await axios.post<RegisterUserResponse>(`${baseURL}/auth/register`, input.buildProfile(user.uid), {
-      timeout: 10000,
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    if (!user || user.uid !== input.profile.id) throw authError('auth/no-current-user');
     return user;
   } catch (err) {
     const code = (err as { code?: string } | null)?.code;
@@ -321,6 +319,8 @@ export function describeAuthError(err: unknown): string {
       return 'Your email address is not verified yet. Open the verification link we sent you, then try again.';
     case 'auth/no-current-user':
       return 'Your session has expired. Please sign in again.';
+    case 'auth/operation-in-progress':
+      return 'An earlier account action is still finishing. Please wait.';
     case 'auth/registration-missing':
       return 'Your sign-up session expired. Please start the sign-up again.';
     default:

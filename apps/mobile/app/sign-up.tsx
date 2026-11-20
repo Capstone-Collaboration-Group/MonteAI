@@ -1,50 +1,92 @@
-import { Stack, useRouter } from 'expo-router';
-import React, { useCallback } from 'react';
+import { Redirect, Stack, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createStudentSignupFlow, type StudentSignupFlow } from '@monteai/api';
 
 import SignUpFlow from '@/components/SignUpFlow';
 import { useAuthSession } from '@/contexts/AuthSessionContext';
+import { verifyRegistrationId } from '@/lib/registration/idVerificationService';
 
 /**
  * Sign-up route — Figma "Sign Up Step by Step" (node 492:26).
- * Two-phase registration: create the Firebase account + send the default
- * Firebase verification link, and only after the link is opened register
- * the student profile via /auth/register (the profile also carries the
- * student-number → email mapping future logins depend on).
- * Errors surface inside SignUpFlow via describeAuthError.
+ * Per-mount, memory-only signup controller. Firebase email verification is
+ * followed by explicit Android front-ID capture, verification, and registration.
+ * No receipt is passed through navigation or a persisted session/context.
  */
 export default function SignUpRoute() {
   const router = useRouter();
   const {
+    session,
+    restoring,
+    pendingRegistration,
+    registrationAccountReady,
+    registrationEmailVerified,
+    getVerifiedRegistrationDraft,
+    subscribeRegistrationInvalidation,
     beginRegistration,
     completeRegistration,
     checkVerification,
     resendVerification,
     cancelRegistration,
   } = useAuthSession();
+  const ownsSignup = useRef(false);
+  const currentFlow = useRef<StudentSignupFlow | null>(null);
+  const [flow, setFlow] = useState<StudentSignupFlow | null>(null);
+  // An existing normal session never starts signup. Once this route owns a
+  // flow, session promotion must NOT redirect it before native cleanup settles.
+  const blocked = restoring || (!!session && !ownsSignup.current);
 
-  const handleComplete = useCallback(async () => {
-    await completeRegistration();
+  useEffect(() => {
+    if (blocked) return;
+    ownsSignup.current = true;
+    const next = createStudentSignupFlow({
+      getVerifiedDraft: getVerifiedRegistrationDraft,
+      verify: verifyRegistrationId,
+      register: completeRegistration,
+    });
+    currentFlow.current = next;
+    const unsubscribe = subscribeRegistrationInvalidation(() => next.invalidate());
+    setFlow(next);
+    return () => {
+      unsubscribe();
+      next.dispose();
+      if (currentFlow.current === next) currentFlow.current = null;
+    };
+  }, [blocked, completeRegistration, getVerifiedRegistrationDraft, subscribeRegistrationInvalidation]);
+
+  const handleRegistered = useCallback(() => {
+    const current = currentFlow.current;
+    if (!current || current.getState().phase !== 'complete' || current.getState().busy) return;
     router.replace('/(tabs)/home');
-  }, [completeRegistration, router]);
+  }, [router]);
+
+  const ensureVerifiedAccount = useCallback(async () => { await getVerifiedRegistrationDraft(); }, [getVerifiedRegistrationDraft]);
+
+  if (restoring) return null;
+  if (blocked) return <Redirect href="/(tabs)/home" />;
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SignUpFlow
+      {flow && <SignUpFlow
+        flow={flow}
+        pendingRegistration={pendingRegistration}
+        accountReady={registrationAccountReady}
+        emailVerified={registrationEmailVerified}
         onExit={() => {
-          if (router.canGoBack()) router.back();
-          else router.replace('/auth-entry');
+          currentFlow.current?.cancel();
+          router.replace('/auth-entry');
         }}
         onLoginPress={() => {
-          if (router.canGoBack()) router.back();
-          else router.replace('/auth-entry');
+          currentFlow.current?.cancel();
+          router.replace('/login');
         }}
         onBeginRegistration={beginRegistration}
-        onCompleteRegistration={handleComplete}
+        onRegistered={handleRegistered}
+        ensureVerifiedAccount={ensureVerifiedAccount}
         onCheckVerification={checkVerification}
         onResendVerification={resendVerification}
         onCancelRegistration={cancelRegistration}
-      />
+      />}
     </>
   );
 }

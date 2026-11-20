@@ -1,6 +1,7 @@
-import { isAxiosError } from "axios";
+import { isAxiosError, isCancel } from "axios";
 
 const MESSAGES = {
+  cancelled: "Registration was cancelled. Resume signup and verify your ID again.",
   authentication_required: "Sign in again before completing registration.",
   email_unverified: "Verify your email before completing registration.",
   identity_mismatch: "Registration details do not match the signed-in account.",
@@ -46,6 +47,7 @@ const SERVER_MESSAGES = new Map<string, RegistrationErrorCode>([
 
 /** Only recognized, static server messages are used; arbitrary/echoed responses are discarded. */
 export function sanitizeRegistrationError(error: unknown): RegistrationError {
+  if (isCancel(error)) return new RegistrationError("cancelled");
   if (error instanceof RegistrationError) {
     return new RegistrationError(error.code, error.status);
   }

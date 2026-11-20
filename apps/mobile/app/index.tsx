@@ -6,10 +6,11 @@ import { useAuthSession } from '@/contexts/AuthSessionContext';
 
 export default function IndexRoute() {
   const router = useRouter();
-  const { session, restoring } = useAuthSession();
+  const { session, restoring, pendingRegistration } = useAuthSession();
 
   if (restoring) return null;
   if (session) return <Redirect href="/(tabs)/home" />;
+  if (pendingRegistration) return <Redirect href="/sign-up" />;
 
   return (
     <AnimatedSplashScreen onGetStarted={() => router.replace('/auth-entry')} />
