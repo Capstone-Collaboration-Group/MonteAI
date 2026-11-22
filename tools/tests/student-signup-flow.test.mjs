@@ -308,6 +308,34 @@ describe('Android-independent student signup orchestration', () => {
     assert.notEqual(f.flow.getState().phase, 'complete');
   });
 
+  for (const action of ['invalidate', 'timeout']) {
+    test(`external cleanup cancellation preserves the initiating ${action} failure`, async t => {
+      const entered = deferred();
+      const slow = deferred();
+      const external = new AbortController();
+      let posts = 0;
+      const f = fixture(t, {
+        async verify() { entered.resolve(); return slow.promise; },
+        async register() { posts++; },
+      }, { timeoutMs: action === 'timeout' ? 15 : STUDENT_SIGNUP_TIMEOUT_MS });
+      f.flow.subscribe(state => {
+        if (state.failure?.stage === 'flow' && !external.signal.aborted) external.abort();
+      });
+      const code = action === 'invalidate' ? 'details_changed' : 'timeout';
+      const rejection = assert.rejects(f.flow.verifyAndRegister(capture(), external.signal), safeError(code, StudentSignupError));
+      await entered.promise;
+      if (action === 'invalidate') f.flow.invalidate();
+      await rejection;
+      assert.equal(f.flow.getState().failure.code, code);
+      assert.equal(f.flow.getState().busy, true);
+      slow.resolve(verification());
+      await setImmediate();
+      assert.equal(f.flow.getState().failure.code, code);
+      assert.equal(f.flow.getState().busy, false);
+      assert.equal(posts, 0);
+    });
+  }
+
   test('receipt expiry while waiting for explicit retry forgets it without another request', async t => {
     let posts = 0;
     const f = fixture(t, {

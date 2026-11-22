@@ -1,28 +1,38 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import closeIcon from "../../assets/close.svg";
 
 type ModalProps = {
   children: ReactNode;
   onClose: () => void;
+  /** Synchronous cancellation before the exit animation (web signup). */
+  onCloseRequest?: () => void;
 };
 
 const ANIM_DURATION = 300; // ms
 
-export function Modal({ children, onClose }: ModalProps) {
+export function Modal({ children, onClose, onCloseRequest }: ModalProps) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  const closeRequested = useRef(false);
+  const closeTimer = useRef<number | null>(null);
 
   useEffect(() => {
     // trigger entrance animation
     const id = window.setTimeout(() => setVisible(true), 10);
-    return () => window.clearTimeout(id);
+    return () => {
+      window.clearTimeout(id);
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    };
   }, []);
 
   const handleClose = () => {
+    if (closeRequested.current) return;
+    closeRequested.current = true;
+    onCloseRequest?.();
     // play exit animation then call external onClose
     setClosing(true);
     setVisible(false);
-    window.setTimeout(() => onClose(), ANIM_DURATION);
+    closeTimer.current = window.setTimeout(() => onClose(), ANIM_DURATION);
   };
 
   return (

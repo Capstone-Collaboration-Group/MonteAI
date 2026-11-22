@@ -235,7 +235,10 @@ export function createStudentSignupFlow(dependencies: StudentSignupDependencies,
     const current: Operation = { controller: new AbortController(), reason: "cancelled",
       stage: image ? "verification" : "registration", image };
     operation = current;
-    const externalAbort = () => { if (operation === current) cancel(); };
+    // A camera/cleanup owner may synchronously close in response to this flow's
+    // timeout or draft invalidation. Do not replace the initiating safe failure
+    // with a second "cancelled" publication from that already-aborted operation.
+    const externalAbort = () => { if (operation === current && !current.controller.signal.aborted) cancel(); };
     signal?.addEventListener("abort", externalAbort, { once: true });
     if (signal?.aborted) externalAbort();
     const timeout = setTimeout(() => { if (operation === current) cancel("timeout"); }, options.timeoutMs ?? STUDENT_SIGNUP_TIMEOUT_MS);

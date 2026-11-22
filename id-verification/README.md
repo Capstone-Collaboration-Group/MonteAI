@@ -3,9 +3,10 @@
 Standalone, camera-only student-ID verification for Colegio de Montalban. It runs as a Python 3.12
 Azure Function and is intentionally independent from the ASP.NET Core API in `../server/`.
 
-> **Pilot status:** the service is implemented and locally validated, but it has not been deployed or
-> integrated into registration. It supports only the `cdm-front-v1` front-side template. Do not call
-> this production-ready until representative held-out cards and Azure performance/cost are validated.
+> **Pilot status (2026-11-22):** the Function, main-API enforcement, and web/Android signup are
+> implemented, with user-confirmed local registration success. [Phase 6 release checks](docs/RELEASE_CHECKS.md)
+> pass offline; Azure deployment is deferred. Only `cdm-front-v1` is supported. Desktop student capture
+> and native iOS remain deferred, and production accuracy/privacy/performance/cost gates remain open.
 
 ## What it verifies
 
@@ -27,15 +28,20 @@ identity guarantee.
    capture in memory.
 4. A successful check returns a 10-minute RS256 receipt bound to UID, verified email, normalized
    student number/name, template version, and a unique receipt ID.
-5. Eventually, `POST /auth/register` will verify and atomically consume that receipt. This final step
-   is specified but **not implemented** in the main API yet.
+5. `POST /auth/register` verifies and atomically consumes that receipt with student creation. An
+   identical UID/receipt/draft retry is idempotent; production trust and migrations need separate approval.
+
+Clients treat receipts as opaque, sensitive **600-second** JWTs held only in signup closures. Never
+decode, inspect, display, log, persist, or put them into URLs.
 
 No capture or OCR text is intentionally written to files, Azure Blob/Table Storage, logs, or receipts.
 See [Security and privacy](docs/SECURITY_AND_PRIVACY.md) for exact lifecycle and limitations.
 
-## Local setup
+## Local setup — new, separately approved environments only
 
 Prerequisites: Python 3.12, Azurite (for quota storage), and optionally Azure Functions Core Tools 4.
+The commands below create dependencies, settings, and signing material. They were **not** part of
+Phase 6; do not run them over the preserved acceptance environment or regenerate existing keys.
 
 ```powershell
 cd id-verification
@@ -51,24 +57,25 @@ Merge the three generated values from `.secrets/signing-settings.json` into the 
 connection string. Start Azurite before running `func start`. Model download is a one-time build step;
 request-time OCR is offline.
 
-Run the camera-only demo from a separate terminal:
+Use the integrated web `/register` route or the approved Android development client, following
+[web acceptance](docs/WEB_SIGNUP_ACCEPTANCE.md) or [Android acceptance](docs/ANDROID_SIGNUP_ACCEPTANCE.md).
+Confirm the exact local API/database, origins, Firebase project, and signer/public trust before any
+separately authorized live capture. The ordinary API configuration targets nonlocal SQL.
 
-```powershell
-Copy-Item demo/config.example.js demo/config.js
-python -m http.server 8080 --directory demo
-```
-
-Fill `demo/config.js`, allow `http://localhost:8080` in `IDV_ALLOWED_ORIGINS`, and open
-`http://localhost:8080`. The demo has no file chooser and signs in only an existing Firebase test
-user. It displays a receipt for inspection; production clients must pass receipts directly to the API.
+**Do not use `demo/` with real accounts or captures.** This legacy demo displays a sensitive receipt,
+violates the supported client receipt boundary, and is excluded from the audited release ZIP. It is
+not a live-testing or deployment path.
 
 ## Verification
 
+Use existing dependencies and an existing Bicep CLI; substitute a new private output path below.
+This does not authorize installing tools or starting services. Opt-in integration counts matter.
+
 ```powershell
-.venv/Scripts/python.exe -m pytest
-.venv/Scripts/python.exe -m ruff check .
-.venv/Scripts/python.exe -m tools.prepare_models --check
-az bicep build --file infra/main.bicep
+.venv/Scripts/python.exe -B -m pytest --strict-markers -p no:cacheprovider
+.venv/Scripts/python.exe -B -m ruff check . --no-cache
+.venv/Scripts/python.exe -B -m tools.prepare_models --check
+bicep build infra/main.bicep --outfile <private-output>/main.json --no-restore
 ```
 
 Real Azure Table transaction semantics are tested against local Azurite when explicitly enabled:
@@ -78,8 +85,10 @@ $env:IDV_TEST_TABLE_CONNECTION_STRING = "UseDevelopmentStorage=true"
 .venv/Scripts/python.exe -m pytest -m integration
 ```
 
-Current local result: 82 tests pass, including live Azurite transactions and packaged offline OCR.
-Bicep builds with no diagnostics.
+Phase 6 on **2026-11-22**: **82/82 Function tests** pass, including four isolated local-Azurite tests
+and packaged offline OCR; Ruff and both model hashes pass. Existing Bicep CLI **0.49.2** compiles the
+template offline without diagnostics. Frontend, .NET contract, packaging, and scope results are in
+[the release checklist](docs/RELEASE_CHECKS.md). These are not Azure or full live-acceptance results.
 
 ### Supplied-photo pilot evaluation
 
@@ -103,12 +112,15 @@ so these results are not independent accuracy evidence.
 - `models/manifest.json` — public model URLs and SHA-256 pins; `.onnx` files are build artifacts
 - `function_app.py` — Azure Functions HTTP entry point
 - `infra/` — Southeast Asia Flex Consumption, storage/RBAC, and a $5 monthly alert budget
-- `demo/` — local camera-only browser demonstration
+- `demo/` — unsupported legacy demonstration; displays receipts and is excluded from release packaging
 - `tests/` — unit, cleanup, offline-model, concurrency, and Azurite integration checks
 - `tools/` — model preparation, key generation, packaging, sanitized artwork extraction, benchmarking
 
 ## Documentation
 
+- [Phase 6 release evidence and remaining gates](docs/RELEASE_CHECKS.md)
+- [Web signup acceptance](docs/WEB_SIGNUP_ACCEPTANCE.md)
+- [Android signup acceptance](docs/ANDROID_SIGNUP_ACCEPTANCE.md)
 - [HTTP and registration integration contract](docs/INTEGRATION.md)
 - [Azure deployment and operations](docs/DEPLOYMENT.md)
 - [Cost model and limits](docs/COSTS.md)

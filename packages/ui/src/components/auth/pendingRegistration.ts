@@ -9,6 +9,14 @@ export type PendingRegistration = {
 };
 
 const STORAGE_KEY = "monteai.pendingRegistration";
+// Safe profile/consent fields only. Active signup also works when storage is
+// blocked; a reload still requires the user to resubmit/resume their draft.
+let activePending: PendingRegistration | null | undefined;
+const listeners = new Set<() => void>();
+
+function publish(): void {
+  listeners.forEach(listener => { try { listener(); } catch { /* no diagnostics */ } });
+}
 
 function projectPending(value: unknown): PendingRegistration | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -55,8 +63,9 @@ export function getPendingRegistration(): PendingRegistration | null {
 }
 
 export function savePendingRegistration(pending: PendingRegistration): void {
+  activePending = projectPending(pending);
   const store = storage();
-  if (!store) return;
+  if (!store) { publish(); return; }
   try {
     const clean = projectPending(pending);
     store.removeItem(STORAGE_KEY);
@@ -64,19 +73,40 @@ export function savePendingRegistration(pending: PendingRegistration): void {
   } catch {
     // Storage full or blocked — resume-on-reload simply won't work.
   }
+  publish();
 }
 
 export function clearPendingRegistration(): void {
+  activePending = null;
   const store = storage();
-  if (!store) return;
+  if (!store) { publish(); return; }
   try {
     store.removeItem(STORAGE_KEY);
   } catch {
     // ignore
   }
+  publish();
 }
 
 export function hasPendingRegistrationFor(uid: string): boolean {
-  const pending = getPendingRegistration();
+  const pending = getActivePendingRegistration();
   return pending !== null && pending.uid === uid;
+}
+
+export function getActivePendingRegistration(): PendingRegistration | null {
+  return activePending === undefined ? getPendingRegistration() : projectPending(activePending);
+}
+
+export function subscribePendingRegistration(listener: () => void): () => void {
+  listeners.add(listener);
+  const changed = (event: StorageEvent) => {
+    if (event.key !== STORAGE_KEY && event.key !== null) return;
+    activePending = undefined;
+    listener(); // read/project actual storage, never retain the event's raw values
+  };
+  if (typeof window !== "undefined") window.addEventListener("storage", changed);
+  return () => {
+    listeners.delete(listener);
+    if (typeof window !== "undefined") window.removeEventListener("storage", changed);
+  };
 }
