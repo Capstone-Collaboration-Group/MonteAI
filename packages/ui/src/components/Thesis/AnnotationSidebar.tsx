@@ -26,6 +26,12 @@ interface AnnotationSidebarProps {
   isApproving?: boolean;
   onApprove?: (annotationId: string) => void;
   /**
+   * Admin bulk action: publishes every pending comment on this version in one
+   * click. Rendered in the header whenever there is something to approve, so
+   * the admin never has to approve a thesis's comments one by one.
+   */
+  onApproveAll?: () => void;
+  /**
    * Per-comment delete gate (default: allowed). Students may only remove
    * their own comments — anything authored by faculty, program heads or
    * admins is theirs alone to delete, so the trash action stays hidden.
@@ -231,6 +237,7 @@ export function AnnotationSidebar({
   isApproving = false,
   canDeleteAnnotation = () => true,
   onApprove,
+  onApproveAll,
   onResolve,
   onDelete,
   onJumpToPage,
@@ -239,6 +246,8 @@ export function AnnotationSidebar({
 
   const unresolved = annotations.filter((a) => !a.isResolved);
   const resolved = annotations.filter((a) => a.isResolved);
+  const pendingCount = annotations.filter((a) => isPending(a)).length;
+  const canApproveAll = canApprove && pendingCount > 0 && !!onApproveAll;
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -262,6 +271,21 @@ export function AnnotationSidebar({
             resolved
           </span>
         </div>
+
+        {/* One click publishes every pending comment on this version. */}
+        {canApproveAll && (
+          <button
+            type="button"
+            onClick={onApproveAll}
+            disabled={isApproving}
+            className="mt-3 flex w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-on-surface disabled:opacity-60"
+          >
+            <BadgeCheck className="h-4 w-4 shrink-0" />
+            {isApproving
+              ? "Approving…"
+              : `Approve all (${pendingCount})`}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 min-w-0 overflow-y-auto px-4 py-4">

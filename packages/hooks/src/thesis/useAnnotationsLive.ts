@@ -81,6 +81,23 @@ export function useApproveAnnotationLive(service: AnnotationService) {
     });
 }
 
+/**
+ * Admin bulk publication: approves every pending comment on the active
+ * thesis version in one request so the whole thesis is cleared at once.
+ * Resolves with the number of comments that were approved.
+ */
+export function useApproveAllAnnotationsLive(service: AnnotationService) {
+    return useMutation({
+        mutationFn: ({
+            thesisId,
+            thesisVersionId,
+        }: {
+            thesisId: string;
+            thesisVersionId: string;
+        }) => service.approveAllAnnotations(thesisId, thesisVersionId),
+    });
+}
+
 export function useResolveAnnotationLive(service: AnnotationService) {
     return useMutation({
         mutationFn: ({

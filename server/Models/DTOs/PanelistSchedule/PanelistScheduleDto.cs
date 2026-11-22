@@ -32,6 +32,10 @@ namespace server.Models.DTOs.PanelistSchedule
         // Display name resolved from the Faculty/ProgramHead/Admin tables by the
         // service layer — PanelistId alone is unreadable in the schedule UI.
         public string PanelistName { get; set; } = string.Empty;
+
+        // Defense-panel role captured when the panelist was assigned; echoed
+        // back by the edit modal so roles survive schedule updates.
+        public string? Role { get; set; }
     }
 
     // Enriched read model used by the panelist management UI: one entry per panelist

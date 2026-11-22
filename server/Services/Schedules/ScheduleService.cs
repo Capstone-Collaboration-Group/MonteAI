@@ -159,7 +159,8 @@ namespace server.Services.Schedules
                     {
                         ScheduleId = existing.ScheduleId,
                         PanelistId = incoming.PanelistId,
-                        PanelistType = incoming.PanelistType
+                        PanelistType = incoming.PanelistType,
+                        Role = incoming.Role
                     });
                     addedPanelistIds.Add(incoming.PanelistId);
                 }
@@ -167,6 +168,7 @@ namespace server.Services.Schedules
                 {
                     var match = updateDto.Panelists.First(p => p.PanelistId == kept.PanelistId);
                     kept.PanelistType = match.PanelistType;
+                    kept.Role = match.Role;
                 }
 
             } 
