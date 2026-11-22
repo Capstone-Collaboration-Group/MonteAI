@@ -89,6 +89,24 @@ function deferred(cleanupValue) {
   waits.add(wait);
   return wait;
 }
+function previewClock(t) {
+  // Deterministic startup deadlines without Node's experimental MockTimers API
+  // (its console warning would violate the runtime diagnostic guard).
+  let now = 0;
+  let serial = 0;
+  const timers = new Map();
+  t.mock.method(globalThis, 'setTimeout', (callback, delay, ...args) => {
+    const id = ++serial;
+    timers.set(id, { at: now + delay, run: () => callback(...args) });
+    return id;
+  });
+  t.mock.method(globalThis, 'clearTimeout', id => { timers.delete(id); });
+  return { tick(delay) {
+    now += delay;
+    [...timers].filter(([, timer]) => timer.at <= now).sort((a, b) => a[1].at - b[1].at)
+      .forEach(([id, timer]) => { if (timers.delete(id)) timer.run(); });
+  } };
+}
 async function flush() { await act(async () => { await setImmediate(); }); }
 async function fire(action) { await act(async () => { action(); await setImmediate(); }); }
 async function mount(element, strict = false) {
@@ -107,12 +125,16 @@ function text(node) {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
   return (node.children ?? []).map(text).join('');
 }
-function control(renderer, label) {
-  const matches = renderer.root.findAll(node => (node.type === 'Pressable' || node.type === 'Text') &&
+function matchingControls(renderer, label) {
+  return renderer.root.findAll(node => (node.type === 'Pressable' || node.type === 'Text') &&
     typeof node.props.onPress === 'function' && (node.props.accessibilityLabel === label || text(node) === label));
+}
+function control(renderer, label) {
+  const matches = matchingControls(renderer, label);
   assert.equal(matches.length, 1, `Expected one control: ${label}`);
   return matches[0];
 }
+function hasControl(renderer, label) { return matchingControls(renderer, label).length > 0; }
 async function press(renderer, label) {
   const node = control(renderer, label);
   assert.ok(!node.props.disabled, `Control must be enabled: ${label}`);
@@ -1010,20 +1032,26 @@ describe('Android capture component runtime', () => {
     assertNoSensitiveUi(f.renderer);
   });
 
-  test('stale native ready/error callbacks cannot enable or close a newer bounded camera mount', async () => {
+  test('bounded picture-size configuration keeps one native view and waits for its fresh ready callback', async () => {
     const f = await captureFixture();
     await press(f.renderer, 'These details match my printed student ID');
     await press(f.renderer, 'Open camera');
     const old = camera(f.renderer).props;
+    assert.ok(text(f.renderer.root).includes('Starting camera'));
     await fire(() => old.onCameraReady());
     assert.equal(camera(f.renderer).props.pictureSize, '2000x1500');
+    assert.equal(camera(f.renderer).props.testInstanceId, old.testInstanceId);
+    assert.deepEqual(runtime.cameraMounts, [old.testInstanceId]);
+    assert.deepEqual(runtime.cameraUnmounts, []);
+    assert.ok(text(f.renderer.root).includes('Configuring camera'));
     assert.ok(control(f.renderer, 'Capture front and register').props.disabled);
     await fire(() => { old.onCameraReady(); old.onMountError(); });
     assert.equal(cameras(f.renderer).length, 1);
     assert.ok(control(f.renderer, 'Capture front and register').props.disabled);
     const bounded = camera(f.renderer).props;
     await fire(() => bounded.onCameraReady());
-    await press(f.renderer, 'Cancel capture / close camera');
+    assert.ok(text(f.renderer.root).includes('Camera ready'));
+    await press(f.renderer, 'Close camera');
     await press(f.renderer, 'Open camera');
     await fire(() => { old.onMountError(); bounded.onMountError(); bounded.onCameraReady(); });
     assert.equal(cameras(f.renderer).length, 1);
@@ -1031,7 +1059,7 @@ describe('Android capture component runtime', () => {
     assert.equal(runtime.captureCalls, 0);
   });
 
-  test('a late size query from a closed preview cannot remount the new camera', async () => {
+  test('a late size query from a closed preview cannot reconfigure the new camera', async () => {
     const slow = deferred(['2000x1500']);
     let first = true;
     runtime.sizes = async () => { if (first) { first = false; return slow.promise; } return ['2000x1500']; };
@@ -1039,7 +1067,7 @@ describe('Android capture component runtime', () => {
     await press(f.renderer, 'These details match my printed student ID');
     await press(f.renderer, 'Open camera');
     await fire(() => camera(f.renderer).props.onCameraReady());
-    await press(f.renderer, 'Cancel capture / close camera');
+    await press(f.renderer, 'Close camera');
     await press(f.renderer, 'Open camera');
     const latestReady = camera(f.renderer).props.onCameraReady;
     slow.resolve(['1600x1200']);
@@ -1047,6 +1075,239 @@ describe('Android capture component runtime', () => {
     assert.equal(camera(f.renderer).props.onCameraReady, latestReady);
     assert.equal(camera(f.renderer).props.pictureSize, undefined);
   });
+
+  test('duplicate initial ready events cannot run overlapping size queries or enable an unconfigured still', async () => {
+    const slow = deferred(['2000x1500']);
+    let queries = 0;
+    runtime.sizes = async () => { queries++; return slow.promise; };
+    const f = await captureFixture();
+    await press(f.renderer, 'These details match my printed student ID');
+    await press(f.renderer, 'Open camera');
+    const initial = camera(f.renderer).props;
+    await fire(() => { initial.onCameraReady(); initial.onCameraReady(); });
+    assert.equal(queries, 1);
+    assert.ok(control(f.renderer, 'Capture front and register').props.disabled);
+    slow.resolve(['2000x1500']);
+    await flush();
+    assert.equal(camera(f.renderer).props.testInstanceId, initial.testInstanceId);
+    await fire(() => initial.onCameraReady());
+    assert.ok(control(f.renderer, 'Capture front and register').props.disabled);
+    assert.equal(queries, 1);
+    assert.equal(runtime.captureCalls, 0);
+  });
+
+  for (const failure of ['no-bounded-size', 'size-query-error']) {
+    test(`${failure} closes the preview with a safe error and requires an explicit reopen`, async () => {
+      runtime.sizes = async () => {
+        if (failure === 'size-query-error') throw new Error(SENSITIVE);
+        return ['8000x6000', '640x480'];
+      };
+      const f = await captureFixture();
+      await press(f.renderer, 'These details match my printed student ID');
+      await press(f.renderer, 'Open camera');
+      await fire(() => camera(f.renderer).props.onCameraReady());
+      assert.equal(cameras(f.renderer).length, 0);
+      assert.ok(text(f.renderer.root).includes('No bounded still-photo size'));
+      assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+      assert.equal(runtime.cameraMounts.length, 1);
+      assert.equal(runtime.captureCalls, 0);
+      assertNoSensitiveUi(f.renderer);
+    });
+  }
+
+  test('camera startup without a ready event times out closed, never captures or automatically reopens', async t => {
+    const f = await captureFixture();
+    await press(f.renderer, 'These details match my printed student ID');
+    const clock = previewClock(t);
+    await press(f.renderer, 'Open camera');
+    const stale = camera(f.renderer).props;
+    await fire(() => clock.tick(15_000));
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.ok(text(f.renderer.root).includes('Camera did not become ready'));
+    assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+    await fire(() => { stale.onCameraReady(); stale.onMountError(); });
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.equal(runtime.captureCalls, 0);
+  });
+
+  test('an old startup timer and callbacks cannot close a newly opened or ready camera', async t => {
+    const f = await captureFixture();
+    await press(f.renderer, 'These details match my printed student ID');
+    const clock = previewClock(t);
+    await press(f.renderer, 'Open camera');
+    const stale = camera(f.renderer).props;
+    await fire(() => clock.tick(10_000));
+    await press(f.renderer, 'Close camera');
+    await press(f.renderer, 'Open camera');
+    const nextId = camera(f.renderer).props.testInstanceId;
+    await fire(() => { clock.tick(5_000); stale.onCameraReady(); stale.onMountError(); });
+    assert.equal(camera(f.renderer).props.testInstanceId, nextId);
+    await fire(() => camera(f.renderer).props.onCameraReady());
+    await fire(() => camera(f.renderer).props.onCameraReady());
+    await fire(() => clock.tick(15_000));
+    assert.equal(camera(f.renderer).props.testInstanceId, nextId);
+    assert.equal(runtime.captureCalls, 0);
+  });
+
+  test('capture stays disabled until both the bounded camera and guide layout are ready', async () => {
+    const f = await captureFixture();
+    await press(f.renderer, 'These details match my printed student ID');
+    await press(f.renderer, 'Open camera');
+    await fire(() => camera(f.renderer).props.onCameraReady());
+    await fire(() => camera(f.renderer).props.onCameraReady());
+    assert.ok(control(f.renderer, 'Capture front and register').props.disabled);
+    const layout = f.renderer.root.find(node => node.type === 'View' && typeof node.props.onLayout === 'function');
+    await fire(() => layout.props.onLayout({ nativeEvent: { layout: preview } }));
+    assert.ok(!control(f.renderer, 'Capture front and register').props.disabled);
+    assert.equal(runtime.captureCalls, 0);
+  });
+
+  test('cancel opening keeps admission visibly blocked until its late account check settles', async () => {
+    const slow = deferred();
+    let checks = 0;
+    const f = await captureFixture({ async ensureVerifiedAccount() { checks++; await slow.promise; } });
+    await press(f.renderer, 'These details match my printed student ID');
+    const staleOpen = control(f.renderer, 'Open camera').props.onPress;
+    await press(f.renderer, 'Open camera');
+    assert.equal(cameras(f.renderer).length, 0);
+    await press(f.renderer, 'Cancel opening');
+    assert.ok(control(f.renderer, 'Open camera').props.disabled);
+    assert.ok(text(f.renderer.root).includes('Finishing cancelled work'));
+    assert.equal(hasControl(f.renderer, 'Cancel opening'), false);
+    await fire(() => staleOpen());
+    assert.equal(checks, 1);
+    slow.resolve();
+    await flush();
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+    await press(f.renderer, 'Open camera');
+    assert.equal(checks, 2);
+    assert.equal(cameras(f.renderer).length, 1);
+    assert.equal(runtime.captureCalls, 0);
+  });
+
+  test('a failed verified-account check releases Open for an explicit retry without mounting or exposing the exception', async () => {
+    let checks = 0;
+    const f = await captureFixture({ async ensureVerifiedAccount() { if (++checks === 1) throw new Error(SENSITIVE); } });
+    await press(f.renderer, 'These details match my printed student ID');
+    await press(f.renderer, 'Open camera');
+    assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.equal(hasControl(f.renderer, 'Cancel opening'), false);
+    assertNoSensitiveUi(f.renderer);
+    await press(f.renderer, 'Open camera');
+    assert.equal(checks, 2);
+    assert.equal(cameras(f.renderer).length, 1);
+    assert.equal(runtime.captureCalls, 0);
+  });
+
+  test('a stale capture button from a closed camera cannot allocate a still using the newer camera ref', async () => {
+    const f = await captureFixture();
+    await prepareCamera(f.renderer);
+    const staleCapture = control(f.renderer, 'Capture front and register').props.onPress;
+    await press(f.renderer, 'Close camera');
+    await press(f.renderer, 'Open camera');
+    await fire(() => camera(f.renderer).props.onCameraReady());
+    await fire(() => camera(f.renderer).props.onCameraReady());
+    await fire(() => staleCapture());
+    assert.equal(runtime.captureCalls, 0);
+    await press(f.renderer, 'Capture front and register');
+    assert.equal(runtime.captureCalls, 1);
+  });
+
+  for (const event of ['background', 'blur', 'route-blur', 'details-edit']) {
+    test(`${event} invalidates a pending camera open and returning never starts its late preview`, async () => {
+      const slow = deferred();
+      const f = await captureFixture({ async ensureVerifiedAccount() { await slow.promise; } });
+      await press(f.renderer, 'These details match my printed student ID');
+      await press(f.renderer, 'Open camera');
+      if (event === 'route-blur') { runtime.focused = false; await f.update(); runtime.focused = true; await f.update(); }
+      else if (event === 'details-edit') await f.update({ details: { ...pending, firstName: 'Maria  Ana' } });
+      else await fire(() => {
+        if (event === 'background') { runtime.emit('change', 'background'); runtime.emit('change', 'active'); }
+        else { runtime.emit('blur'); runtime.emit('focus'); }
+      });
+      assert.ok(control(f.renderer, 'Open camera').props.disabled);
+      slow.resolve();
+      await flush();
+      assert.equal(cameras(f.renderer).length, 0);
+      assert.equal(runtime.captureCalls, 0);
+      assert.equal(runtime.verificationCalls, 0);
+    });
+  }
+
+  test('idle, preview, and native-cancellation controls name only the action available now', async () => {
+    const slow = deferred(runtime.picture());
+    runtime.capture = async () => slow.promise;
+    const f = await captureFixture();
+    assert.equal(hasControl(f.renderer, 'Cancel capture / close camera'), false);
+    assert.equal(hasControl(f.renderer, 'Close camera'), false);
+    assert.equal(hasControl(f.renderer, 'Cancel capture'), false);
+    await prepareCamera(f.renderer);
+    assert.ok(!control(f.renderer, 'Close camera').props.disabled);
+    assert.equal(hasControl(f.renderer, 'Open camera'), false);
+    await press(f.renderer, 'Capture front and register');
+    assert.equal(hasControl(f.renderer, 'Close camera'), false);
+    await press(f.renderer, 'Cancel capture');
+    assert.ok(text(f.renderer.root).includes('Finishing cancelled work'));
+    assert.ok(control(f.renderer, 'Open camera').props.disabled);
+    assert.equal(hasControl(f.renderer, 'Cancel capture'), false);
+    assert.equal(cameras(f.renderer).length, 0);
+    slow.resolve(slow.cleanupValue);
+    await flush();
+    assert.deepEqual(runtime.nativeEvents, ['dispose', 'release']);
+    assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+    assert.equal(runtime.verificationCalls, 0);
+  });
+
+  test('the native watchdog shows cleanup progress and blocks reopening until late encoding is destructively disposed', async t => {
+    const image = runtime.jpeg();
+    const slow = deferred(image);
+    runtime.encode = async () => slow.promise;
+    const f = await captureFixture();
+    await prepareCamera(f.renderer);
+    const clock = previewClock(t);
+    await press(f.renderer, 'Capture front and register');
+    await fire(() => clock.tick(15_000));
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.ok(text(f.renderer.root).includes('Finishing cancelled work'));
+    assert.ok(control(f.renderer, 'Open camera').props.disabled);
+    assert.equal(hasControl(f.renderer, 'Cancel capture'), false);
+    assert.deepEqual(runtime.nativeEvents, ['encode']);
+    slow.resolve(image);
+    await flush();
+    assert.equal(image.imageBase64, '');
+    assert.deepEqual(runtime.nativeEvents, ['encode', 'dispose', 'release']);
+    assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+    assert.equal(runtime.verificationCalls, 0);
+    assertNoSensitiveUi(f.renderer);
+  });
+
+  for (const phase of ['verification', 'registration']) {
+    test(`cancel ${phase} has its own control, wipes owned payloads, and waits for cleanup without late navigation`, async () => {
+      const slow = deferred();
+      let abort;
+      if (phase === 'verification') runtime.verify = async (_request, _draft, signal) => {
+        abort = signal; await slow.promise; return { outcome: 'verified', receipt: 'synthetic-runtime-receipt',
+          expiresAt: new Date(Date.now() + 590_000).toISOString(), templateId: 'cdm-front-v1' };
+      };
+      else runtime.register = async (_profile, signal) => { abort = signal; await slow.promise; };
+      let registered = 0;
+      const f = await captureFixture({ onRegistered() { registered++; } });
+      await prepareCamera(f.renderer);
+      await press(f.renderer, 'Capture front and register');
+      await press(f.renderer, `Cancel ${phase}`);
+      assert.equal(abort.aborted, true);
+      assert.ok(text(f.renderer.root).includes('Finishing cancelled work'));
+      assert.ok(control(f.renderer, 'Open camera').props.disabled);
+      slow.resolve();
+      await flush();
+      assert.equal(registered, 0);
+      assert.equal(f.props.flow.getState().busy, false);
+      assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+      assertNoSensitiveUi(f.renderer);
+    });
+  }
 
   test('StrictMode replays use fresh, serialized screen-protection leases and leave one lifecycle subscription', async () => {
     const slow = deferred();
@@ -1073,7 +1334,7 @@ describe('Android capture component runtime', () => {
     runtime.permission = { granted: false, canAskAgain: false };
     const f = await captureFixture();
     await press(f.renderer, 'These details match my printed student ID');
-    assert.ok(control(f.renderer, 'Allow camera').props.disabled);
+    assert.ok(control(f.renderer, 'Open Android settings').props.disabled);
     assert.ok(control(f.renderer, 'Open camera').props.disabled);
     assert.equal(runtime.permissionRequests, 0);
     assert.equal(cameras(f.renderer).length, 0);
@@ -1085,14 +1346,182 @@ describe('Android capture component runtime', () => {
     const f = await captureFixture();
     await prepareCamera(f.renderer);
     runtime.permission = { granted: false, canAskAgain: true };
-    await f.update();
+    await fire(() => { runtime.emit('blur'); runtime.emit('focus'); });
     assert.equal(cameras(f.renderer).length, 0);
     runtime.permission = { granted: true, canAskAgain: true };
-    await f.update();
+    await fire(() => { runtime.emit('change', 'background'); runtime.emit('change', 'active'); });
     assert.equal(cameras(f.renderer).length, 0);
     assert.equal(runtime.captureCalls, 0);
     assert.equal(runtime.permissionRequests, 0);
   });
+
+  test('a requestable prompt denial re-enables Allow camera after one single-flight user request', async () => {
+    runtime.permission = { granted: false, canAskAgain: true };
+    const slow = deferred({ granted: false, canAskAgain: true });
+    runtime.requestPermission = async () => slow.promise;
+    const f = await captureFixture();
+    const request = control(f.renderer, 'Allow camera').props.onPress;
+    await press(f.renderer, 'Allow camera');
+    assert.ok(control(f.renderer, 'Allow camera').props.disabled);
+    await fire(() => request());
+    assert.equal(runtime.permissionRequests, 1);
+    slow.resolve(slow.cleanupValue);
+    await flush();
+    assert.ok(!control(f.renderer, 'Allow camera').props.disabled);
+    assert.equal(hasControl(f.renderer, 'Open Android settings'), false);
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.equal(runtime.captureCalls, 0);
+  });
+
+  test('permanent prompt denial replaces Allow camera with an enabled, explicitly operated Settings action', async () => {
+    runtime.permission = { granted: false, canAskAgain: true };
+    runtime.requestPermission = async () => {
+      runtime.permission = { granted: false, canAskAgain: false };
+      return { ...runtime.permission };
+    };
+    const f = await captureFixture();
+    await press(f.renderer, 'These details match my printed student ID');
+    await press(f.renderer, 'Allow camera');
+    assert.equal(hasControl(f.renderer, 'Allow camera'), false);
+    assert.ok(!control(f.renderer, 'Open Android settings').props.disabled);
+    assert.equal(runtime.settingsOpens, 0);
+    await press(f.renderer, 'Open Android settings');
+    assert.equal(runtime.settingsOpens, 1);
+    assert.equal(runtime.permissionRequests, 1);
+    assert.equal(cameras(f.renderer).length, 0);
+    await fire(() => runtime.emit('blur'));
+    runtime.permission = { granted: true, canAskAgain: true };
+    await fire(() => runtime.emit('focus'));
+    assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.equal(runtime.permissionRequests, 1);
+    assert.equal(runtime.settingsOpens, 1);
+  });
+
+  for (const restoration of ['foreground', 'window-focus', 'route-focus', 'enabled-screen']) {
+    test(`${restoration} explicitly refreshes Expo's cached denied permission without asking or reopening`, async () => {
+      runtime.permission = { granted: false, canAskAgain: false };
+      const f = await captureFixture();
+      await press(f.renderer, 'These details match my printed student ID');
+      const baseline = runtime.permissionReads;
+      runtime.permission = { granted: true, canAskAgain: true };
+      await f.update(); // An ordinary render must not magically refresh the SDK cache.
+      assert.ok(control(f.renderer, 'Open camera').props.disabled);
+      if (restoration === 'foreground') await fire(() => { runtime.emit('change', 'background'); runtime.emit('change', 'active'); });
+      else if (restoration === 'window-focus') await fire(() => { runtime.emit('blur'); runtime.emit('focus'); });
+      else if (restoration === 'route-focus') {
+        runtime.focused = false; await f.update(); runtime.focused = true; await f.update();
+      } else { await f.update({ enabled: false }); await f.update({ enabled: true }); }
+      assert.ok(runtime.permissionReads > baseline);
+      assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+      assert.equal(cameras(f.renderer).length, 0);
+      assert.equal(runtime.permissionRequests, 0);
+      assert.equal(runtime.settingsOpens, 0);
+    });
+  }
+
+  test('an explicit permission recheck recovers Settings changes even if the OS emitted no lifecycle event', async () => {
+    runtime.permission = { granted: false, canAskAgain: false };
+    const f = await captureFixture();
+    await press(f.renderer, 'These details match my printed student ID');
+    runtime.permission = { granted: true, canAskAgain: true };
+    await press(f.renderer, 'Check camera permission');
+    assert.ok(!control(f.renderer, 'Open camera').props.disabled);
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.equal(runtime.permissionRequests, 0);
+  });
+
+  test('a stale granted permission read after window blur is ignored and followed by one current denied read', async () => {
+    const slow = deferred({ granted: true, canAskAgain: true });
+    let first = true;
+    runtime.getPermission = async () => {
+      if (first) { first = false; return slow.promise; }
+      return { ...runtime.permission };
+    };
+    const f = await captureFixture();
+    assert.ok(control(f.renderer, 'Check camera permission').props.disabled);
+    await fire(() => runtime.emit('blur'));
+    runtime.permission = { granted: false, canAskAgain: false };
+    await fire(() => runtime.emit('focus'));
+    assert.equal(runtime.permissionReads, 1);
+    slow.resolve(slow.cleanupValue);
+    await flush();
+    assert.equal(runtime.permissionReads, 2);
+    assert.ok(!control(f.renderer, 'Open Android settings').props.disabled);
+    assert.ok(control(f.renderer, 'Open camera').props.disabled);
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.equal(runtime.permissionRequests, 0);
+  });
+
+  test('a queued permission read belongs to the replacement flow, not the obsolete getter callback', async () => {
+    const slow = deferred({ granted: true, canAskAgain: true });
+    let first = true;
+    runtime.getPermission = async () => {
+      if (first) { first = false; return slow.promise; }
+      return { ...runtime.permission };
+    };
+    const f = await captureFixture();
+    const next = signupFlow();
+    runtime.register = async () => { throw new RegistrationError('service_unavailable'); };
+    await fire(() => { void next.verifyAndRegister(runtime.jpeg()).catch(() => {}); });
+    assert.equal(next.getState().phase, 'retry-registration');
+    await f.update({ flow: next });
+    runtime.permission = { granted: false, canAskAgain: false };
+    slow.resolve(slow.cleanupValue);
+    await flush();
+    assert.equal(runtime.permissionReads, 2);
+    assert.equal(next.getState().phase, 'ready');
+    await assert.rejects(next.retryRegistration(), assertSafeError('invalid_receipt'));
+    assert.equal(cameras(f.renderer).length, 0);
+    assertNoSensitiveUi(f.renderer);
+  });
+
+  test('permission-prompt blur/focus queues a current getter, never overlaps or repeats the permission request', async () => {
+    runtime.permission = { granted: false, canAskAgain: true };
+    const slow = deferred({ granted: true, canAskAgain: true });
+    runtime.requestPermission = async () => slow.promise;
+    const f = await captureFixture();
+    const baseline = runtime.permissionReads;
+    await press(f.renderer, 'Allow camera');
+    await fire(() => { runtime.emit('blur'); runtime.emit('focus'); });
+    assert.equal(runtime.permissionReads, baseline);
+    assert.equal(runtime.permissionRequests, 1);
+    runtime.permission = { granted: false, canAskAgain: false };
+    slow.resolve(slow.cleanupValue);
+    await flush();
+    assert.equal(runtime.permissionReads, baseline + 1);
+    assert.equal(runtime.permissionRequests, 1);
+    assert.ok(!control(f.renderer, 'Open Android settings').props.disabled);
+    assert.equal(cameras(f.renderer).length, 0);
+  });
+
+  test('explicit open rechecks permission instead of trusting an old granted SDK cache', async () => {
+    const f = await captureFixture();
+    await press(f.renderer, 'These details match my printed student ID');
+    const baseline = runtime.permissionReads;
+    runtime.permission = { granted: false, canAskAgain: false };
+    await press(f.renderer, 'Open camera');
+    assert.ok(runtime.permissionReads > baseline);
+    assert.equal(cameras(f.renderer).length, 0);
+    assert.ok(!control(f.renderer, 'Open Android settings').props.disabled);
+    assert.equal(runtime.permissionRequests, 0);
+  });
+
+  for (const method of ['get', 'request', 'settings']) {
+    test(`failed permission ${method} exposes a safe message and releases its manual recovery control`, async () => {
+      runtime.permission = { granted: false, canAskAgain: method !== 'settings' };
+      if (method === 'get') runtime.getPermission = async () => { throw new Error(SENSITIVE); };
+      else if (method === 'request') runtime.requestPermission = async () => { throw new Error(SENSITIVE); };
+      else runtime.openSettings = async () => { throw new Error(SENSITIVE); };
+      const f = await captureFixture();
+      const label = method === 'get' ? 'Check camera permission' : method === 'request' ? 'Allow camera' : 'Open Android settings';
+      await press(f.renderer, label);
+      assert.ok(!control(f.renderer, label).props.disabled);
+      assert.ok(text(f.renderer.root).includes(method === 'settings' ? 'Android settings could not be opened' : 'Camera permission could not be'));
+      assert.equal(cameras(f.renderer).length, 0);
+      assertNoSensitiveUi(f.renderer);
+    });
+  }
 
   for (const event of ['background', 'blur', 'route-blur']) {
     test(`${event} after encoding cancels verification; returning focus never reopens the preview or submits a late receipt`, async () => {
@@ -1174,6 +1603,31 @@ describe('Android capture component runtime', () => {
     assert.equal(runtime.captureCalls, 1);
     assert.equal(runtime.verificationCalls, 1);
     assert.equal(registered, 1);
+  });
+
+  test('cancellation at registration-retry completion invalidates late client navigation even if the controller already completed', async () => {
+    let attempts = 0;
+    const slow = deferred();
+    runtime.register = async () => {
+      if (++attempts === 1) throw new RegistrationError('service_unavailable');
+      await slow.promise;
+    };
+    let registered = 0;
+    const f = await captureFixture({ onRegistered() { registered++; } });
+    await prepareCamera(f.renderer);
+    await press(f.renderer, 'Capture front and register');
+    await press(f.renderer, 'Retry registration (no new photo)');
+    const cancel = control(f.renderer, 'Cancel registration').props.onPress;
+    const stop = f.props.flow.subscribe(value => { if (value.phase === 'complete') cancel(); });
+    slow.resolve();
+    await flush();
+    stop();
+    assert.equal(f.props.flow.getState().phase, 'complete'); // Client cancellation is not remote rollback.
+    assert.equal(f.props.flow.getState().busy, false);
+    assert.equal(registered, 0);
+    assert.equal(runtime.captureCalls, 1);
+    assert.equal(runtime.verificationCalls, 1);
+    assertNoSensitiveUi(f.renderer);
   });
 
   test('editing the printed details drops retry admission and requires explicit reconfirmation', async () => {

@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 // Every token/receipt/image below is synthetic. Nothing contacts an SDK/service
 // or writes a file; AsyncStorage is a Map owned by each runtime test fixture.
@@ -13,7 +13,12 @@ export const runtime = {
     firebaseAuth.currentUser = null;
     this.platform = 'android'; this.focused = true; this.store = new Map();
     this.permission = { granted: true, canAskAgain: true };
-    this.permissionRequests = 0; this.captureCalls = 0; this.verificationCalls = 0;
+    this.permissionRequests = 0; this.permissionReads = 0; this.settingsOpens = 0;
+    this.getPermission = async () => ({ ...this.permission });
+    this.requestPermission = async () => ({ ...this.permission });
+    this.openSettings = async () => {};
+    this.cameraInstanceSerial = 0; this.cameraMounts = []; this.cameraUnmounts = [];
+    this.captureCalls = 0; this.verificationCalls = 0;
     this.createCalls = 0; this.passwordSignIns = 0; this.registrationCalls = 0; this.freshCalls = 0; this.checks = 0;
     this.resends = 0; this.deletes = 0; this.signOuts = 0; this.mfaChallenges = 0; this.mfaClears = 0;
     this.nativeEvents = []; this.navigation = []; this.protectionEvents = []; this.storageEvents = [];
@@ -86,6 +91,7 @@ export const SafeAreaView = 'SafeAreaView';
 export const MaterialIcons = 'MaterialIcons';
 export function Modal({ visible, children, ...props }) { return visible ? React.createElement('Modal', props, children) : null; }
 export const Alert = { alert: (...args) => { runtime.alert = args; } };
+export const Linking = { async openSettings() { runtime.settingsOpens++; await runtime.openSettings(); } };
 export const AppState = {
   currentState: 'active',
   addEventListener(type, listener) {
@@ -101,14 +107,41 @@ export function useIsFocused() { return runtime.focused; }
 export function useThemeColor() { return '#123456'; }
 
 export const CameraView = forwardRef(function CameraView(props, ref) {
-  useImperativeHandle(ref, () => ({
+  const [instance] = useState(() => ({
+    id: ++runtime.cameraInstanceSerial,
     takePictureAsync: async options => { runtime.captureCalls++; return runtime.capture(options); },
     getAvailablePictureSizesAsync: () => runtime.sizes(),
-  }), []);
-  return React.createElement('CameraView', props);
+  }));
+  useImperativeHandle(ref, () => instance, [instance]);
+  useEffect(() => {
+    runtime.cameraMounts.push(instance.id);
+    return () => { runtime.cameraUnmounts.push(instance.id); };
+  }, [instance]);
+  return React.createElement('CameraView', { ...props, testInstanceId: instance.id });
 });
-export function useCameraPermissions() {
-  return [runtime.permission, async () => { runtime.permissionRequests++; return runtime.permission; }];
+export function useCameraPermissions({ get = true, request = false } = {}) {
+  // Match Expo's cached hook: mutating the OS fixture does NOT refresh React
+  // state. Only the getter/requester updates it, including after a prompt denial.
+  const mounted = useRef(true);
+  const [permission, setPermission] = useState(null);
+  const getPermission = useCallback(async () => {
+    runtime.permissionReads++;
+    const response = await runtime.getPermission();
+    if (mounted.current) setPermission(response);
+    return response;
+  }, []);
+  const requestPermission = useCallback(async () => {
+    runtime.permissionRequests++;
+    const response = await runtime.requestPermission();
+    if (mounted.current) setPermission(response);
+    return response;
+  }, []);
+  useEffect(() => {
+    if (request) void requestPermission();
+    if (!request && get) void getPermission();
+  }, [get, request, getPermission, requestPermission]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  return [permission, requestPermission, getPermission];
 }
 export async function preventScreenCaptureAsync(key) { runtime.protectionEvents.push(['prevent', key]); await runtime.prevent(key); }
 export async function allowScreenCaptureAsync(key) { runtime.protectionEvents.push(['allow', key]); await runtime.allow(key); }

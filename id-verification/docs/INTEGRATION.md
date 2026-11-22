@@ -125,6 +125,13 @@ The capture/encoding watchdog remains 15 seconds. Android signup gives only the 
 proof retains its total 15-second deadline. Further still allocations remain blocked until cancelled
 native cleanup settles, including across route remounts.
 
+Android signup explicitly rereads camera permission on foreground/focus, before opening, and on manual
+check. Permission requests remain user-operated: requestable denial permits another **Allow camera**;
+permanent denial offers **Open Android settings** and **Check camera permission**. Neither restoration
+nor a getter opens the camera. Bounded `pictureSize` reconfigures one native view with a stable ref;
+capture waits for current readiness and guide layout. A separate 15-second preview-start watchdog
+allocates no still. Cancellation controls name the active stage and visibly wait for real cleanup.
+
 Ordinary Expo `takePictureAsync` can create a cache file even without gallery access.
 **Capture followed by file deletion does not meet this project's no-persistence requirement.** Keep
 `expo-camera` pinned to **17.0.10**, with `pictureRef: true`, `skipProcessing: false`, `exif: false`, and
@@ -135,9 +142,18 @@ See [the Phase-2 source audit and accepted physical-camera evidence](ANDROID_CAP
 
 The Phase-2 proof passed on **2026-11-19** on the tested TECNO LJ8k (Android API 35), but made no
 verification/registration request. Phase-3 synthetic coverage, configuration prerequisites, privacy
-limits, and the entirely pending live matrix are recorded in
-[Android signup acceptance](ANDROID_SIGNUP_ACCEPTANCE.md). No Azure deployment or production database
-change is authorized by either phase.
+limits, and the live matrix are recorded in [Android signup acceptance](ANDROID_SIGNUP_ACCEPTANCE.md).
+The first user-operated happy path passed on **2026-11-22** with reported registration completion and
+guarded local counts of **1 student / 1 receipt consumption** from a zero baseline. A subsequent bulk
+**ALL PASSED** report also identified prompt-denial recovery, cancellation-control, and first-preview
+problems; it is not full sign-off. The uncommitted follow-up passed **191 signup / 62 registration /
+50 capture** offline tests on 2026-11-22, plus all typechecks and lint with only existing warnings.
+After approved preview-only preflight and handoff, the user reported **All is working now** and asked to
+move on. The camera UI issues are recorded as user-confirmed resolved without inventing structured
+per-branch results; further device tests are stopped. The physical black-preview cause remains unproven.
+Other live scenarios and dedicated fault/privacy/cleanup observations remain separately unevidenced;
+the general confirmation does not pass them. No Azure deployment or production database change is
+authorized by either phase.
 
 The server remains authoritative: client-side email verification, pattern checks, and capture guides
 are usability checks, not security controls.
@@ -179,15 +195,18 @@ IdVerification:AllowedTemplateIds:0                 = cdm-front-v1
 ```
 
 Verify the public key matches the active signer before trusting it. Do not copy the private signing key
-into the API, replace existing development keys, deploy, or run production migrations as part of this
-local foundation work. Production must use separate signing/HMAC material and its deployed issuer.
+into the API, silently replace existing development keys, deploy, or run production migrations as part
+of local foundation work. The separately approved 2026-11-21 development-only rotation is recorded in
+[the Android acceptance setup](ANDROID_SIGNUP_ACCEPTANCE.md#approved-local-live-setup-2026-11-21).
+Production must use separate signing/HMAC material and its deployed issuer.
 
 Android additionally requires `EXPO_PUBLIC_ID_VERIFICATION_ENDPOINT` as the **full** verification URL
 and `EXPO_PUBLIC_API_BASE_URL` as the main API's `/api/v1` base URL. Verification and registration share
 `EXPO_PUBLIC_USE_MOCK`; real service failures or missing live configuration never fall back to mock.
 See [the mobile setup instructions](../../apps/mobile/README.md). The recorded development audit found
-the verification endpoint missing and the API database nonlocal; an approved endpoint/API/database
-target and a separate decision on exposed development-key rotation are required before live acceptance.
+the verification endpoint missing and the API database nonlocal. The approved local acceptance process
+now uses isolated loopback endpoints and a dedicated local database; normal development configuration
+is not redirected. Other live targets still require separate endpoint/database and key approvals.
 
 ### Local regression checks
 

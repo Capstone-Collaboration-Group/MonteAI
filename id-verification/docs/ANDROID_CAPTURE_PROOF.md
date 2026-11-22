@@ -237,4 +237,9 @@ Native JPEG tests alone do **not** prove physical-camera acquisition, and host f
 prove native encoding. Zero-write results remain scoped observations, not a universal filesystem
 guarantee. No iOS evidence is required under the agreed Android-only scope. Later mobile signup, web,
 and desktop integration still require separate phases. No Azure deployment, database change, or
-signing-key replacement occurred; all Phase-2 changes remain uncommitted.
+signing-key replacement occurred at the 2026-11-19 checkpoint. Phase-2/Phase-3 implementation was later
+committed as `0c7fa1a`; current live-signup setup, uncommitted permission/control/first-preview follow-up,
+and pending device evidence are tracked separately in
+[the Android signup acceptance document](ANDROID_SIGNUP_ACCEPTANCE.md).
+The Phase-2 pass does not verify those later signup UI fixes; preview-only retests cannot establish
+native/transport cancellation or whole-signup privacy.

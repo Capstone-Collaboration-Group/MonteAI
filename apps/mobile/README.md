@@ -41,9 +41,22 @@ unchanged. A pending signup is gated from the normal session even when Firebase 
 - Background, Android window blur, route blur/unmount, cancellation, edits, and account changes discard
   verification and close the preview. Focus/permission restoration never automatically opens it.
   Cancelled native work retains its cleanup owner and blocks new stills until cleanup settles.
+- Permission is explicitly rechecked instead of trusting Expo's cached hook. A requestable denial offers
+  **Allow camera** again; permanent denial offers user-operated **Open Android settings** and
+  **Check camera permission**. Bounded photo-size updates keep one camera view; startup has visible
+  progress and a separate 15-second preview deadline, with capture gated on readiness and guide layout.
+  Cancellation controls name the current stage and show cleanup progress before reopening is allowed.
 
-The implementation and synthetic checks are complete, but **live Firebase/OCR/registration acceptance
-is pending**. See the [integration contract](../../id-verification/docs/INTEGRATION.md) and
+The first user-operated live happy path passed on **2026-11-22** with reported registration success
+and guarded local counts of **1 student / 1 receipt consumption** from a zero baseline. **Full live
+Firebase/OCR/registration acceptance is still pending**. A later bulk **ALL PASSED** report also identified
+permission-denial recovery, confusing controls, and a black first preview. The uncommitted follow-up
+passes **191 signup / 62 registration / 50 capture** offline tests. After approved preview-only preflight
+and handoff, the user reported **All is working now** and asked to move on. The UI issues are recorded as
+user-confirmed resolved; further retests are stopped. This combined report does not establish separately
+unevidenced fault/privacy/cleanup scenarios. New accounts, shutter tests, faults, observers, and cleanup
+still require their own approval.
+See the [integration contract](../../id-verification/docs/INTEGRATION.md) and
 [Phase-3 acceptance matrix](../../id-verification/docs/ANDROID_SIGNUP_ACCEPTANCE.md).
 
 ### Local configuration
@@ -67,11 +80,13 @@ toggle is absent; live acceptance must explicitly use `false`. Mock mode still u
 but does not upload its capture or perform live registration and is not live-identity evidence. Missing
 `EXPO_PUBLIC_ID_VERIFICATION_ENDPOINT` in live mode disables capture and fails closed.
 
-The last read-only audit found explicit live mode, no verification endpoint, and a main API targeting
-a nonlocal database. Obtain approved verification/API/database targets before a live test; do not use
-an existing production database by assumption. Existing development trust was not replaced, and
-exposed development signing/HMAC material needs a separate rotation decision. Production requires
-separate signing/HMAC material and its deployed issuer; no deployment/migration is part of this work.
+The earlier read-only audit found explicit live mode, no verification endpoint, and a main API targeting
+a nonlocal database. The approved 2026-11-21 local acceptance setup uses process-only endpoint overrides
+and a dedicated local database, plus separately approved development-key rotation; see the
+[current Phase-3 setup](../../id-verification/docs/ANDROID_SIGNUP_ACCEPTANCE.md#approved-local-live-setup-2026-11-21).
+Other targets still require approval; do not use an existing production database by assumption.
+Production requires separate signing/HMAC material and its deployed issuer. No Azure deployment or
+production migration is authorized by the local acceptance setup.
 
 ## Isolated Android capture proof (Phase 2)
 
@@ -101,4 +116,6 @@ git diff --check
 
 Signup runtime tests render actual TS/TSX with development-only `react-test-renderer@19.1.0`.
 Native/Firebase/service boundaries are synthetic, storage is in memory, and non-fixture network
-requests are blocked. See the Phase-3 document for counts, coverage limits, and the pending live matrix.
+requests are blocked. Cached permission and stable camera-instance mocks guard the recovery/startup
+changes; synthetic readiness cannot prove preview pixels on a device. See the Phase-3 document for
+counts, coverage limits, and the pending live matrix.
