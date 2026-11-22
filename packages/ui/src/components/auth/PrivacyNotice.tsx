@@ -72,7 +72,7 @@ export function PrivacyNotice({
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              Account information, including your name, institutional email,
+              Account information, including your name, email address,
               student number (if applicable), institute, program, year, and
               section, is stored in account records to create and manage your
               account.

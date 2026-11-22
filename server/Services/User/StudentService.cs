@@ -21,25 +21,6 @@ namespace server.Services.User
             _mapper = mapper;
         }
 
-        public async Task<UserResponseDto> RegisterAsync(RegisterUserDto dto, string firebaseUid)
-        {
-            var student = _mapper.Map<Student>(dto);
-            student.Id = firebaseUid;
-            student.IsActive = true;
-            student.PrivacyNoticeVersion = dto.PrivacyNoticeVersion;
-            student.PrivacyNoticeAcceptedAt = DateTime.UtcNow;
-            student.TermsVersion = dto.TermsVersion;
-            student.TermsAcceptedAt = DateTime.UtcNow;
-            student.CreatedAt = DateTime.UtcNow;
-            student.UpdatedAt = DateTime.UtcNow;
-
-            await _repo.CreateAsync(student);
-
-            _logger.LogInformation("Student Registered: {Id}", firebaseUid);
-
-            return _mapper.Map<UserResponseDto>(student);
-        }
-
         public async Task<UserResponseDto?> GetByIdAsync(string id)
         {
             var student = await _repo.GetByIdAsync(id);

@@ -6,3 +6,5 @@ export * from "./truncate";
 export * from "./cn";
 export * from "./fullNameHelper";
 export * from "./emailRules";
+export * from "./registrationDraft";
+export * from "./registrationReceipt";

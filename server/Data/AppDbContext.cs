@@ -27,6 +27,7 @@ namespace server.Data
         public DbSet<ThesisVersion> ThesisVersions { get; set; }
 
         public DbSet<ActivityLog> ActivityLogs { get; set; }
+        public DbSet<ConsumedIdVerificationReceipt> ConsumedIdVerificationReceipts { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -90,6 +91,25 @@ namespace server.Data
                 entity.Property(e => e.Section)
                       .HasMaxLength(1);
                 ConfigureTotp(entity);
+            });
+
+            modelBuilder.Entity<ConsumedIdVerificationReceipt>(entity =>
+            {
+                entity.ToTable("ConsumedIdVerificationReceipts");
+                entity.HasKey(e => e.Jti);
+                entity.Property(e => e.Jti)
+                      .HasMaxLength(36)
+                      .ValueGeneratedNever();
+                entity.Property(e => e.FirebaseUid)
+                      .HasMaxLength(128)
+                      .IsRequired();
+                entity.Property(e => e.RegistrationFingerprint)
+                      .HasMaxLength(64)
+                      .IsRequired();
+                entity.Property(e => e.TemplateId)
+                      .HasMaxLength(64)
+                      .IsRequired();
+                entity.HasIndex(e => e.FirebaseUid);
             });
 
             modelBuilder.Entity<ResearchGroup>(entity =>

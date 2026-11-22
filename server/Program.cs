@@ -208,13 +208,17 @@ try
             policy.RequireRole("Student", "Faculty", "Admin", "ProgramHead"));
 
         options.AddPolicy("FirebaseAuthenticated", policy =>
-            policy.RequireAuthenticatedUser());
+            policy.RequireAuthenticatedUser()
+                  .RequireClaim(FirebaseAuthMiddleware.AuthMethodClaim, FirebaseAuthMiddleware.AuthMethodFirebase)
+                  .RequireClaim("email_verified", "true"));
     });
     builder.Services.AddHttpContextAccessor();
 
     // --- TOTP MFA ---
     builder.Services.Configure<server.Configuration.AuthOptions>(
         builder.Configuration.GetSection(server.Configuration.AuthOptions.SectionName));
+    builder.Services.Configure<IdVerificationOptions>(
+        builder.Configuration.GetSection(IdVerificationOptions.SectionName));
     // Dev/test fallback: generate an ephemeral signing key so the server boots
     // without user-secrets setup. Tokens do not survive a restart (fine in dev).
     if (string.IsNullOrWhiteSpace(builder.Configuration[$"{server.Configuration.AuthOptions.SectionName}:JwtSigningKey"]))
@@ -341,6 +345,8 @@ try
     );
 
     builder.Services.AddScoped<IFirebaseTokenVerifier, FirebaseAuthVerifier>();
+    // Parse and retain only configured public receipt keys once per process.
+    builder.Services.AddSingleton<IIdVerificationReceiptValidator, IdVerificationReceiptValidator>();
 
     builder.Services.AddSingleton<IBlobService, BlobService>();
 

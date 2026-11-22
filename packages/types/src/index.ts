@@ -18,6 +18,7 @@ export * from "./theme";
 export * from "./thesis";
 export * from "./user";
 export * from "./auth";
+export * from "./id-verification";
 export * from "./mfa";
 export * from "./mfa-flow";
 export * from "./member-row";

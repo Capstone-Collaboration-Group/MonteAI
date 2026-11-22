@@ -3,9 +3,9 @@
 // Real authentication pipeline for the mobile app:
 //   1. POST /auth/resolve-login  (anonymous) — student number → Firebase email
 //   2. Firebase email/password sign-in (session persists via AsyncStorage)
-//   3. Sign-up runs in two phases: create the Firebase account + send the
-//      Firebase email-verification link, then (once verified) register the
-//      profile server-side via POST /auth/register.
+//   3. Android signup creates/resumes Firebase + verifies email, then uses
+//      front-ID RAM capture/verification before receipt-bearing profile
+//      registration via POST /auth/register.
 //   4. AuthSessionContext mirrors onAuthStateChanged for routing
 //
 // The token accessors below are shared by every service module in lib/
@@ -24,6 +24,8 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
+import type { RegisterUserRequest } from '@monteai/types';
+import { createAuthService, createFirebaseTokenAccessors, sanitizeRegistrationError } from '@monteai/api';
 import { firebaseAuth } from './firebase';
 import { getMfaAccessToken, refreshMfaAccessToken } from './mfaSession';
 
@@ -56,18 +58,22 @@ interface ResolveLoginResponse {
   email: string;
 }
 
+// Signup/ID verification must bypass the generic MFA-preferred accessors below.
+export const { getFirebaseIdToken, refreshFirebaseIdToken, getFreshFirebaseIdToken } =
+  createFirebaseTokenAccessors(firebaseAuth);
+
 /** Bearer token for authenticated API calls (cached ~1h by the SDK). */
 export async function getAuthToken(): Promise<string | undefined> {
   const mfaToken = await getMfaAccessToken();
   if (mfaToken) return mfaToken;
-  return firebaseAuth.currentUser?.getIdToken();
+  return getFirebaseIdToken();
 }
 
 /** Force-refreshed token — used by the API client's 401 retry path. */
 export async function refreshAuthToken(): Promise<string | undefined> {
   const mfaToken = await refreshMfaAccessToken();
   if (mfaToken) return mfaToken;
-  return firebaseAuth.currentUser?.getIdToken(true);
+  return refreshFirebaseIdToken();
 }
 
 /**
@@ -119,39 +125,31 @@ export async function createStudentAccount(input: {
 }
 
 /**
- * Phase 2 of sign-up: registers the student profile server-side with the
+ * Final sign-up step: registers the student profile server-side with the
  * verified account's fresh Firebase Bearer token (POST /auth/register,
  * which requires the token — the server owns the student-number → email
  * mapping future logins depend on). Requires a signed-in, verified user.
  */
 export async function completeProfileRegistration(input: {
-  buildProfile: (uid: string) => Record<string, unknown>;
+  profile: RegisterUserRequest;
+  signal?: AbortSignal;
 }): Promise<User> {
-  const user = firebaseAuth.currentUser;
-  if (!user) throw authError('auth/no-current-user');
-  if (!user.emailVerified) throw authError(EMAIL_NOT_VERIFIED_CODE);
-
-  const token = await user.getIdToken();
   try {
-    await axios.post(`${baseURL}/auth/register`, input.buildProfile(user.uid), {
-      timeout: 10000,
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    // Bare client + the shared Firebase-only registration method: no MFA
+    // interceptor, automatic receipt retries, or unsafe request diagnostics.
+    const client = axios.create({ baseURL, timeout: 10000, headers: { 'Content-Type': 'application/json' } });
+    await createAuthService(client, firebaseAuth).register(input.profile, { signal: input.signal });
+    const user = firebaseAuth.currentUser;
+    if (!user || user.uid !== input.profile.id) throw authError('auth/no-current-user');
+    return user;
   } catch (err) {
-    if (axios.isAxiosError(err) && err.response) {
-      const data = err.response.data as
-        | { message?: string; Message?: string }
-        | undefined;
-      const message =
-        data?.message ??
-        data?.Message ??
-        `Registration failed (HTTP ${err.response.status}).`;
-      // Plain Error — describeAuthError surfaces err.message directly.
-      throw new Error(message);
+    const code = (err as { code?: string } | null)?.code;
+    if (code === 'auth/no-current-user' || code === EMAIL_NOT_VERIFIED_CODE) {
+      throw authError(code);
     }
-    throw err;
+    // Includes offline/timeouts and Firebase refresh failures, not just HTTP responses.
+    throw sanitizeRegistrationError(err);
   }
-  return user;
 }
 
 /** Sends (or re-sends) the verification link to the signed-in user. */
@@ -185,7 +183,8 @@ export async function checkEmailVerified(): Promise<boolean> {
 export async function deleteUnverifiedAccount(): Promise<void> {
   const user = firebaseAuth.currentUser;
   if (!user || user.emailVerified) return;
-  await user.delete();
+  await user.reload();
+  if (firebaseAuth.currentUser?.uid === user.uid && !user.emailVerified) await user.delete();
 }
 
 /**
@@ -320,6 +319,8 @@ export function describeAuthError(err: unknown): string {
       return 'Your email address is not verified yet. Open the verification link we sent you, then try again.';
     case 'auth/no-current-user':
       return 'Your session has expired. Please sign in again.';
+    case 'auth/operation-in-progress':
+      return 'An earlier account action is still finishing. Please wait.';
     case 'auth/registration-missing':
       return 'Your sign-up session expired. Please start the sign-up again.';
     default:

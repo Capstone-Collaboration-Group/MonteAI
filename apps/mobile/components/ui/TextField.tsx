@@ -15,6 +15,7 @@ interface TextFieldProps extends Omit<FormFieldProps, 'children'> {
   autoCapitalize?: TextInputProps['autoCapitalize'];
   autoComplete?: TextInputProps['autoComplete'];
   maxLength?: number;
+  editable?: boolean;
 }
 
 export function TextField({
@@ -27,6 +28,7 @@ export function TextField({
   autoCapitalize = 'none',
   autoComplete,
   maxLength,
+  editable = true,
   ...fieldProps
 }: TextFieldProps) {
   const surface = useThemeColor({}, 'surface');
@@ -45,6 +47,7 @@ export function TextField({
         autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
         maxLength={maxLength}
+        editable={editable}
         style={[s.input, { backgroundColor: surface, borderColor, color: heading }]}
       />
     </FormField>

@@ -31,6 +31,15 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow MonteSkolar to capture the front of your student ID for verification. Captures are not saved.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      "./plugins/withCaptureProof.cjs",
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/cdm-logo.png",

@@ -5,7 +5,6 @@ namespace server.Services.Interfaces
 {
     public interface IStudentService
     {
-        Task<UserResponseDto> RegisterAsync(RegisterUserDto dto, string firebaseUid);
         Task<UserResponseDto?> GetByIdAsync(string id);
         Task<string?> GetEmailByStudentNumberAsync(string studentNumber);
 
