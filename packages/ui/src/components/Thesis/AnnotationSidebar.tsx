@@ -252,7 +252,7 @@ export function AnnotationSidebar({
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="border-b border-outline-variant px-5 py-4">
-        <h2 className="font-serif text-base font-semibold text-on-surface">
+        <h2 className="font-sans text-base font-semibold text-on-surface">
           Review Comments
         </h2>
 

@@ -46,7 +46,7 @@ export function buildPdfViewerHtml(pdfUrl: string): string {
   .ph {
     position: absolute; top: 0; right: 0; bottom: 0; left: 0;
     display: flex; align-items: center; justify-content: center;
-    color: #c3c7cb; font: 600 22px -apple-system, Roboto, sans-serif;
+    color: #c3c7cb; font: 600 22px 'DM Sans', -apple-system, Roboto, sans-serif;
   }
   .hl {
     position: absolute; border-radius: 2px; pointer-events: none;
@@ -64,8 +64,8 @@ export function buildPdfViewerHtml(pdfUrl: string): string {
     display: flex; align-items: center; justify-content: center;
     text-align: center; padding: 24px;
   }
-  #loading { color: #e5e7eb; font: 500 15px -apple-system, Roboto, sans-serif; }
-  #error { color: #fecaca; font: 500 14px -apple-system, Roboto, sans-serif; display: none; }
+  #loading { color: #e5e7eb; font: 500 15px 'DM Sans', -apple-system, Roboto, sans-serif; }
+  #error { color: #fecaca; font: 500 14px 'DM Sans', -apple-system, Roboto, sans-serif; display: none; }
 </style>
 </head>
 <body>

@@ -132,7 +132,7 @@ export function ThesisListView({
   return (
     <div className="rounded-2xl border border-outline-variant bg-surface">
       <div className="flex items-center justify-between border-b border-outline-variant px-6 py-5">
-        <h3 className="font-serif text-lg font-semibold text-on-surface">
+        <h3 className="font-sans text-lg font-semibold text-on-surface">
           Manuscript Registry
         </h3>
 

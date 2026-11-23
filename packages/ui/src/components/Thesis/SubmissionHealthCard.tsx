@@ -35,7 +35,7 @@ export function SubmissionHealthCard({ theses }: SubmissionHealthCardProps) {
         Submission Health
       </p>
 
-      <p className="mt-3 font-serif text-4xl font-semibold leading-none text-on-primary">
+      <p className="mt-3 font-sans text-4xl font-semibold leading-none text-on-primary">
         {approvalRate}%
         <span className="ml-2 align-middle text-base font-sans font-normal text-on-primary/75">
           Approval
