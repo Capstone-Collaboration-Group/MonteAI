@@ -640,7 +640,7 @@ namespace server.Services.Theses
 
             if (names.Count == 0) names.Add(Blank(34));
 
-            double[] rowGaps = { 6.0, 9.0, 9.0, 8.0, 10.0 };
+            double[] rowGaps = { 13.3, 15.9, 16.0, 15.3, 18.0 };
 
             for (var i = 0; i < names.Count; i++)
             {
