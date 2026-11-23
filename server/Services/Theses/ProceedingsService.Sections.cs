@@ -25,7 +25,7 @@ namespace server.Services.Theses
         private const double RightWrap = WrapWidth;       // longest line the template prints
         private const double RemarksLeft = 251.4;
         private const double DocControlY = 129.7;         // pinned so the closing rule lands on 87.6
-        private const double MinLastRowY = 140.0;         // section X rows clear this, or Document Control would overlap
+        private const double MinLastRowY = 125.0;         // section X rows clear this (lowered so all proponents fit on page 2)
 
         /// <summary>Runs the whole form: header block, the ten sections, document control.</summary>
         private void DrawProceedings(
@@ -49,6 +49,7 @@ namespace server.Services.Theses
             DrawQuestions(r, rows);
 
             r.SectionBreak(38.8);
+            if (r.PageNumber == 1) r.NewPage();
             DrawEvaluation(r);
 
             r.SectionBreak(5.5);
@@ -367,7 +368,7 @@ namespace server.Services.Theses
                 r.MoveTo(first - (lines - 1) * BodyStep);
             }
 
-            r.Space(13.3);
+            r.Space(4.0);
             r.Text("Additional observations:", r.Body, TextLeft, r.Fit(r.Cursor));
         }
 
@@ -639,7 +640,7 @@ namespace server.Services.Theses
 
             if (names.Count == 0) names.Add(Blank(34));
 
-            double[] rowGaps = { 13.3, 15.9, 16.0, 15.3, 18.0 };
+            double[] rowGaps = { 6.0, 9.0, 9.0, 8.0, 10.0 };
 
             for (var i = 0; i < names.Count; i++)
             {
@@ -672,15 +673,19 @@ namespace server.Services.Theses
 
         private static void DrawDocumentControl(ProceedingsRenderer r, ProceedingsDataDto data)
         {
-            r.Text("DOCUMENT CONTROL", r.BodyBold, TextLeft, DocControlY);
+            r.Space(13.3);
+            var y0 = r.Fit(r.Cursor);
+            r.Text("DOCUMENT CONTROL", r.BodyBold, TextLeft, y0);
 
-            const double row1 = 116.4;
+            r.Space(9.0);
+            var row1 = r.Fit(r.Cursor);
             r.Text("Prepared by:", r.Body, TextLeft, row1);
             r.Text("Institute of Computing Studies", r.BodyBold, ValueX(r, "Prepared by:", TextLeft), row1);
             r.Text("Version:", r.Body, ColSignature, row1);
             r.Text("1.0", r.BodyBold, ValueX(r, "Version:", ColSignature), row1);
 
-            const double row2 = 103.1;
+            r.Space(9.0);
+            var row2 = r.Fit(r.Cursor);
             r.Text("Document Title:", r.Body, TextLeft, row2);
             r.Text(
                 "BSIT Capstone Project Defense Proceedings",
@@ -695,7 +700,8 @@ namespace server.Services.Theses
                 row2);
 
             // Row 3's right cell: blank, the way the department template prints it.
-            const double row3 = 89.7;
+            r.Space(9.0);
+            var row3 = r.Fit(r.Cursor);
             r.Text($"Approved by: {Blank(22)}", r.Body, TextLeft, row3);
         }
 
