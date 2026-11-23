@@ -25,7 +25,7 @@ namespace server.Services.Theses
         private const double RightWrap = WrapWidth;       // longest line the template prints
         private const double RemarksLeft = 251.4;
         private const double DocControlY = 129.7;         // pinned so the closing rule lands on 87.6
-        private const double MinLastRowY = 125.0;         // section X rows clear this (lowered so all proponents fit on page 2)
+        private const double MinLastRowY = 140.0;         // section X rows clear this, or Document Control would overlap
 
         /// <summary>Runs the whole form: header block, the ten sections, document control.</summary>
         private void DrawProceedings(
@@ -673,19 +673,15 @@ namespace server.Services.Theses
 
         private static void DrawDocumentControl(ProceedingsRenderer r, ProceedingsDataDto data)
         {
-            r.Space(13.3);
-            var y0 = r.Fit(r.Cursor);
-            r.Text("DOCUMENT CONTROL", r.BodyBold, TextLeft, y0);
+            r.Text("DOCUMENT CONTROL", r.BodyBold, TextLeft, DocControlY);
 
-            r.Space(9.0);
-            var row1 = r.Fit(r.Cursor);
+            const double row1 = 116.4;
             r.Text("Prepared by:", r.Body, TextLeft, row1);
             r.Text("Institute of Computing Studies", r.BodyBold, ValueX(r, "Prepared by:", TextLeft), row1);
             r.Text("Version:", r.Body, ColSignature, row1);
             r.Text("1.0", r.BodyBold, ValueX(r, "Version:", ColSignature), row1);
 
-            r.Space(9.0);
-            var row2 = r.Fit(r.Cursor);
+            const double row2 = 103.1;
             r.Text("Document Title:", r.Body, TextLeft, row2);
             r.Text(
                 "BSIT Capstone Project Defense Proceedings",
@@ -700,8 +696,7 @@ namespace server.Services.Theses
                 row2);
 
             // Row 3's right cell: blank, the way the department template prints it.
-            r.Space(9.0);
-            var row3 = r.Fit(r.Cursor);
+            const double row3 = 89.7;
             r.Text($"Approved by: {Blank(22)}", r.Body, TextLeft, row3);
         }
 
