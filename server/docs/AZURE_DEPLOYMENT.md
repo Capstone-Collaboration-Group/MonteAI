@@ -1,10 +1,11 @@
-# Temporary Azure API deployment (.NET 8, Basic B1)
+# Temporary Azure Code deployment (Linux Basic B1)
 
-> **Current deployment route: .NET 8 Docker image, manually built in Azure
-> Container Registry, hosted on Linux Basic B1.** Follow
-> [the container runbook](AZURE_CONTAINER_DEPLOYMENT.md). The Code/ZIP steps below
-> are retained as a legacy reference, not the current publishing instructions.
-> The API settings and receipt-trust sections still apply to the container.
+> **Current deployment route: Code/ZIP on the existing Linux Basic B1 app.**
+> No Docker image, container registry, or ACR cloud build is required. The project
+> still targets .NET 8; confirm a compatible hosted runtime before deploying the
+> framework-dependent ZIP. A framework upgrade or self-contained package needs
+> separate user approval. The [container runbook](AZURE_CONTAINER_DEPLOYMENT.md)
+> is a deferred alternative, not the current publishing instructions.
 
 This deploys the ASP.NET API, not the separate ID-verifier Function App. Azure
 resource creation, configuration, IAM changes, and publishing are performed by
@@ -28,6 +29,10 @@ startup or successful registration, and the unsupported runtime remains a risk.
 
 ## 1. Prepare the package locally
 
+First confirm the Code runtime using section 2. This script currently produces a
+framework-dependent .NET 8 ZIP, not a self-contained package or .NET 10 binary.
+Do not deploy it to an incompatible stack or use the container source-context ZIP.
+
 From the repository root, using existing installed dependencies:
 
 ```powershell
@@ -44,20 +49,24 @@ Environment-specific appsettings files, Firebase credential files, keys,
 logs, and test files must not be published. Local development files remain
 untouched. Supply cloud settings privately in App Service instead.
 
-## 2. Create an App Service web app (user)
+## 2. Reuse the existing app and confirm the Code runtime (user)
 
-In Azure Portal: **App Services > Create > Web App**.
+Keep the existing **Linux Basic B1** app in **East Asia**, resource group
+`monteai-group`. Do not delete/recreate it, create another plan, or modify the
+separate verifier Function App merely to change publishing routes.
 
-- Choose your approved subscription and resource group.
-- Choose a globally unique API app name; do not select the verifier Function App.
-- Publish: **Code**. Operating system: **Linux**.
-- Runtime: **.NET 8 / ASP.NET Core 8**, if still offered.
-- Region: use an approved region near the existing SQL/AI resources.
-- App Service plan: **Basic B1**, as selected by the user. Check the Linux B1
-  price shown for the approved region before creating the plan. The plan remains
-  billable even if the app is stopped; delete the dedicated test plan when no
-  longer needed, after checking that it does not host other apps.
-- After creation, enable **Always On** in the web app's general settings; B1
+Open the API app's **Settings > Configuration > Stack settings** (the Portal may
+place this under **General settings**). Check its current publish/runtime type
+and which .NET versions are offered before changing anything. If the app is
+configured for a custom container or Stack settings are absent, report that
+non-secret state for a reviewed user-run conversion; do not recreate the app.
+
+- Selected publishing route: **Code**. Operating system: **Linux**.
+- The current ZIP requires **.NET 8 / ASP.NET Core 8**. A .NET 10 stack alone
+  cannot run this framework-dependent package.
+- Keep the existing **Basic B1** plan. It remains billable even if the app is
+  stopped; no container-registry charge is required for this route.
+- Enable **Always On** in the web app's general settings; B1
   supports it and this avoids idle unloading during phone testing.
 - Do not create a new SQL database or enable deployment-time migrations.
 - Leave Application Insights/request-body collection disabled for this test.
@@ -68,7 +77,7 @@ traffic. The phone must then use the same Wi-Fi/public egress IP. Review the
 SCM/deployment endpoint restrictions too. The AutoMapper patch does not make
 the .NET 8 runtime supported or this deployment production-ready.
 
-If .NET 8 is missing from the runtime picker, stop before creating a different
+If .NET 8 is missing from the runtime picker, stop before selecting a different
 runtime. The user can check platform availability in Cloud Shell:
 
 ```bash
@@ -76,9 +85,10 @@ az webapp list-runtimes --os linux
 ```
 
 An outdated runtime may be hidden in Portal even when still provisionable through
-CLI/ARM. If `DOTNETCORE:8.0` is available, a separately reviewed user-run resource
-creation command can select it. If it is no longer available, use a separately
-approved framework upgrade or self-contained/container deployment; do not
+CLI/ARM. If `DOTNETCORE:8.0` is available, a separately reviewed user-run stack
+configuration command can select it on the existing app. If it is no longer
+available, use a separately approved framework upgrade or self-contained Code
+deployment; do not
 silently roll this binary forward to .NET 10.
 
 Record the **Default domain** shown by Azure; newer hostnames may include a
@@ -93,7 +103,7 @@ Do not upload development JSON files to substitute for these settings.
 | Setting | Required source/purpose |
 | --- | --- |
 | `ASPNETCORE_ENVIRONMENT` | `Production`; do not use Development to bypass missing settings. |
-| `SCM_DO_BUILD_DURING_DEPLOYMENT` | ZIP deployment only: `false`. Not needed for the current custom-container route. |
+| `SCM_DO_BUILD_DURING_DEPLOYMENT` | `false`; the Code-deployment ZIP is already compiled. |
 | `ConnectionStrings__DefaultConnection` | Existing approved SQL connection; preserve the database target. |
 | `Firebase__ProjectId` | Existing Firebase project. |
 | `Firebase__AdminKeyPath` | Despite the name, the code also accepts service-account **JSON** directly. Use a protected setting/Key Vault reference containing the existing JSON, not a PC file path. |

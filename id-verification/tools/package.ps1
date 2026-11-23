@@ -11,13 +11,15 @@ if (-not (Test-Path $python)) {
 
 Push-Location $root
 try {
-    & $python -m tools.prepare_models --check
+    & $python -B -m tools.prepare_models --check
     if ($LASTEXITCODE -ne 0) { throw "Packaged OCR model verification failed." }
 
     $outputPath = [System.IO.Path]::GetFullPath((Join-Path $root $Output))
     $outputDirectory = Split-Path -Parent $outputPath
     New-Item -ItemType Directory -Force $outputDirectory | Out-Null
-    if (Test-Path $outputPath) { Remove-Item $outputPath -Force }
+    if (Test-Path -LiteralPath $outputPath) {
+        throw "Package output already exists; choose a new release path."
+    }
 
     $stage = Join-Path ([System.IO.Path]::GetTempPath()) ("monteai-idv-package-" + [guid]::NewGuid())
     New-Item -ItemType Directory $stage | Out-Null
@@ -33,7 +35,10 @@ try {
         Copy-Item (Join-Path $root "models/*.onnx") (Join-Path $stage "models")
         Get-ChildItem $stage -Recurse -Directory -Filter "__pycache__" |
             Remove-Item -Recurse -Force
-        Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $outputPath
+        Copy-Item (Join-Path $root "licenses") $stage -Recurse
+        # Compress-Archive on Windows can write backslash paths that break Linux imports.
+        & $python -B -m tools.package_archive $stage $outputPath
+        if ($LASTEXITCODE -ne 0) { throw "Source ZIP creation failed." }
     }
     finally {
         if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }

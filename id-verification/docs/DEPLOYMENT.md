@@ -1,25 +1,124 @@
 # Azure deployment and operations
 
-**Deferred as of 2026-11-22.** [Phase 6](RELEASE_CHECKS.md) completed offline/local release checks and
-prepared a candidate ZIP; no ID-verification Azure resources, deployment, production keys, database
-migrations, or frontend endpoint changes were performed. The user wants Azure configuration/deployment
-**later**. This runbook is a handoff, not authorization to execute its commands or production sign-off.
+**Deployed 2026-11-22; verification remains paused.** [Phase 6](RELEASE_CHECKS.md) completed the
+offline/local release checks. The user then provisioned the infrastructure and deployed the Function
+manually with Azure CLI + Bicep — the assistant supplied instructions only and ran no cloud commands.
+Function registration and the paused (`IDV_ENABLED=False`) response are validated end to end.
+**Verification is not enabled.** Production key confirmation, main-API public trust, database
+migrations, frontend endpoint changes, and the release gates below remain separate approved steps.
+This document records what was executed, the packaging defect found and corrected, and what is still
+required before enablement. It is not production sign-off.
 
-## Deferred configuration checklist
+## Current state (as of 2026-11-22)
 
-- [ ] Approve the subscription, dedicated resource group, unique Function name, monitored alert email,
-  exact HTTPS client origins, and Firebase project.
-- [ ] Close package license/attribution review and repeat the whitelist ZIP audit. The current candidate
-  has no LICENSE/NOTICE files. Do not use unaudited direct Core Tools publishing.
-- [ ] Provision separate production RSA signing/HMAC material in a protected workflow; never reuse or
-  overwrite existing development keys. Do not print, commit, or upload secret settings/test outputs.
+| Item | State |
+| --- | --- |
+| Resource group | `monteai-group` |
+| Function app | `monteai-id-verifier` (Flex Consumption, Linux, Python per `functionAppConfig.runtime`) |
+| Storage account | `idveqhdw7yfug3l4` (managed identity; shared-key access disabled by template) |
+| `endpoint` output | `https://monteai-id-verifier.azurewebsites.net/api/v1/id-verification` |
+| `receiptIssuer` output | `https://monteai-id-verifier.azurewebsites.net` |
+| Function registration | `verify_student_id` registered; `POST`/`OPTIONS` at `/api/v1/id-verification` |
+| `IDV_ENABLED` | `False` (observed in app settings; the initial `verificationEnabled=false` plan was honored) |
+| Paused smoke test | **Passed**, 2026-11-22 17:43 UTC — `503`, `Retry-After: 3600`, `code=verification_disabled` |
+| `FUNCTIONS_WORKER_RUNTIME` | Not present — **expected**. Flex configures the runtime through `functionAppConfig.runtime`; do not add this setting manually. The loaded Python Function confirms the worker runs. |
+
+Exact app-setting values supplied during parameterization (allowed origins, Firebase project, alert
+email, signing/HMAC material) were handled privately and are **not recorded here or anywhere in this
+repository**. Re-verify them by policy, not by printing them, before enablement.
+
+### Paused smoke-test evidence
+
+```http
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+Access-Control-Expose-Headers: Retry-After
+Cache-Control: no-store, max-age=0
+Retry-After: 3600
+
+{"outcome": "error", "code": "verification_disabled",
+ "message": "ID verification is temporarily paused.", "requestId": "<uuid>"}
+```
+
+This is the expected paused contract: the kill switch fires before auth, quota, or image handling, so
+an empty `{}` body is sufficient and no token or capture was involved.
+
+## Deployment record
+
+### What was executed (by the user)
+
+- Bicep deployment of `infra/main.bicep` into `monteai-group`, creating the Function plan/app, one
+  LRS storage account with private package container and quota table, three managed-identity storage
+  role assignments, and the `$5` resource-group budget, with `verificationEnabled=false`.
+- `az functionapp deployment source config-zip ... --build-remote true` for the source package.
+- Kudu deployment id `0fbd4425-9ca5-4ead-9aaa-6a3b0a1989f2` finished with `status: 4` (Success) and
+  `remoteBuild: true`.
+
+### Packaging defect found during deployment
+
+- The first package, `id-verification-source-20261122-212259.zip` (22 files, 11,934,067 bytes,
+  SHA-256 `89DFAAFCCB5D1B61B7E217E00D1DD795727980A70C0D260356380515ED9A205E`), was built by
+  `tools/package.ps1`, whose then-current `Compress-Archive` step wrote Windows backslash entry paths
+  (`verification\service.py`). Extracted on Linux, the `verification` package never materialized, so
+  the host logged `0 functions found (Custom)` / `0 functions loaded` and the route answered an empty
+  Kestrel `404` — before any kill-switch or auth logic could run.
+- Kudu reported success (`status: 4`, `remoteBuild: true`) the whole time. **Kudu success proves only
+  that the upload/build pipeline finished; it does not prove function registration.**
+- Correction: a new archive `id-verification-linux-44d9c038ad4b424899e922103ab854a5.zip`
+  (SHA-256 `7B00F93D9F150627DC3735F15D15A18125193785778F7EA5A264643E2BC8B8D9`) was created by
+  rewriting **only** entry names to forward slashes: same 11,934,067 bytes, same 22 entries, every
+  file byte-identical, both ONNX model hashes re-verified against the manifest, zero backslash
+  entries. It was redeployed with the same remote-build command. No settings, keys, quotas, or source
+  files changed.
+
+### Packager fix — locally validated 2026-11-23
+
+`tools/package.ps1` now calls `tools/package_archive.py`, using Python's standard-library `zipfile`
+with root-relative `Path.as_posix()` entry names instead of `Compress-Archive`. The existing staging
+whitelist, license delivery, and model checks are unchanged. Existing output paths are refused rather
+than deleted; exclusive archive creation also protects against concurrent overwrites. No additional
+dependencies are required.
+
+A validation-only ZIP was built in the approved local temporary workspace: **22 files**, zero
+backslash entries, every file byte-identical to the corrected deployed package and current source,
+and both model hashes matching the manifest. The three archive regression tests, Ruff checks, and a
+real PowerShell overwrite-guard check passed. **No package was deployed and no cloud settings changed.**
+For future releases, use a new unique output name and repeat the full whitelist audit with a new
+SHA-256. The deployed corrected ZIP and its recorded hash above remain unchanged.
+
+### Diagnostic authority
+
+- `az functionapp function list` and the host log line `N functions loaded` are authoritative for
+  registration.
+- An empty-body `404` on `/api/v1/...` means the Function is not registered. A `503
+  verification_disabled` means routing works and the kill switch is holding.
+- Kudu `status: 4` alone proves neither.
+
+## Configuration checklist — enablement still requires these
+
+- [x] Provision resource group, Function app, storage, RBAC, and budget from the reviewed Bicep
+  template with `verificationEnabled=false`.
+- [x] Deploy the code package with remote build and confirm `verify_student_id` registration.
+- [x] Confirm `IDV_ENABLED=False` and the paused `503` contract at the live endpoint.
+- [x] Fix future ZIP generation locally and validate Linux-compatible paths, unchanged contents, and
+  refusal to overwrite prior artifacts (2026-11-23; not an Azure deployment).
+- [ ] Close package license/attribution review. The deployed 22-file package includes the `licenses/`
+  delivery (PaddleOCR and RapidOCR), but the legal/attribution sign-off in
+  [RELEASE_CHECKS.md](RELEASE_CHECKS.md) remains open; any packaging change requires a new whitelist
+  audit. Note that `RELEASE_CHECKS.md` records the earlier **20-file** Phase-6 candidate — that record
+  is superseded for deployment purposes by the two hashes above.
+- [ ] Confirm production RSA signing/HMAC material was generated in a protected workflow and is not
+  reused development material — without printing or inspecting the values. Keep a protected backup of
+  the private key, public PEM, and HMAC material.
 - [ ] Configure main-API public trust and approve its exact database/migration target separately.
-- [ ] Plan initial `verificationEnabled=false`, controlled pilot enablement, and rollback. The template
-  currently defaults to `true`; set the later deployment parameter explicitly, not by editing it now.
-- [ ] Recheck regional Flex availability/quota, USD billing/prices, RBAC, latency/memory/cost, and platform
-  diagnostics at deployment time. Compilation does not establish these Azure conditions.
+- [ ] Plan controlled pilot enablement (`verificationEnabled=true`) and rollback; the pause must stay
+  in force until this and every item below is approved.
+- [ ] Revalidate regional Flex availability/quota, USD billing/prices, RBAC propagation, latency/
+  memory/cost, and platform diagnostics at enablement time. Successful deployment does not establish
+  these conditions.
 - [ ] Complete held-out accuracy/manual recovery and the separately approved live fault/privacy matrix
-  before production rollout. Web + Android are the pilot scope; desktop student capture/iOS are deferred.
+  before production rollout. Web + Android are the pilot scope; desktop student capture/iOS are
+  deferred.
 
 ## Prerequisites and choices
 
@@ -55,7 +154,7 @@ not change current local or Azure configuration.
 | `IDV_MONTHLY_ATTEMPTS`, `IDV_MONTHLY_COMPUTE_SECONDS` | **6000 attempts / 40000 charged seconds** globally per UTC month; unchanged. |
 | `FUNCTIONS_REQUEST_BODY_SIZE_LIMIT` | `4194304` bytes; decoded image remains at most 3 MiB / 12 MP / 6000 pixels per edge. |
 | `PYTHON_THREADPOOL_THREAD_COUNT` | `1`; preserve per-instance HTTP concurrency 1 and the 30-second host timeout. |
-| `IDV_ENABLED` | From `verificationEnabled`; plan `false` initially, with separately approved controlled enablement. |
+| `IDV_ENABLED` | From `verificationEnabled`; currently `false` in Azure, with separately approved controlled enablement. |
 
 Receipt TTL remains **600 seconds** in code; there is no new TTL setting or override. Host
 `ANONYMOUS` means Azure host authentication only: the application requires a signed, email-verified
@@ -94,9 +193,12 @@ The current web build embeds **local HTTP development endpoints**, not these pro
 later frontend build/configuration change is a separate approved step. Follow [INTEGRATION.md](INTEGRATION.md)
 for receipt ownership, transactional consumption/idempotency, and public-key-first signing rotation.
 
-## Later runbook — separate approval required
+## Runbook status
 
-### 1. Prepare and validate offline
+Steps 1–3 were executed on 2026-11-22 as recorded above; they are retained for reproduction and for
+the next release. Step 4 remains pending and requires separate approval.
+
+### 1. Prepare and validate offline — executed (Phase 6)
 
 Use already installed dependencies and the existing Bicep CLI; do not install tools, download models,
 start new services, regenerate keys, or overwrite prior packages under the release-check scope.
@@ -115,17 +217,20 @@ Substitute the private output path and use only an already approved **local Azur
 four opt-in Table tests create/remove randomly named `IdvTest...` tables, not application quota rows.
 Without that opt-in, pytest can succeed while skipping the integration tests; check the counts.
 
-**Only later, in a separately approved fresh protected workspace**, provision production signing/HMAC
-material without overwriting the current `.secrets/`. Copy `infra/parameters.example.json` to a new
-gitignored `.local.json` parameter file and fill it privately. Add `verificationEnabled=false` and a
-stable first-of-month `budgetStartDate`. Gitignore is not access control; restrict access and backups.
-Never paste secret parameters, signing settings, app-settings listings, or raw deployment diagnostics.
+**Signing/HMAC material** was parameterized privately during deployment; this repository neither
+records nor verifies it. Before enablement, confirm in a protected workflow that it is production
+material distinct from development keys, without printing or inspecting values. Copy
+`infra/parameters.example.json` to a new gitignored `.local.json` parameter file for any future
+deployment, add an explicit `verificationEnabled=false` unless enablement is separately approved, and
+keep a stable first-of-month `budgetStartDate`. Gitignore is not access control; restrict access and
+backups. Never paste secret parameters, signing settings, app-settings listings, or raw deployment
+diagnostics.
 
 Do not reuse test/development keys. Keep a protected backup of the private key, public PEM, and HMAC
 material. Public trust must be configured before signing is enabled. HMAC rotation needs its own quota
 impact review; the approved one-account local daily reset is not a production operation.
 
-### 2. Preview and create infrastructure
+### 2. Preview and create infrastructure — executed
 
 Examples below require approved targets and substituted placeholders. Use resource-ID-only what-if
 output to avoid displaying secret app-setting payloads; arrange a separately protected/redacted review
@@ -153,14 +258,17 @@ resource-group budget. It does not create Foundry, Document Intelligence, Key Va
 Insights resources.
 
 Role propagation can take several minutes. Keep shared-key storage disabled; production quota access
-must use managed identity.
+must use managed identity. Role propagation, billing, and quota were not independently revalidated
+after this deployment — they remain enablement-time checks.
 
-### 3. Package and deploy code
+### 3. Package and deploy code — executed, defect found and corrected
 
-After closing license/attribution requirements, build a **new, uniquely named** whitelist source ZIP
-and audit it again. `tools/package.ps1` currently replaces an existing output, so confirm the output
-does not exist; never overwrite another release/user artifact. The recorded 20-file candidate and its
-SHA-256 are in [RELEASE_CHECKS.md](RELEASE_CHECKS.md); adding reviewed license files requires a new audit.
+Build a **new, uniquely named** whitelist source ZIP and audit it for every release.
+`tools/package.ps1` now emits Linux-compatible forward-slash paths and refuses existing outputs
+(see *Packager fix* above); never overwrite another release/user artifact. The Phase 6 20-file
+candidate and its SHA-256 are in [RELEASE_CHECKS.md](RELEASE_CHECKS.md); the deployed release is the
+corrected 22-file package whose hashes are recorded above. Local packager validation did not deploy a
+replacement release.
 
 ```powershell
 ./tools/package.ps1 -Output "dist/id-verification-source-<release-id>.zip"
@@ -174,22 +282,31 @@ az functionapp deployment source config-zip `
 
 Remote build is required when deploying from Windows to Linux. For Flex, do not set
 `WEBSITE_RUN_FROM_PACKAGE`, `SCM_DO_BUILD_DURING_DEPLOYMENT`, or `ENABLE_ORYX_BUILD`; package deployment
-handles this. `host.json` must remain at the ZIP root. Verify the installed CLI's current Flex deployment
-support before executing; the local ZIP audit does not prove Azure remote-build success.
-The public [source-ZIP CLI reference](https://learn.microsoft.com/en-us/cli/azure/functionapp/deployment/source#az-functionapp-deployment-source-config-zip)
-documents `--build-remote`; this reference check is not deployment evidence.
+handles this. `host.json` must remain at the ZIP root. The public
+[source-ZIP CLI reference](https://learn.microsoft.com/en-us/cli/azure/functionapp/deployment/source#az-functionapp-deployment-source-config-zip)
+documents `--build-remote`.
 
-Before upload, list the archive and confirm it contains no `.secrets`, local settings, tests, docs,
-demo config, Azurite artifacts, captures, benchmark input, or personal identity text. Verify all source
-bytes and both model SHA-256 pins; the two `.onnx` files total approximately **12.10 MiB**. Include the
-reviewed license/attribution delivery and restrict access to deployment/build output.
+Before upload, list the archive and confirm:
 
-**Direct Core Tools publish is not an audited alternative yet.** `.funcignore` lacks explicit exclusions
-for observed local `__azurite_db_*.json`, `__blobstorage__/`, `__queuestorage__/`, and Azurite configuration
-artifacts. The whitelist ZIP excludes them, but direct publishing must be separately hardened and
-content-audited before it is recommended. No exclusion/packaging implementation change was made in Phase 6.
+- it contains no `.secrets`, local settings, tests, docs, demo config, Azurite artifacts, captures,
+  benchmark input, or personal identity text;
+- all entry paths use forward slashes — **zero backslash entries**;
+- all source bytes and both model SHA-256 pins verify; the two `.onnx` files total approximately
+  **12.10 MiB**;
+- the reviewed license/attribution delivery is present.
 
-### 4. Post-deployment gates
+After upload, registration is proven only by `az functionapp function list` (or the host log's
+`N functions loaded`) plus a paused-endpoint `503` — not by Kudu status. **Direct Core Tools publish is
+not an audited alternative yet.** `.funcignore` lacks explicit exclusions for observed local
+`__azurite_db_*.json`, `__blobstorage__/`, `__queuestorage__/`, and Azurite configuration artifacts.
+The whitelist ZIP excludes them, but direct publishing must be separately hardened and content-audited
+before it is recommended.
+
+### 4. Post-deployment gates — pending; separate approval required
+
+**Gate 0 (passed 2026-11-22):** routing and the paused contract — `verify_student_id` registered,
+`/api/v1/id-verification` answers `503 verification_disabled` with `Retry-After: 3600`. No token,
+quota, or image path was exercised.
 
 Keep public student rollout disabled. Only after approved controlled pilot enablement:
 
@@ -211,12 +328,14 @@ reusing a stale capture.
 
 ## Operations
 
-- Pause new checks: deploy with `verificationEnabled=false` or set `IDV_ENABLED=false` in app settings.
+- **Currently paused** via `IDV_ENABLED=False` in Azure. Pause again: deploy with
+  `verificationEnabled=false` or set `IDV_ENABLED=false` in app settings.
 - Quota resets by UTC month; user daily limit resets at UTC midnight.
 - Do not edit/delete current-month Table counter rows. Doing so can reopen allowance.
 - Treat settlement reservation rows as conservative charges; cleanup is not required for correctness.
 - Rotate keys in the order documented in `INTEGRATION.md`.
-- Re-run model hashes, package/license audit, and [the release checklist](RELEASE_CHECKS.md) for every package.
+- Re-run model hashes, package/license audit, backslash-path check, and
+  [the release checklist](RELEASE_CHECKS.md) for every package.
 - Budget alerts are advisory; follow the response plan in `COSTS.md`.
 - Do not repeat local account deletion/quota-reset exceptions or tear down preserved services/mappings
   without separate scoped approval.

@@ -1,6 +1,11 @@
 # Temporary .NET 8 container on Linux Basic B1
 
-**Selected route:** keep .NET 8, build the Docker image using user-run Azure
+> **Deferred alternative:** the user has switched to **Code/ZIP deployment** on
+> the existing Linux B1 app. Follow [the Code runbook](AZURE_DEPLOYMENT.md) instead.
+> Do not create ACR, build an image, or configure container pulls for the current
+> route. The instructions below are retained as a reference only.
+
+**Container alternative:** keep .NET 8, build the Docker image using user-run Azure
 Container Registry (ACR) Tasks, and host it in App Service **Linux Basic B1**.
 No local Docker installation or .NET 10 SDK is needed. The earlier .NET 10
 migration is not being applied. No cloud commands are run by the agent.
