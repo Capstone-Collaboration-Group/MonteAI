@@ -639,8 +639,8 @@ const s = StyleSheet.create({
   },
   navBtn: { padding: Spacing.sm },
   content: { flexGrow: 1, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xxl },
-  title: { fontSize: FontSize.xxl, fontWeight: '700', marginTop: Spacing.sm },
-  subtitle: { fontSize: FontSize.sm, lineHeight: 20, marginTop: Spacing.xs },
+  title: { fontSize: FontSize.xxl, fontWeight: '700', marginTop: Spacing.sm, fontFamily: 'DM Sans' },
+  subtitle: { fontSize: FontSize.sm, lineHeight: 20, marginTop: Spacing.xs, fontFamily: 'DM Sans' },
   // Step progress
   stepsRow: {
     flexDirection: 'row',
@@ -656,15 +656,15 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#d1d5db',
   },
-  stepNum: { fontSize: 11, fontWeight: '700' },
-  stepLabel: { fontSize: FontSize.xs, fontWeight: '500' },
-  stepLabelActive: { fontWeight: '700' },
+  stepNum: { fontSize: 11, fontWeight: '700', fontFamily: 'DM Sans' },
+  stepLabel: { fontSize: FontSize.xs, fontWeight: '500', fontFamily: 'DM Sans' },
+  stepLabelActive: { fontWeight: '700', fontFamily: 'DM Sans' },
   stepLine: { height: 2, flex: 1, borderRadius: 1, marginHorizontal: Spacing.xs },
-  stepOf: { fontSize: FontSize.xs, textAlign: 'center', marginTop: Spacing.sm },
+  stepOf: { fontSize: FontSize.xs, textAlign: 'center', marginTop: Spacing.sm, fontFamily: 'DM Sans' },
   // Steps
   stepBody: { paddingTop: Spacing.lg, gap: Spacing.lg },
-  stepHeader: { fontSize: FontSize.xl, fontWeight: '700' },
-  stepHint: { fontSize: FontSize.sm, lineHeight: 20, marginTop: -Spacing.md },
+  stepHeader: { fontSize: FontSize.xl, fontWeight: '700', fontFamily: 'DM Sans' },
+  stepHint: { fontSize: FontSize.sm, lineHeight: 20, marginTop: -Spacing.md, fontFamily: 'DM Sans' },
   textarea: {
     borderWidth: 1,
     borderRadius: Radius.md,
@@ -672,6 +672,7 @@ const s = StyleSheet.create({
     paddingVertical: Spacing.lg,
     fontSize: FontSize.md,
     minHeight: 132,
+    fontFamily: 'DM Sans',
   },
   field: { gap: Spacing.xs },
   roLabel: {
@@ -679,6 +680,7 @@ const s = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    fontFamily: 'DM Sans',
   },
   roBox: {
     borderWidth: 1,
@@ -687,7 +689,7 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  roValue: { fontSize: FontSize.sm, lineHeight: 20 },
+  roValue: { fontSize: FontSize.sm, lineHeight: 20, fontFamily: 'DM Sans' },
   // Upload
   dropzone: {
     borderWidth: 1.5,
@@ -697,8 +699,8 @@ const s = StyleSheet.create({
     paddingVertical: Spacing.xl,
     gap: Spacing.sm,
   },
-  dropTitle: { fontSize: FontSize.md, fontWeight: '600' },
-  dropHint: { fontSize: FontSize.xs },
+  dropTitle: { fontSize: FontSize.md, fontWeight: '600', fontFamily: 'DM Sans' },
+  dropHint: { fontSize: FontSize.xs, fontFamily: 'DM Sans' },
   pickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -709,7 +711,7 @@ const s = StyleSheet.create({
     paddingVertical: Spacing.sm,
     marginTop: Spacing.xs,
   },
-  pickLabel: { fontSize: FontSize.sm, fontWeight: '600' },
+  pickLabel: { fontSize: FontSize.sm, fontWeight: '600', fontFamily: 'DM Sans' },
   pressed: { opacity: 0.7 },
   fileCard: {
     flexDirection: 'row',
@@ -726,15 +728,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fileName: { fontSize: FontSize.sm, fontWeight: '600' },
-  fileMeta: { fontSize: FontSize.xs, marginTop: 2 },
+  fileName: { fontSize: FontSize.sm, fontWeight: '600', fontFamily: 'DM Sans' },
+  fileMeta: { fontSize: FontSize.xs, marginTop: 2, fontFamily: 'DM Sans' },
   fileActionsRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: Spacing.xl,
     marginTop: Spacing.sm,
   },
-  linkBtn: { fontSize: FontSize.xs, fontWeight: '700', textTransform: 'uppercase' },
+  linkBtn: { fontSize: FontSize.xs, fontWeight: '700', textTransform: 'uppercase', fontFamily: 'DM Sans' },
   // Review
   reviewCard: {
     borderWidth: 1,
@@ -748,9 +750,10 @@ const s = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    fontFamily: 'DM Sans',
   },
-  reviewValue: { fontSize: FontSize.sm, fontWeight: '500', lineHeight: 20 },
-  reviewValueMultiline: { fontWeight: '400' },
+  reviewValue: { fontSize: FontSize.sm, fontWeight: '500', lineHeight: 20, fontFamily: 'DM Sans' },
+  reviewValueMultiline: { fontWeight: '400', fontFamily: 'DM Sans' },
   warning: {
     flexDirection: 'row',
     gap: Spacing.sm,
@@ -758,9 +761,9 @@ const s = StyleSheet.create({
     borderRadius: Radius.lg,
     padding: Spacing.lg,
   },
-  warningTitle: { fontSize: FontSize.xs, fontWeight: '700', textTransform: 'uppercase' },
-  warningBody: { fontSize: FontSize.xs, lineHeight: 18, marginTop: 2 },
-  errorText: { fontSize: FontSize.sm, fontWeight: '500' },
+  warningTitle: { fontSize: FontSize.xs, fontWeight: '700', textTransform: 'uppercase', fontFamily: 'DM Sans' },
+  warningBody: { fontSize: FontSize.xs, lineHeight: 18, marginTop: 2, fontFamily: 'DM Sans' },
+  errorText: { fontSize: FontSize.sm, fontWeight: '500', fontFamily: 'DM Sans' },
   // Center blocks (success / blocked)
   centerBlock: {
     alignItems: 'center',
@@ -774,8 +777,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  centerTitle: { fontSize: FontSize.xl, fontWeight: '700', textAlign: 'center' },
-  centerBody: { fontSize: FontSize.sm, lineHeight: 20, textAlign: 'center' },
+  centerTitle: { fontSize: FontSize.xl, fontWeight: '700', textAlign: 'center', fontFamily: 'DM Sans' },
+  centerBody: { fontSize: FontSize.sm, lineHeight: 20, textAlign: 'center', fontFamily: 'DM Sans' },
   // Actions
   actions: { marginTop: Spacing.xxl },
 });

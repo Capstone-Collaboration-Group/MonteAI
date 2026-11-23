@@ -168,5 +168,5 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#52575c' },
   webview: { flex: 1, backgroundColor: '#52575c' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { fontSize: 14, fontWeight: '500' },
+  loadingText: { fontSize: 14, fontWeight: '500', fontFamily: 'DM Sans' },
 });

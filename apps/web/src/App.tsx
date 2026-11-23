@@ -4,7 +4,7 @@ import { MfaSessionProvider } from "./components/MfaSessionProvider";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import AppLayout from "./components/layouts/AppLayout";
 import LandingPage from "./pages/LandingPage";
-import { PendingRegistrationGate, ProtectedRoute } from "@monteai/ui";
+import { GuestRoute, PendingRegistrationGate, ProtectedRoute } from "@monteai/ui";
 import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import { auth } from "./lib/firebase";
@@ -34,13 +34,17 @@ const App = () => (
       <Toaster />
       <BrowserRouter>
         <Routes>
+          {/* Guest-only — completed sessions return to the app. */}
+          <Route element={<GuestRoute profileService={profileService} />}>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/login" element={<Login />} />
+          </Route>
+
           {/* Public — no sidebar */}
-          <Route path="/" element={<LandingPage />} />
           <Route path="/about" element={<About />} />
           <Route path="/tutorial" element={<Tutorial />} />
           <Route path="/download-app" element={<DownloadApp />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/login" element={<Login />} />
           
           {/* Pending Firebase signup is NOT a completed application session. */}
           <Route element={<PendingRegistrationGate><ProtectedRoute profileService={profileService}/></PendingRegistrationGate>}>
