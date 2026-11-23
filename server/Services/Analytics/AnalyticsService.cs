@@ -12,8 +12,7 @@ namespace server.Services.Analytics
     //
     // Thin orchestration over IActivityLogRepository + IThesisRepository:
     //   RecordAsync            — INSERT only, swallow+log failures (never breaks chat/search/view);
-    //                            skips non-research queries (greetings, meta follow-ups,
-    //                            gibberish, harmful content — see QueryModeration)
+    //                            accepts only eligible research queries (see QueryModeration)
     //   GetOverviewAsync       — clamp window, roll up totals, join thesis titles
     //   GetSuggestionsAsync    — top query strings for the chat suggestion cards
     //   CheckDailyQuotaAsync   — rolling-window per-user chat cap counted from llm_usage
@@ -22,8 +21,8 @@ namespace server.Services.Analytics
     //   DeleteUserChatQueries  — clears a user's chat_query rows (session deletion); keeps ticks
     public class AnalyticsService : IAnalyticsService
     {
-        /// <summary>Over-fetch factor on top-query reads so post-filtering still fills the page.</summary>
-        private const int QueryOverFetch = 4;
+        /// <summary>Bounded SQL pages; continue past polluted legacy groups until the list is filled.</summary>
+        private const int QueryBatchSize = 32;
 
         private readonly IActivityLogRepository _activityRepo;
         private readonly IThesisRepository _thesisRepo;
@@ -49,19 +48,13 @@ namespace server.Services.Analytics
             string? userId = null,
             CancellationToken ct = default)
         {
-            // Greetings, meta follow-ups ("expand your previous answer…"),
-            // gibberish and harmful content never belong in top queries.
-            // View/download events carry no query and always record.
-            // The daily quota does NOT count these rows — it reads llm_usage
-            // ticks, so recording stays purely about analytics quality.
-            var isQueryEvent = type is ActivityLogTypes.ChatQuery or ActivityLogTypes.CatalogSearch;
-            if (isQueryEvent && !QueryModeration.IsRecordable(query))
-            {
-                return;
-            }
-
             try
             {
+                // Both chat entry points and catalog searches share this gate.
+                // LLM quota accounting is independent of query eligibility.
+                var isQueryEvent = type is ActivityLogTypes.ChatQuery or ActivityLogTypes.CatalogSearch;
+                if (isQueryEvent && !QueryModeration.IsRecordable(query)) return;
+
                 await _activityRepo.RecordAsync(type, query, thesisId, userId, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -73,10 +66,11 @@ namespace server.Services.Analytics
         public async Task<AnalyticsOverviewDto> GetOverviewAsync(int days, CancellationToken ct = default)
         {
             days = Math.Clamp(days, 1, 365);
-            var since = DateTime.UtcNow.AddDays(-days);
+            var until = DateTime.UtcNow;
+            var since = until.AddDays(-days);
 
             var totals = await _activityRepo.GetTotalsAsync(since, ct);
-            var topQueries = await _activityRepo.GetTopQueriesAsync(since, 10 * QueryOverFetch, ct);
+            var topQueries = await GetEligibleTopQueriesAsync(since, until, AnalyticsConfig.TopQueryLimit, ct);
             var topThesisRows = await _activityRepo.GetTopThesesAsync(since, 10, ct);
 
             var titles = await ResolveTitlesAsync(topThesisRows.Select(t => t.ThesisId), ct);
@@ -90,12 +84,8 @@ namespace server.Services.Analytics
                     Searches = totals.CatalogSearches,
                     Views = totals.ThesisViews,
                 },
-                // Rows recorded BEFORE the moderation filter existed can still
-                // be in the table — drop them at read time too, then re-cap.
                 TopQueries = topQueries
-                    .Where(q => !string.IsNullOrWhiteSpace(q.DisplayQuery) && QueryModeration.IsRecordable(q.DisplayQuery))
                     .Select(q => new TopQueryDto { Query = q.DisplayQuery!, Count = q.Count })
-                    .Take(10)
                     .ToList(),
                 TopTheses = topThesisRows
                     .Select(t => new TopThesisDto
@@ -110,17 +100,46 @@ namespace server.Services.Analytics
 
         public async Task<IReadOnlyList<string>> GetSuggestionsAsync(int limit, int days = 30, CancellationToken ct = default)
         {
-            limit = Math.Clamp(limit, 1, 20);
+            limit = Math.Clamp(limit, 1, AnalyticsConfig.TopQueryLimit);
             days = Math.Clamp(days, 1, 365);
 
-            var rows = await _activityRepo.GetTopQueriesAsync(
-                DateTime.UtcNow.AddDays(-days), limit * QueryOverFetch, ct);
-            return rows
-                .Select(r => r.DisplayQuery)
-                .Where(q => !string.IsNullOrWhiteSpace(q) && QueryModeration.IsRecordable(q))
-                .Select(q => q!)
-                .Take(limit)
-                .ToList();
+            var until = DateTime.UtcNow;
+            var rows = await GetEligibleTopQueriesAsync(until.AddDays(-days), until, limit, ct);
+            return rows.Select(r => r.DisplayQuery!).ToList();
+        }
+
+        /// <summary>
+        /// Revalidate historical queries with the SAME policy used on writes.
+        /// Paging, rather than a fixed over-fetch, finds the actual top eligible
+        /// queries even when every group on the first page is unwanted.
+        /// </summary>
+        private async Task<List<TopQueryRow>> GetEligibleTopQueriesAsync(
+            DateTime since, DateTime until, int limit, CancellationToken ct)
+        {
+            var eligible = new List<TopQueryRow>(limit);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var skip = 0;
+
+            while (eligible.Count < limit)
+            {
+                ct.ThrowIfCancellationRequested();
+                var rows = await _activityRepo.GetTopQueriesAsync(since, until, skip, QueryBatchSize, ct);
+                foreach (var row in rows)
+                {
+                    if (!QueryModeration.IsRecordable(row.DisplayQuery)) continue;
+
+                    var display = string.Join(' ', row.DisplayQuery!.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+                    if (!seen.Add(display)) continue;
+
+                    eligible.Add(row with { DisplayQuery = display });
+                    if (eligible.Count == limit) break;
+                }
+
+                if (rows.Count < QueryBatchSize) break;
+                skip += rows.Count;
+            }
+
+            return eligible;
         }
 
         public async Task<string?> CheckDailyQuotaAsync(string userId, CancellationToken ct = default)

@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 using server.Models.DTOs.User;
 using server.Services.Email;
+using server.Services.Auth;
 using server.Services.Interfaces;
 using server.Services.Theses;
+using server.Services.User;
 
 namespace server.Controllers
 {
@@ -14,8 +16,13 @@ namespace server.Controllers
     [Authorize]
     public class AuthController : ControllerBase
     { 
+        private const string CurrentPrivacyNoticeVersion = "2026-10-23";
+        private const string CurrentTermsVersion = "2026-10-23";
+
         private readonly ILogger<AuthController> _logger;
         private readonly IStudentService _studentService;
+        private readonly IStudentRegistrationService _studentRegistrationService;
+        private readonly IIdVerificationReceiptValidator _idVerificationReceiptValidator;
         private readonly IFacultyService _facultyService;
         private readonly IProgramHeadService _programHeadService;
         private readonly IAdminService _adminService;
@@ -26,6 +33,8 @@ namespace server.Controllers
         public AuthController(
             ILogger<AuthController> logger,
             IStudentService studentService,
+            IStudentRegistrationService studentRegistrationService,
+            IIdVerificationReceiptValidator idVerificationReceiptValidator,
             IFacultyService facultyService,
             IProgramHeadService programHeadService,
             IAdminService adminService,
@@ -35,6 +44,8 @@ namespace server.Controllers
         {
             _logger = logger;
             _studentService = studentService;
+            _studentRegistrationService = studentRegistrationService;
+            _idVerificationReceiptValidator = idVerificationReceiptValidator;
             _facultyService = facultyService;
             _programHeadService = programHeadService;
             _adminService = adminService;
@@ -45,32 +56,88 @@ namespace server.Controllers
 
         [HttpPost("register")]
         [Authorize(Policy = "FirebaseAuthenticated")]
-        public async Task<IActionResult> RegisterUser([FromBody] RegisterUserDto dto)
+        public async Task<IActionResult> RegisterUser(
+            [FromBody] RegisterUserDto dto,
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrEmpty(dto.Id))
                 return BadRequest(new { Message = "Firebase UID is required." });
 
-            // Role-specific email domains: students use @student.pnm.edu.ph,
-            // faculty use @pnm.edu.ph (the student domain does not satisfy
-            // EndsWith("@pnm.edu.ph") because of the extra "student." label).
+            var firebaseUid = User.FindFirstValue("user_id") ??
+                              User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var firebaseEmail = User.FindFirstValue(ClaimTypes.Email);
+            if (string.IsNullOrWhiteSpace(firebaseUid) || string.IsNullOrWhiteSpace(firebaseEmail))
+                return Unauthorized(new { Message = "A verified Firebase identity is required." });
+            if (!string.Equals(dto.Id, firebaseUid, StringComparison.Ordinal) ||
+                !string.Equals(
+                    StudentRegistrationIdentityNormalizer.NormalizeEmail(dto.Email),
+                    StudentRegistrationIdentityNormalizer.NormalizeEmail(firebaseEmail),
+                    StringComparison.Ordinal))
+                return BadRequest(new { Message = "Registration details do not match the signed-in account." });
+
+            if (!dto.PrivacyNoticeAccepted ||
+                !string.Equals(dto.PrivacyNoticeVersion, CurrentPrivacyNoticeVersion, StringComparison.Ordinal))
+                return BadRequest(new { Message = "Please accept the current privacy notice before registering." });
+            if (!dto.TermsAccepted ||
+                !string.Equals(dto.TermsVersion, CurrentTermsVersion, StringComparison.Ordinal))
+                return BadRequest(new { Message = "Please accept the current terms and conditions before registering." });
+
             var email = dto.Email?.Trim() ?? string.Empty;
-            if (dto.Role == "Student" &&
-                !email.EndsWith("@student.pnm.edu.ph", StringComparison.OrdinalIgnoreCase))
-                return BadRequest(new { Message = "Students must register with an @student.pnm.edu.ph email address." });
             if (dto.Role == "Faculty" &&
                 !email.EndsWith("@pnm.edu.ph", StringComparison.OrdinalIgnoreCase))
                 return BadRequest(new { Message = "Faculty must register with a @pnm.edu.ph email address." });
 
-            var result = dto.Role switch
+            if (dto.Role == "Student")
             {
-                "Student" => await _studentService.RegisterAsync(dto, dto.Id),
-                "Faculty" => await RegisterFacultyAsync(dto),
-                _ => null
-            };
-            if (result == null)
-                return BadRequest(new { Message = $"Unknown Role {dto.Role}" });
-            _logger.LogInformation("User registered: {Id} as {Role}", dto.Id, dto.Role);
-            return CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, result);
+                if (!StudentRegistrationIdentityNormalizer.TryCreate(
+                        dto,
+                        firebaseUid,
+                        firebaseEmail,
+                        out var identity) ||
+                    identity is null)
+                    return BadRequest(new { Message = "Student identity details are invalid." });
+
+                if (!_idVerificationReceiptValidator.TryValidate(
+                        dto.IdVerificationReceipt,
+                        identity,
+                        out var verifiedReceipt) ||
+                    verifiedReceipt is null)
+                    return BadRequest(new { Message = "The student ID verification receipt is invalid or expired." });
+
+                try
+                {
+                    var registration = await _studentRegistrationService.RegisterAsync(
+                        dto,
+                        verifiedReceipt,
+                        cancellationToken);
+                    _logger.LogInformation(
+                        registration.Created
+                            ? "User registered: {Id} as Student"
+                            : "Student registration retry completed: {Id}",
+                        dto.Id);
+                    return registration.Created
+                        ? CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, registration.User)
+                        : Ok(registration.User);
+                }
+                catch (StudentRegistrationConflictException)
+                {
+                    return Conflict(new
+                    {
+                        Message = "This verification receipt or student registration has already been used."
+                    });
+                }
+            }
+
+            if (dto.Role == "Faculty")
+            {
+                var result = await RegisterFacultyAsync(dto);
+                if (result is null)
+                    return Conflict(new { Message = "Unable to create the faculty profile." });
+                _logger.LogInformation("User registered: {Id} as Faculty", dto.Id);
+                return CreatedAtAction(nameof(RegisterUser), new { id = dto.Id }, result);
+            }
+
+            return BadRequest(new { Message = $"Unknown Role {dto.Role}" });
         }
         [HttpPost("register/admin-or-programhead")]
         [Authorize(Roles = "Admin")]

@@ -9,6 +9,6 @@ namespace server.Services.Interfaces
         Task<AnnouncementResponseDto?> GetByIdAsync(Guid id);
         Task<bool> CreateAsync(CreateAnnouncementDto createDto, string userId, string role);
         Task<bool> UpdateAsync(UpdateAnnouncementDto updateDto, Guid id, string userId, string role);
-        Task<bool> DeleteAsync(Guid id);
+        Task<bool> DeleteAsync(Guid id, string userId, string role);
     }
 }

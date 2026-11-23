@@ -25,10 +25,11 @@ namespace server.Repositories.Interfaces
             CancellationToken ct = default);
 
         /// <summary>
-        /// Most frequent chat/catalog queries since <paramref name="since"/>, grouped by
-        /// NormalizedQuery. DisplayQuery is the most recent original text for that group.
+        /// A page of chat/catalog query groups within the inclusive UTC window,
+        /// ordered by count descending, then normalized text. DisplayQuery is
+        /// the most recent original text from the same window and event types.
         /// </summary>
-        Task<List<TopQueryRow>> GetTopQueriesAsync(DateTime since, int take, CancellationToken ct = default);
+        Task<List<TopQueryRow>> GetTopQueriesAsync(DateTime since, DateTime until, int skip, int take, CancellationToken ct = default);
 
         /// <summary>Most-accessed theses since <paramref name="since"/> (view + download events).</summary>
         Task<List<TopThesisRow>> GetTopThesesAsync(DateTime since, int take, CancellationToken ct = default);

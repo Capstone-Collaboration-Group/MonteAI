@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using server.Configuration;
 using server.Models.DTOs.Analytics;
 using server.Services.Interfaces;
 
@@ -7,7 +8,7 @@ using server.Services.Interfaces;
 //
 // Query & Activity Monitoring API:
 //   GET /api/v1/analytics/overview?days=30   (Admin) — dashboard rollups
-//   GET /api/v1/analytics/suggestions?limit=6        — top query strings for chat suggestion cards
+//   GET /api/v1/analytics/suggestions?limit=3        — top eligible query strings for chat suggestion cards
 //
 // Events are recorded elsewhere (ChatController → chat_query,
 // ThesisController → catalog_search / thesis_view) — see
@@ -40,7 +41,7 @@ namespace server.Controllers
 
         /// <summary>Most frequent chat/catalog queries — powers the suggestion cards on every chat surface.</summary>
         [HttpGet("suggestions")]
-        public async Task<IActionResult> GetSuggestions([FromQuery] int limit = 6, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> GetSuggestions([FromQuery] int limit = AnalyticsConfig.TopQueryLimit, CancellationToken cancellationToken = default)
         {
             var suggestions = await _analytics.GetSuggestionsAsync(limit, 30, cancellationToken);
             return Ok(new AnalyticsSuggestionsDto { Suggestions = suggestions.ToList() });

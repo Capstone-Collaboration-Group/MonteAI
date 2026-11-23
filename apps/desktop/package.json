@@ -1,8 +1,8 @@
 {
   "name": "desktop",
-  "productName": "desktop",
+  "productName": "MonteSkolar",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "Colegio de Montalban research and thesis administration console",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -22,15 +22,14 @@
   "license": "MIT",
   "devDependencies": {
     "@electron-forge/cli": "^7.11.1",
+    "@electron-forge/maker-base": "^7.11.1",
     "@electron-forge/maker-deb": "^7.11.1",
     "@electron-forge/maker-rpm": "^7.11.1",
-    "@electron-forge/maker-squirrel": "^7.11.1",
     "@electron-forge/maker-zip": "^7.11.1",
     "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
     "@electron-forge/plugin-fuses": "^7.11.1",
     "@electron-forge/plugin-vite": "^7.11.1",
     "@electron/fuses": "^1.8.0",
-    "@types/electron-squirrel-startup": "^1.0.2",
     "@types/node": "^24.13.3",
     "@types/pdfjs-dist": "^2.10.378",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
@@ -38,6 +37,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "cross-env": "^10.1.0",
     "electron": "41.4.0",
+    "electron-builder": "^26.18.0",
     "eslint": "^8.57.1",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
@@ -51,7 +51,6 @@
     "@monteai/ui": "workspace:*",
     "@monteai/utils": "workspace:*",
     "@tailwindcss/vite": "^4.2.4",
-    "electron-squirrel-startup": "^1.0.1",
     "lodash": "^4.18.1",
     "pdfjs-dist": "^6.2.108",
     "tailwindcss": "^4.2.4"

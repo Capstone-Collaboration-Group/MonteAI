@@ -89,13 +89,22 @@ namespace server.Controllers
         [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> DeleteAnnouncement(Guid id)
         {
-            var result = await _service.DeleteAsync(id);
-            if (result)
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var role = User.FindFirstValue(ClaimTypes.Role);
+            try
             {
-                _logger.LogInformation("Deleted An Announncement Successfully!");
-                return Ok(new { Message = "Announcement Deleted Successfully" });
+                var result = await _service.DeleteAsync(id, userId ?? string.Empty, role ?? string.Empty);
+                if (result)
+                {
+                    _logger.LogInformation("Deleted An Announncement Successfully!");
+                    return Ok(new { Message = "Announcement Deleted Successfully" });
+                }
+                return BadRequest(new { Message = "Announcement Deletion not successful" });
             }
-            return BadRequest(new { Message = "Announcement Deletion not successful" });
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
         }
     }
 

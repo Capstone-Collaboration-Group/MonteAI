@@ -1,0 +1,23 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "FUNCTIONS_REQUEST_BODY_SIZE_LIMIT": "4194304",
+    "PYTHON_THREADPOOL_THREAD_COUNT": "1",
+    "IDV_FIREBASE_PROJECT_ID": "your-firebase-project-id",
+    "IDV_ALLOWED_ORIGINS": "http://localhost:8080,http://localhost:5173",
+    "IDV_RECEIPT_ISSUER": "https://your-function.azurewebsites.net",
+    "IDV_RECEIPT_AUDIENCE": "monteai-registration",
+    "IDV_RECEIPT_KEY_ID": "idv-2026-01",
+    "IDV_RECEIPT_PRIVATE_KEY_B64": "",
+    "IDV_QUOTA_HMAC_KEY_B64": "",
+    "IDV_TABLE_CONNECTION_STRING": "UseDevelopmentStorage=true",
+    "IDV_QUOTA_TABLE": "IdVerificationQuota",
+    "IDV_MONTHLY_ATTEMPTS": "6000",
+    "IDV_MONTHLY_COMPUTE_SECONDS": "40000",
+    "IDV_DAILY_USER_ATTEMPTS": "8",
+    "IDV_MONTHLY_USER_ATTEMPTS": "20",
+    "IDV_ENABLED": "true"
+  }
+}

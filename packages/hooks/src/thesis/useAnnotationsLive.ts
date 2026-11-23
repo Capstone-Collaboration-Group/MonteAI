@@ -66,6 +66,38 @@ export function useCreateAnnotationLive(service: AnnotationService) {
     });
 }
 
+/** Admin publication of a pending faculty/program-head comment. */
+export function useApproveAnnotationLive(service: AnnotationService) {
+    return useMutation({
+        mutationFn: ({
+            thesisId,
+            thesisVersionId,
+            annotationId,
+        }: {
+            thesisId: string;
+            thesisVersionId: string;
+            annotationId: string;
+        }) => service.approveAnnotation(thesisId, thesisVersionId, annotationId),
+    });
+}
+
+/**
+ * Admin bulk publication: approves every pending comment on the active
+ * thesis version in one request so the whole thesis is cleared at once.
+ * Resolves with the number of comments that were approved.
+ */
+export function useApproveAllAnnotationsLive(service: AnnotationService) {
+    return useMutation({
+        mutationFn: ({
+            thesisId,
+            thesisVersionId,
+        }: {
+            thesisId: string;
+            thesisVersionId: string;
+        }) => service.approveAllAnnotations(thesisId, thesisVersionId),
+    });
+}
+
 export function useResolveAnnotationLive(service: AnnotationService) {
     return useMutation({
         mutationFn: ({

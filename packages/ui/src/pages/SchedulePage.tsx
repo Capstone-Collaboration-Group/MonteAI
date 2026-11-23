@@ -21,7 +21,7 @@ import { showToast } from "../components/common";
 interface SchedulePageProps {
   scheduleService: ScheduleService;
   onCreateNew?: () => void;
-  /** Admin-only: enables drag/move, resize, and the Edit action. */
+  /** Admin/program-head: enables drag/move, resize, and the Edit action. */
   canEdit?: boolean;
   /** Member services (faculty/program-head/admin) used to load the panelist
    *  pool when the admin opens the edit form. */

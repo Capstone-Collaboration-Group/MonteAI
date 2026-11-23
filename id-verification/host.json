@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "functionTimeout": "00:00:30",
+  "logging": {
+    "logLevel": {
+      "default": "Warning",
+      "Function.verify_student_id.User": "Information",
+      "Host.Results": "Warning"
+    }
+  },
+  "extensions": {
+    "http": {
+      "routePrefix": "api"
+    }
+  }
+}

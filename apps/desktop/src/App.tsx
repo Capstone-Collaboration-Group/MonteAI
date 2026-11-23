@@ -1,6 +1,6 @@
 // apps/desktop/src/App.tsx (or wherever your renderer root component is)
-import { useMemo, useState } from "react";
-import { Toaster, NotFound, SettingsPage, ProtectedRoute, BackupPage } from "@monteai/ui";
+import { useMemo } from "react";
+import { Toaster, NotFound, SettingsPage, BackupPage } from "@monteai/ui";
 import {
   HashRouter,
   Routes,
@@ -16,11 +16,16 @@ import Announcements from "./renderer/pages/Announcements";
 import { AuthProvider, queryClient, QueryClientProvider } from "@monteai/hooks";
 import Schedule from "./renderer/pages/Schedule";
 import ResearchGroups from "./renderer/pages/ResearchGroups";
-import  AppSidebar  from "@/renderer/components/AppSidebar";
+import AppLayout from "./renderer/components/AppLayout";
+import DesktopProtectedRoute from "./renderer/components/DesktopProtectedRoute";
+import Welcome from "./renderer/pages/Welcome";
 import ThesisViewer from "./renderer/pages/ThesisViewer";
 import Register from "./renderer/pages/Register";
 import Login from "./renderer/pages/Login";
-import { profileService, userService } from "./renderer/lib/authServices";
+import { userService } from "./renderer/lib/authServices";
+import { backupService } from "./renderer/lib/backupService";
+import { backupStorage } from "./renderer/lib/backupStorage";
+import { backupExporter } from "./renderer/lib/backupExporter";
 import { auth } from "./renderer/lib/firebaseServices";
 import { MfaSessionProvider } from "./renderer/components/MfaSessionProvider";
 import { mfaService } from "./renderer/lib/mfaService";
@@ -34,7 +39,6 @@ function NotFoundPage() {
 
 
 const App = () => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const mfa = useMemo<MfaApi>(
     () => ({
       status: () => mfaService.status(),
@@ -50,22 +54,17 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <AuthProvider auth={auth}>
         <MfaSessionProvider>
-        <HashRouter>
-          <Toaster />
-          <div className="flex h-screen">
-            <AppSidebar
-              collapsed={sidebarCollapsed}
-              onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            />
-            <main className="min-w-0 flex-1 overflow-y-auto">
-              <Routes>
-                {/* Public routes */}
-                <Route path="/register" element={<Register />} />
-                <Route path="/login" element={<Login />} />
+          <HashRouter>
+            <Toaster />
+            <Routes>
+              {/* Public pages never mount the sidebar or protected API queries. */}
+              <Route path="/" element={<Welcome />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/login" element={<Login />} />
 
-                {/* Protected routes — wrapped inside ProtectedRoute */}
-                <Route element={<ProtectedRoute profileService={profileService} />}>
-                  <Route path="/" element={<Dashboard />} />
+              <Route element={<DesktopProtectedRoute />}>
+                <Route element={<AppLayout />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/announcements" element={<Announcements />} />
                   <Route path="/theses" element={<Theses />} />
                   <Route path="/faculty" element={<Faculty />} />
@@ -73,16 +72,15 @@ const App = () => {
                   <Route path="/panelist" element={<Panelist />} />
                   <Route path="/schedule" element={<Schedule />} />
                   <Route path="/settings" element={<SettingsPage userService={userService} mfa={mfa} />} />
-                  <Route path="/backup" element={<BackupPage />} />
+                  <Route path="/backup" element={<BackupPage backupService={backupService} storage={backupStorage} exporter={backupExporter} />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/thesis/view/:thesisId" element={<ThesisViewer />} />
                 </Route>
+              </Route>
 
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </main>
-          </div>
-        </HashRouter>
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </HashRouter>
         </MfaSessionProvider>
       </AuthProvider>
     </QueryClientProvider>

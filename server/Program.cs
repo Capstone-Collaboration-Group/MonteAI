@@ -81,6 +81,14 @@ try
         Environment.Exit(await server.Tools.RepairAbstractsRunner.RunAsync(args));
     }
 
+    // Proceedings layout preview — runs INSTEAD of the web host and needs no DB:
+    //   dotnet run --project server -- --proceedings-preview [out.pdf] [--blank] [--role "Panel Member"]
+    // Renders the form from fixture data so layout changes can be eyeballed.
+    if (args.Contains("--proceedings-preview", StringComparer.OrdinalIgnoreCase))
+    {
+        Environment.Exit(await server.Tools.ProceedingsPreviewRunner.RunAsync(args));
+    }
+
     Log.Information("Starting MonteAI Server Application...");
 
     var builder = WebApplication.CreateBuilder(args);
@@ -208,13 +216,17 @@ try
             policy.RequireRole("Student", "Faculty", "Admin", "ProgramHead"));
 
         options.AddPolicy("FirebaseAuthenticated", policy =>
-            policy.RequireAuthenticatedUser());
+            policy.RequireAuthenticatedUser()
+                  .RequireClaim(FirebaseAuthMiddleware.AuthMethodClaim, FirebaseAuthMiddleware.AuthMethodFirebase)
+                  .RequireClaim("email_verified", "true"));
     });
     builder.Services.AddHttpContextAccessor();
 
     // --- TOTP MFA ---
     builder.Services.Configure<server.Configuration.AuthOptions>(
         builder.Configuration.GetSection(server.Configuration.AuthOptions.SectionName));
+    builder.Services.Configure<IdVerificationOptions>(
+        builder.Configuration.GetSection(IdVerificationOptions.SectionName));
     // Dev/test fallback: generate an ephemeral signing key so the server boots
     // without user-secrets setup. Tokens do not survive a restart (fine in dev).
     if (string.IsNullOrWhiteSpace(builder.Configuration[$"{server.Configuration.AuthOptions.SectionName}:JwtSigningKey"]))
@@ -253,10 +265,6 @@ try
     // Agent behaviour + cost caps (see MonteAiAgentConfig for every knob).
     builder.Services.Configure<MonteAiAgentConfig>(
         builder.Configuration.GetSection(MonteAiAgentConfig.SectionName));
-
-    // Per-user daily chat query allowance (see AnalyticsConfig).
-    builder.Services.Configure<AnalyticsConfig>(
-        builder.Configuration.GetSection(AnalyticsConfig.SectionName));
     // Add services to the container.
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(
@@ -345,6 +353,8 @@ try
     );
 
     builder.Services.AddScoped<IFirebaseTokenVerifier, FirebaseAuthVerifier>();
+    // Parse and retain only configured public receipt keys once per process.
+    builder.Services.AddSingleton<IIdVerificationReceiptValidator, IdVerificationReceiptValidator>();
 
     builder.Services.AddSingleton<IBlobService, BlobService>();
 
@@ -363,6 +373,12 @@ try
         builder.Configuration.GetSection(EmailOptions.SectionName));
     builder.Services.AddSingleton<server.Infrastructure.IEmailQueue, server.Infrastructure.EmailQueue>();
     builder.Services.AddHostedService<server.Infrastructure.EmailWorker>();
+
+    // Scheduled full-copy backups (BackupScheduler writes data.zip + PDFs to
+    // Backup:Scheduled:OutputFolder). Disabled by default — see the "Backup"
+    // section in appsettings*.json.
+    builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
+    builder.Services.AddHostedService<server.Infrastructure.BackupScheduler>();
 
     // LLM backend + pool. ILlmBackend is registered explicitly (not via the
     // Scrutor scan) because the pool is a singleton and must not capture a
@@ -420,7 +436,11 @@ try
                 "https://localhost:5174",
                 "https://localhost:8080",
                 "https://localhost:5173",
+                "https://192.168.100.8:5173",
                 "https://monteskolar.pnm.edu.ph",
+                "https://monteai-id-verifier.azurewebsites.net",
+                // Stable, secure origin of the installed desktop app.
+                "monteskolar://app",
                 "http://192.168.100.9:8081"
                 )
             .AllowAnyHeader()

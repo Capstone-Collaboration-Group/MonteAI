@@ -44,6 +44,10 @@ namespace server.Services.User
         public async Task<bool> CreateAsync(RegisterUserDto createDto)
         {
             var faculty = _mapper.Map<Faculty>(createDto);
+            faculty.PrivacyNoticeVersion = createDto.PrivacyNoticeVersion;
+            faculty.PrivacyNoticeAcceptedAt = DateTime.UtcNow;
+            faculty.TermsVersion = createDto.TermsVersion;
+            faculty.TermsAcceptedAt = DateTime.UtcNow;
             faculty.CreatedAt = DateTime.UtcNow;
             var result = await _repo.CreateFacultyAsync(faculty);
 

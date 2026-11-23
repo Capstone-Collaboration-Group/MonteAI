@@ -35,6 +35,14 @@ namespace server.Models.DTOs.Schedule
         public string PanelistId { get; set; } = string.Empty;
         [Required]
         public string PanelistType { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Defense-panel role the scheduler assigns ("Panel Chairperson" /
+        /// "Panel Member" / "Capstone Adviser"); the proceedings print it in
+        /// Section II. Null on schedules created before roles were captured.
+        /// </summary>
+        [MaxLength(50)]
+        public string? Role { get; set; }
     }
     public class UpdateScheduleDto
     {

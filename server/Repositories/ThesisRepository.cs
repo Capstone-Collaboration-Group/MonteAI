@@ -99,10 +99,29 @@ namespace server.Repositories
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.GroupId == groupId);
 
+        public async Task<Thesis?> GetLatestByUploadedByIdAsync(string uploadedById)
+            // Same loaded graph as GetByGroupIdAsync — powers GET /thesis/my
+            // for faculty, whose submissions carry no research group.
+            => await _db.Theses
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Schedules)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Leader)
+                .Include(t => t.ResearchGroup)
+                    .ThenInclude(rg => rg!.Students)
+                .AsNoTracking()
+                .Where(t => t.UploadedById == uploadedById)
+                .OrderByDescending(t => t.SubmittedAt)
+                .FirstOrDefaultAsync();
+
         /// <summary>
         /// Exact-match (LIKE) search over titles and abstracts. LIKE
         /// wildcards inside the term are escaped so user input is matched
         /// literally. The result set is intentionally small (agent tool use).
+        /// Restricted to indexed theses: this feeds the chat agent's
+        /// keyword_search tool, so drafts/failed rows must not leak their
+        /// titles or abstracts to any authenticated student (mirrors the
+        /// Status filters on the catalog queries above and below).
         /// </summary>
         public async Task<IReadOnlyList<Thesis>> SearchByKeywordAsync(string term, int limit, CancellationToken cancellationToken = default)
         {
@@ -113,7 +132,9 @@ namespace server.Repositories
             var pattern = $"%{escaped}%";
 
             return await _db.Theses
-                .Where(t => EF.Functions.Like(t.Title!, pattern) || EF.Functions.Like(t.Abstract!, pattern))
+                .Where(t =>
+                    (t.Status == "Indexed" || t.PineconeStatus == "Indexed") &&
+                    (EF.Functions.Like(t.Title!, pattern) || EF.Functions.Like(t.Abstract!, pattern)))
                 .OrderByDescending(t => t.SubmittedAt)
                 .Take(Math.Clamp(limit, 1, 10))
                 .ToListAsync(cancellationToken);

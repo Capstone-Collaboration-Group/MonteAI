@@ -1,6 +1,17 @@
 **/.classpath
 **/.dockerignore
 **/.env
+**/.env.*
+**/appsettings.*.json
+**/*credential*.json
+**/.secrets
+**/.certs
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.p12
+**/logs
+**/server.Tests
 **/.git
 **/.gitignore
 **/.project

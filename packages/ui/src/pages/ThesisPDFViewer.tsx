@@ -8,6 +8,7 @@ import type {
   AnnotationService,
 } from "@monteai/api";
 import type {
+  AnnotationResponseDto,
   CreateAnnotationDto,
   ResolveAnnotationDto,
   ViewerRole,
@@ -16,6 +17,8 @@ import {
   useThesisVersions,
   useAnnotationsLive,
   useCreateAnnotationLive,
+  useApproveAnnotationLive,
+  useApproveAllAnnotationsLive,
   useResolveAnnotationLive,
   useDeleteAnnotationLive,
   useGenerateProceedings,
@@ -28,6 +31,7 @@ import {
 } from "@monteai/hooks";
 import { getApiErrorMessage } from "@monteai/utils";
 import { toast } from "../components/toast";
+import { ConfirmDialog } from "../components/common";
 import { ThesisPDFViewerLayout } from "../components/Thesis";
 
 export type { ViewerRole } from "@monteai/types";
@@ -46,6 +50,9 @@ interface ThesisPDFViewerProps {
   isGroupLeader?: boolean;
   /** The user's research-group id — must match thesis.groupId for ownership. */
   currentGroupId?: string | null;
+  /** Hides the "Schedule For Defense" action (default: shown). The web
+   *  passes false for ProgramHead — schedule editing is desktop-only. */
+  canSchedule?: boolean;
   onBack?: () => void;
   onSubmitRevision?: () => void;
 }
@@ -56,6 +63,18 @@ const ANNOTATOR_ROLES: ViewerRole[] = [
   "program_head",
   "admin",
 ];
+
+// Viewer vocabulary → the profile role stamped on the comment. The stamp
+// decides whether a comment is created "pending" (needs Admin approval) or
+// already "approved" (Admin). "adviser" is never produced by toViewerRole;
+// it's treated as a reviewer like faculty.
+const VIEWER_ROLE_TO_PROFILE_ROLE: Record<ViewerRole, string> = {
+  adviser: "Faculty",
+  faculty: "Faculty",
+  program_head: "ProgramHead",
+  admin: "Admin",
+  student: "Student",
+};
 
 function hasBlobErrorResponse(error: unknown): error is { response: { data: Blob } } {
   if (typeof error !== "object" || error === null || !("response" in error))
@@ -95,6 +114,13 @@ async function getProceedingsErrorMessage(
   return getApiErrorMessage(error, fallback);
 }
 
+/** Shortens a comment for the delete-confirmation copy. */
+function truncate(text: string, max: number) {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1).trimEnd()}…`;
+}
+
 export function ThesisPDFViewerPage({
   thesisId,
   thesisService,
@@ -106,13 +132,18 @@ export function ThesisPDFViewerPage({
   role = "student",
   isGroupLeader = false,
   currentGroupId = null,
+  canSchedule = true,
   onBack,
   onSubmitRevision,
 }: ThesisPDFViewerProps) {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // Comment deletion is destructive and has no undo, so the trash button only
+  // stages the id here — the actual Firestore delete runs after confirmation.
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
 
   const canAnnotate = ANNOTATOR_ROLES.includes(role);
+  const { user } = useAuth();
 
   const { thesis } = useThesis(thesisService, thesisId);
 
@@ -133,17 +164,53 @@ export function ThesisPDFViewerPage({
 
   // Annotations are streamed live from Firestore for the active version.
   const {
-    annotations,
-    unresolvedCount,
-    resolvedCount,
+    annotations: allAnnotations,
     isLoading: annotationsLoading,
   } = useAnnotationsLive(annotationService, thesisId, activeVersionId ?? "");
 
+  // ── Approval gate ─────────────────────────────────────────────────────
+  // Faculty / program-head comments are created "pending": only an Admin and
+  // the comment's own author can see them until they're approved. Everyone
+  // else (students included) sees approved comments only. The server-side
+  // proceedings reader applies the same rule so pending comments never reach
+  // the printed PDF.
+  const currentUid = user?.uid ?? null;
+  const canApprove = role === "admin";
+  const annotations = allAnnotations.filter((annotation) => {
+    if ((annotation.status ?? "approved") !== "pending") return true;
+    if (canApprove) return true;
+    return currentUid != null && annotation.reviewerId === currentUid;
+  });
+  const unresolvedCount = annotations.filter((a) => !a.isResolved).length;
+  const resolvedCount = annotations.length - unresolvedCount;
+
+  // ── Delete gate ───────────────────────────────────────────────────────
+  // Students may only remove their own comments; anything authored by
+  // faculty, a program head or an admin is theirs alone to delete. (Students
+  // can't annotate at all today, so in practice a student never gets a
+  // trash button.) Everyone else keeps the existing behaviour.
+  const canDeleteAnnotation = useCallback(
+    (annotation: AnnotationResponseDto) => {
+      if (role !== "student") return true;
+      return (
+        annotation.authorRole === "Student" &&
+        currentUid != null &&
+        annotation.reviewerId === currentUid
+      );
+    },
+    [role, currentUid]
+  );
+
   const { mutate: createAnnotation, isPending: isCreating } =
     useCreateAnnotationLive(annotationService);
+  const { mutate: approveAnnotation, isPending: isApproving } =
+    useApproveAnnotationLive(annotationService);
+  const { mutate: approveAllAnnotations, isPending: isApprovingAll } =
+    useApproveAllAnnotationsLive(annotationService);
   const { mutate: resolveAnnotation, isPending: isResolving } =
     useResolveAnnotationLive(annotationService);
-  const { mutate: deleteAnnotation } = useDeleteAnnotationLive(annotationService);
+  const { mutate: deleteAnnotation, isPending: isDeletingComment } =
+    useDeleteAnnotationLive(annotationService);
   const { mutate: generateProceedings, isPending: isGenerating } =
     useGenerateProceedings(thesisService);
 
@@ -153,11 +220,50 @@ export function ThesisPDFViewerPage({
       createAnnotation({
         thesisId,
         thesisVersionId: activeVersionId,
-        input: dto,
+        // Stamped on the document: Admin → approved, anyone else → pending.
+        input: { ...dto, authorRole: VIEWER_ROLE_TO_PROFILE_ROLE[role] },
       });
     },
-    [thesisId, activeVersionId, createAnnotation]
+    [thesisId, activeVersionId, createAnnotation, role]
   );
+
+  const handleApprove = useCallback(
+    (annotationId: string) => {
+      if (!activeVersionId) return;
+      approveAnnotation(
+        { thesisId, thesisVersionId: activeVersionId, annotationId },
+        {
+          onSuccess: () => toast.success("Comment approved and published."),
+          onError: (error) =>
+            toast.error(
+              getApiErrorMessage(error, "Couldn't approve the comment.")
+            ),
+        }
+      );
+    },
+    [thesisId, activeVersionId, approveAnnotation]
+  );
+
+  // One click for the whole thesis version: every pending comment becomes
+  // approved instead of the admin clicking each card's Approve button.
+  const handleApproveAll = useCallback(() => {
+    if (!activeVersionId) return;
+    approveAllAnnotations(
+      { thesisId, thesisVersionId: activeVersionId },
+      {
+        onSuccess: (approvedCount) =>
+          toast.success(
+            approvedCount === 1
+              ? "1 comment approved and published."
+              : `${approvedCount} comments approved and published.`
+          ),
+        onError: (error) =>
+          toast.error(
+            getApiErrorMessage(error, "Couldn't approve the comments.")
+          ),
+      }
+    );
+  }, [thesisId, activeVersionId, approveAllAnnotations]);
 
   const handleResolve = useCallback(
     (annotationId: string, dto: ResolveAnnotationDto) => {
@@ -172,17 +278,41 @@ export function ThesisPDFViewerPage({
     [thesisId, activeVersionId, resolveAnnotation]
   );
 
+  // Step 1: gate + stage. Nothing is deleted until the dialog is confirmed.
   const handleDelete = useCallback(
     (annotationId: string) => {
       if (!activeVersionId) return;
-      deleteAnnotation({
-        thesisId,
-        thesisVersionId: activeVersionId,
-        annotationId,
-      });
+      // Defense in depth: the sidebar hides the trash button for comments a
+      // student may not remove, but re-check here so a stale UI can't delete
+      // a faculty / program-head / admin comment.
+      const target = annotations.find((a) => a.id === annotationId);
+      if (target && !canDeleteAnnotation(target)) {
+        toast.error("You can only delete your own comments.");
+        return;
+      }
+      setDeleteCommentId(annotationId);
     },
-    [thesisId, activeVersionId, deleteAnnotation]
+    [activeVersionId, annotations, canDeleteAnnotation]
   );
+
+  // Step 2: the confirmed delete.
+  const handleConfirmDeleteComment = useCallback(() => {
+    if (!activeVersionId || !deleteCommentId) return;
+    deleteAnnotation(
+      { thesisId, thesisVersionId: activeVersionId, annotationId: deleteCommentId },
+      {
+        onSuccess: () => setDeleteCommentId(null),
+        onError: (error) => {
+          setDeleteCommentId(null);
+          toast.error(getApiErrorMessage(error, "Couldn't delete the comment."));
+        },
+      }
+    );
+  }, [thesisId, activeVersionId, deleteCommentId, deleteAnnotation]);
+
+  const commentToDelete = deleteCommentId
+    ? annotations.find((a) => a.id === deleteCommentId)
+    : undefined;
 
   const { mutate: deleteVersion, isPending: isDeletingVersion } =
     useDeleteThesisVersion(thesisService);
@@ -243,40 +373,62 @@ export function ThesisPDFViewerPage({
     adminService
   );
   const { mutateAsync: createSchedule } = useCreateSchedule(scheduleService);
-  const { user } = useAuth();
   const scheduledBy = user?.displayName ?? user?.email ?? "";
 
   return (
-    <ThesisPDFViewerLayout
-      thesis={thesis ?? null}
-      role={role}
-      versions={versions}
-      activeVersion={activeVersion ?? null}
-      fileUrl={fileUrl}
-      annotations={annotations}
-      unresolvedCount={unresolvedCount}
-      resolvedCount={resolvedCount}
-      isLoading={versionsLoading || annotationsLoading || urlLoading}
-      isGenerating={isGenerating}
-      isCreating={isCreating}
-      isResolving={isResolving}
-      canAnnotate={canAnnotate}
-      canDeleteVersion={canDeleteVersion}
-      deleteDialogOpen={deleteDialogOpen}
-      isDeletingVersion={isDeletingVersion}
-      onRequestDelete={handleRequestDelete}
-      onDeleteVersion={handleDeleteVersion}
-      onCancelDelete={() => setDeleteDialogOpen(false)}
-      onVersionChange={setSelectedVersionId}
-      onAddAnnotation={handleAddAnnotation}
-      onResolve={handleResolve}
-      onDelete={handleDelete}
-      onGenerateProceedings={handleGenerateProceedings}
-      onBack={onBack}
-      onSubmitRevision={onSubmitRevision}
-      panelistPool={panelistPool ?? []}
-      scheduledBy={scheduledBy}
-      onConfirmSchedule={(payload) => createSchedule(payload)}
-    />
+    <>
+      <ThesisPDFViewerLayout
+        thesis={thesis ?? null}
+        role={role}
+        versions={versions}
+        activeVersion={activeVersion ?? null}
+        fileUrl={fileUrl}
+        annotations={annotations}
+        unresolvedCount={unresolvedCount}
+        resolvedCount={resolvedCount}
+        isLoading={versionsLoading || annotationsLoading || urlLoading}
+        isGenerating={isGenerating}
+        isCreating={isCreating}
+        isResolving={isResolving}
+        canAnnotate={canAnnotate}
+        canApprove={canApprove}
+        isApproving={isApproving || isApprovingAll}
+        onApprove={handleApprove}
+        onApproveAll={handleApproveAll}
+        canDeleteAnnotation={canDeleteAnnotation}
+        canDeleteVersion={canDeleteVersion}
+        deleteDialogOpen={deleteDialogOpen}
+        isDeletingVersion={isDeletingVersion}
+        onRequestDelete={handleRequestDelete}
+        onDeleteVersion={handleDeleteVersion}
+        onCancelDelete={() => setDeleteDialogOpen(false)}
+        onVersionChange={setSelectedVersionId}
+        onAddAnnotation={handleAddAnnotation}
+        onResolve={handleResolve}
+        onDelete={handleDelete}
+        onGenerateProceedings={handleGenerateProceedings}
+        onBack={onBack}
+        onSubmitRevision={onSubmitRevision}
+        panelistPool={panelistPool ?? []}
+        scheduledBy={scheduledBy}
+        onConfirmSchedule={(payload) => createSchedule(payload)}
+        canSchedule={canSchedule}
+      />
+
+      {/* Deleting a comment has no undo — every role confirms first. */}
+      <ConfirmDialog
+        open={deleteCommentId !== null}
+        title="Delete this comment?"
+        description={
+          commentToDelete
+            ? `"${truncate(commentToDelete.comment, 140)}" will be removed from this version for everyone. This can't be undone.`
+            : "This comment will be removed from this version for everyone. This can't be undone."
+        }
+        confirmLabel="Delete"
+        loading={isDeletingComment}
+        onConfirm={handleConfirmDeleteComment}
+        onCancel={() => setDeleteCommentId(null)}
+      />
+    </>
   );
 }

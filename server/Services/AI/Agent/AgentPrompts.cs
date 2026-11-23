@@ -193,7 +193,8 @@ namespace server.Services.AI.Agent
             if (hasSources)
             {
                 sb.Append("\nWrite a natural narrative answer (not a bullet list). Attribute findings to authors, e.g. \"According to Basulgan et al. (2025)…\". Keep the [Source n] marker after each cited claim.");
-                sb.Append("\nSOURCES ARE NON-EMPTY — the fixed \"No relevant theses were found…\" reply is FORBIDDEN here; it is reserved for an EMPTY sources list. If no source directly answers the question, still write prose grounded strictly in the sources above: name the closest ones, summarize what they DO cover, and state plainly that their abstracts do not explicitly address the asked aspect. Never invent findings beyond them.");
+                sb.Append("\nSOURCES ARE NON-EMPTY — the fixed \"No relevant theses were found…\" reply is FORBIDDEN here; it is reserved for an EMPTY sources list. If no source directly answers the question, say plainly that the retrieved theses do not explicitly address the asked aspect — do NOT name, list, or summarize studies that are off-topic just to fill the answer, and attach [Source n] markers only to claims a source genuinely supports. Never invent findings beyond them.");
+                sb.Append("\nPreserve ALL requested topic constraints. Sharing an application or context does not establish the requested method: a research-assistant thesis is not evidence of prompt-injection detection unless its abstract explicitly supports that aspect. A term mention alone does not prove that a method was implemented or evaluated.");
             }
 
             return sb.ToString();

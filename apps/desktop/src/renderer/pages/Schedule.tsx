@@ -16,7 +16,8 @@ export default function Schedule() {
   return (
     <SchedulePage
       scheduleService={scheduleService}
-      canEdit={profile.role === "Admin"}
+      // Matches ScheduleController's write policy (Admin,ProgramHead).
+      canEdit={profile.role === "Admin" || profile.role === "ProgramHead"}
       facultyService={facultyService}
       programHeadService={programHeadService}
       adminService={adminService}

@@ -1,4 +1,5 @@
-import { Sidebar, NotificationBell } from "@monteai/ui/index";
+import { useState } from "react";
+import { Sidebar, NotificationBell, toast } from "@monteai/ui/index";
 import {
   NavLink,
   useNavigate
@@ -15,9 +16,8 @@ import {
   Megaphone,
   Menu,
 } from "lucide-react";
-import { auth } from "../lib/firebaseServices";
 import { notificationService } from "../lib/notificationService";
-import { queryClient } from "@monteai/hooks";
+import { useDesktopSession } from "./DesktopSessionContext";
 
 // Deep links for notification clicks (HashRouter routes).
 function notificationRoute(targetType: string): string | null {
@@ -41,22 +41,28 @@ interface AppSidebarProps {
 export default function AppSidebar({ collapsed, onToggleCollapsed }: AppSidebarProps) {
 
   const navigate = useNavigate();
+  const { signOut } = useDesktopSession();
+  const [signingOut, setSigningOut] = useState(false);
   const handleLogout = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
     try {
-      await auth.signOut();
-      queryClient.clear(); // Wipe the TanStack query cache to prevent data leaks
-      navigate("/"); // Send them back to the landing page
+      await signOut();
+      navigate("/", { replace: true });
     } catch (error) {
       console.error("Failed to sign out", error);
+      toast.error("Could not sign out. Please try again.");
+    } finally {
+      setSigningOut(false);
     }
   };
   return (
-    <Sidebar collapsed={collapsed}>
+    <Sidebar collapsed={collapsed} className="shrink-0" aria-label="Main navigation">
       <Sidebar.Header className="gap-2.5">
         {!collapsed && (
           <>
             <img
-              src="/cdm-logo.png"
+              src={`${import.meta.env.BASE_URL}cdm-logo.png`}
               alt="Colegio de Montalban"
               className="h-8.5 w-8.5 shrink-0 rounded-full object-cover"
             />
@@ -97,7 +103,7 @@ export default function AppSidebar({ collapsed, onToggleCollapsed }: AppSidebarP
       </Sidebar.Header>
 
       <Sidebar.Nav>
-        <NavLink to="/" end>
+        <NavLink to="/dashboard" end>
           {({ isActive }) => (
             <Sidebar.Item
               icon={<LayoutDashboard className="h-4 w-4" />}
@@ -106,7 +112,7 @@ export default function AppSidebar({ collapsed, onToggleCollapsed }: AppSidebarP
             />
           )}
         </NavLink>
-        <NavLink to="/Announcements">
+        <NavLink to="/announcements">
           {({ isActive }) => (
             <Sidebar.Item
               icon={<Megaphone className="h-4 w-4" />}
@@ -191,16 +197,12 @@ export default function AppSidebar({ collapsed, onToggleCollapsed }: AppSidebarP
             />
           )}
         </NavLink>
-        <NavLink to="/logout">
-          {({ isActive }) => (
-            <Sidebar.Item
-              icon={<LogOut className="h-4 w-4" />}
-              label="Logout"
-              active={isActive}
-              onClick={handleLogout}
-            />
-          )}
-        </NavLink>
+        <Sidebar.Item
+          icon={<LogOut className="h-4 w-4" />}
+          label={signingOut ? "Signing out…" : "Logout"}
+          disabled={signingOut}
+          onClick={() => void handleLogout()}
+        />
       </Sidebar.Footer>
     </Sidebar>
   );

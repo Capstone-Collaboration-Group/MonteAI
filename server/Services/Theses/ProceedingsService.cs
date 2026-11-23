@@ -7,28 +7,15 @@ using server.Services.Interfaces;
 
 namespace server.Services.Theses
 {
-    public class ProceedingsService : IProceedingsService
+    /// <summary>
+    /// Renders the department's "BSIT Capstone Project Defense Proceedings" form —
+    /// the 10-section, two-page layout of the attached template (612x936 pt pages,
+    /// ruled frame, 8.7 pt body / 11.2 pt headings). Everything the database can
+    /// supply is filled in; the rest stays exactly as the template prints it.
+    /// Section drawing lives in ProceedingsService.Sections.cs.
+    /// </summary>
+    public partial class ProceedingsService : IProceedingsService
     {
-        // Template line-up used only when the thesis has no defense schedule yet.
-        private static readonly string[] BlankPanelistRoles = { "Chairman", "Member", "Member", "Member" };
-
-        // Word "Blue, Accent 1, Lighter 40%" - the header shading used on every
-        // Comments/Action Taken table in the source template.
-        private static readonly XColor HeaderBlue = XColor.FromArgb(156, 194, 230);
-
-        private const double LeftMargin = 50;
-        private const double TopMargin = 45;
-        private const double BottomMargin = 50;
-
-        private const double HeaderRowHeight = 28;
-        private const double MinRowHeight = 30;
-        private const double RowPadding = 6;
-        private const double TextLineHeight = 13;
-        private const double NameLineHeight = 18;
-        private const double GapBetweenTables = 20;
-        private const int BlankRowsPerTable = 4;
-
-        // Panelist comments live in Firestore - read through IAnnotationReader.
         private readonly IProceedingsRepository _repository;
         private readonly IAnnotationReader _annotationReader;
         private readonly IWebHostEnvironment _environment;
@@ -45,6 +32,9 @@ namespace server.Services.Theses
             _environment = environment;
             _logger = logger;
         }
+
+        /// <summary>One printable row of Section V.</summary>
+        private sealed record CommentRow(string Member, string Comment, string Response);
 
         private sealed record CommentBlock(
             string Name,
@@ -67,6 +57,7 @@ namespace server.Services.Theses
                 data.VersionIds,
                 cancellationToken);
             var blocks = await BuildCommentBlocksAsync(data, annotations, cancellationToken);
+            var rows = BuildCommentRows(blocks);
 
             _logger.LogInformation(
                 "Generating proceedings for thesis {ThesisId}: {Members} author(s), {Panelists} panelist(s), {Comments} comment(s)",
@@ -74,464 +65,27 @@ namespace server.Services.Theses
 
             using var document = new PdfDocument();
 
-            var page = document.AddPage();
-            page.Size = PdfSharpCore.PageSize.A4;
-            var graphics = XGraphics.FromPdfPage(page);
-
-            double right = page.Width - LeftMargin;
-            double y = TopMargin;
-            var graphicsDisposed = false;
-
+            var renderer = new ProceedingsRenderer(document, LoadHeaderImage());
             try
             {
-                // Fonts
-                var schoolFont = new XFont("Arial", 16, XFontStyle.Bold);
-                var addressFont = new XFont("Arial", 10, XFontStyle.Regular);
-                var titleFont = new XFont("Arial", 12, XFontStyle.Bold);
-                var normalFont = new XFont("Arial", 10, XFontStyle.Regular);
-                var boldFont = new XFont("Arial", 10, XFontStyle.Bold);
-                var tableHeaderFont = new XFont("Arial", 10, XFontStyle.Bold);
-
-                // Starts a new page when the next block won't fit. Returns true when
-                // a page break happened, so table callers can redraw the header row.
-                bool EnsureSpace(double requiredHeight)
-                {
-                    if (y + requiredHeight <= page.Height - BottomMargin) return false;
-
-                    graphics.Dispose();
-                    graphicsDisposed = true;
-                    page = document.AddPage();
-                    page.Size = PdfSharpCore.PageSize.A4;
-                    graphics = XGraphics.FromPdfPage(page);
-                    graphicsDisposed = false;
-                    right = page.Width - LeftMargin;
-                    y = TopMargin;
-                    return true;
-                }
-
-                void StartContinuationPage(string nameLine)
-                {
-                    graphics.Dispose();
-                    graphicsDisposed = true;
-                    page = document.AddPage();
-                    page.Size = PdfSharpCore.PageSize.A4;
-                    graphics = XGraphics.FromPdfPage(page);
-                    graphicsDisposed = false;
-                    right = page.Width - LeftMargin;
-                    y = TopMargin;
-
-                    graphics.DrawString(nameLine, normalFont, XBrushes.Black, new XPoint(LeftMargin, y));
-                    y += NameLineHeight;
-                    DrawTableHeader();
-                }
-
-                void DrawTableHeader()
-                {
-                    var headerBrush = new XSolidBrush(HeaderBlue);
-                    double tableWidth = right - LeftMargin;
-                    double commentsWidth = tableWidth * 0.65;
-                    double actionWidth = tableWidth * 0.35;
-
-                    graphics.DrawRectangle(headerBrush, new XRect(LeftMargin, y, commentsWidth, HeaderRowHeight));
-                    graphics.DrawRectangle(headerBrush, new XRect(LeftMargin + commentsWidth, y, actionWidth, HeaderRowHeight));
-                    graphics.DrawRectangle(XPens.Black, new XRect(LeftMargin, y, commentsWidth, HeaderRowHeight));
-                    graphics.DrawRectangle(XPens.Black, new XRect(LeftMargin + commentsWidth, y, actionWidth, HeaderRowHeight));
-
-                    graphics.DrawString(
-                        "Comments/Suggestions/Recommendations",
-                        tableHeaderFont,
-                        XBrushes.Black,
-                        new XRect(LeftMargin + 5, y, commentsWidth - 10, HeaderRowHeight),
-                        XStringFormats.Center
-                    );
-
-                    graphics.DrawString(
-                        "Action Taken",
-                        tableHeaderFont,
-                        XBrushes.Black,
-                        new XRect(LeftMargin + commentsWidth + 5, y, actionWidth - 10, HeaderRowHeight),
-                        XStringFormats.Center
-                    );
-
-                    y += HeaderRowHeight;
-                }
-
-                void DrawRow(string comment, string action, string nameLine)
-                {
-                    double tableWidth = right - LeftMargin;
-                    double commentsWidth = tableWidth * 0.65;
-                    double actionWidth = tableWidth * 0.35;
-
-                    var commentLines = WrapText(graphics, comment, normalFont, commentsWidth - 2 * RowPadding);
-                    var actionLines = WrapText(graphics, action, normalFont, actionWidth - 2 * RowPadding);
-                    var lineCount = Math.Max(1, Math.Max(commentLines.Count, actionLines.Count));
-                    var lineOffset = 0;
-
-                    while (lineOffset < lineCount)
-                    {
-                        var availableHeight = page.Height - BottomMargin - y;
-                        if (availableHeight < MinRowHeight)
-                        {
-                            StartContinuationPage(nameLine);
-                            continue;
-                        }
-
-                        var linesPerPage = (int)Math.Floor(
-                            (availableHeight - RowPadding * 2) / TextLineHeight);
-                        var linesThisPage = Math.Min(lineCount - lineOffset, linesPerPage);
-                        var rowHeight = Math.Max(
-                            MinRowHeight,
-                            linesThisPage * TextLineHeight + RowPadding * 2);
-
-                        double top = y;
-                        graphics.DrawRectangle(XPens.Black, new XRect(LeftMargin, top, commentsWidth, rowHeight));
-                        graphics.DrawRectangle(XPens.Black, new XRect(LeftMargin + commentsWidth, top, actionWidth, rowHeight));
-
-                        for (int i = lineOffset; i < lineOffset + linesThisPage && i < commentLines.Count; i++)
-                        {
-                            graphics.DrawString(
-                                commentLines[i],
-                                normalFont,
-                                XBrushes.Black,
-                                new XRect(LeftMargin + RowPadding, top + RowPadding + (i - lineOffset) * TextLineHeight, commentsWidth - 2 * RowPadding, TextLineHeight),
-                                XStringFormats.TopLeft
-                            );
-                        }
-
-                        for (int i = lineOffset; i < lineOffset + linesThisPage && i < actionLines.Count; i++)
-                        {
-                            graphics.DrawString(
-                                actionLines[i],
-                                normalFont,
-                                XBrushes.Black,
-                                new XRect(LeftMargin + commentsWidth + RowPadding, top + RowPadding + (i - lineOffset) * TextLineHeight, actionWidth - 2 * RowPadding, TextLineHeight),
-                                XStringFormats.TopLeft
-                            );
-                        }
-
-                        y += rowHeight;
-                        lineOffset += linesThisPage;
-                        if (lineOffset < lineCount)
-                            StartContinuationPage(nameLine);
-                    }
-                }
-
-                void DrawCommentBlock(CommentBlock block, bool blankTemplate)
-                {
-                    var nameLine = blankTemplate
-                        ? "Mr./Ms. ______________________________"
-                        : $"Mr./Ms. {DisplayName(block.Name)} \u2013 {block.Role}";
-
-                    EnsureSpace(NameLineHeight + HeaderRowHeight + MinRowHeight + GapBetweenTables);
-
-                    graphics.DrawString(nameLine, normalFont, XBrushes.Black, new XPoint(LeftMargin, y));
-                    y += NameLineHeight;
-
-                    DrawTableHeader();
-
-                    if (block.Comments.Count == 0)
-                    {
-                        for (int i = 0; i < BlankRowsPerTable; i++)
-                            DrawRow(string.Empty, string.Empty, nameLine);
-                    }
-                    else
-                    {
-                        foreach (var annotation in block.Comments)
-                        {
-                            var comment = string.IsNullOrWhiteSpace(annotation.Comment)
-                                ? "(no comment)"
-                                : annotation.Comment.Trim();
-
-                            if (annotation.PageNumber > 0)
-                                comment += $" (p. {annotation.PageNumber})";
-
-                            var action = !annotation.IsResolved
-                                ? string.Empty
-                                : string.IsNullOrWhiteSpace(annotation.ResolverNote)
-                                    ? "Resolved"
-                                    : $"Resolved: {annotation.ResolverNote.Trim()}";
-
-                            DrawRow(comment, action, nameLine);
-                        }
-                    }
-
-                    y += GapBetweenTables;
-                }
-
-                // =========================================================
-                // HEADER (seal + school name/address)
-                // =========================================================
-
-                double logoSize = 65;
-                TryDrawLogo(graphics, LeftMargin, y, logoSize);
-
-                double headerTextLeft = LeftMargin + logoSize + 10;
-
-                graphics.DrawString(
-                    "COLEGIO DE MONTALBAN",
-                    schoolFont,
-                    XBrushes.Black,
-                    new XRect(headerTextLeft, y + 12, right - headerTextLeft, 22),
-                    XStringFormats.TopLeft
-                );
-
-                graphics.DrawString(
-                    "Kasiglahan Village, San Jose, Montalban, Rizal",
-                    addressFont,
-                    XBrushes.Black,
-                    new XRect(headerTextLeft, y + 36, right - headerTextLeft, 18),
-                    XStringFormats.TopLeft
-                );
-
-                y += logoSize + 15;
-
-                // =========================================================
-                // TITLE BLOCK
-                // =========================================================
-
-                graphics.DrawString(
-                    "DEFENSE PROCEEDINGS",
-                    titleFont,
-                    XBrushes.Black,
-                    new XRect(LeftMargin, y, right - LeftMargin, 20),
-                    XStringFormats.Center
-                );
-
-                y += 20;
-
-                graphics.DrawString(
-                    "(Final Defense)",
-                    normalFont,
-                    XBrushes.Black,
-                    new XRect(LeftMargin, y, right - LeftMargin, 18),
-                    XStringFormats.Center
-                );
-
-                y += 18;
-
-                graphics.DrawString(
-                    data.DefenseDate?.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture)
-                        ?? DateTime.Today.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture),
-                    normalFont,
-                    XBrushes.Black,
-                    new XRect(LeftMargin, y, right - LeftMargin, 18),
-                    XStringFormats.Center
-                );
-
-                y += 35;
-
-                // =========================================================
-                // NAME / PROGRAM
-                // =========================================================
-
-                double nameLabelWidth = graphics.MeasureString("Name:", boldFont).Width;
-                double nameValueX = LeftMargin + nameLabelWidth + 6;
-                double nameValueWidth = (LeftMargin + 300) - nameValueX - 15;
-
-                double programLabelX = LeftMargin + 300;
-                double programLabelWidth = graphics.MeasureString("Program:", boldFont).Width;
-                double programValueX = programLabelX + programLabelWidth + 6;
-                double programValueWidth = right - programValueX;
-
-                var nameLines = WrapText(
-                    graphics,
-                    string.Join(", ", data.Members.Select(m => m.Name)),
-                    normalFont,
-                    nameValueWidth);
-
-                if (nameLines.Count == 0) nameLines.Add(string.Empty);
-
-                var programLines = WrapText(
-                    graphics,
-                    string.Join(", ", data.Programs),
-                    normalFont,
-                    programValueWidth);
-
-                if (programLines.Count == 0) programLines.Add(string.Empty);
-
-                var infoLines = Math.Max(nameLines.Count, programLines.Count);
-
-                EnsureSpace(infoLines * 16 + 24);
-
-                graphics.DrawString("Name:", boldFont, XBrushes.Black, new XPoint(LeftMargin, y));
-
-                for (int i = 0; i < nameLines.Count; i++)
-                {
-                    graphics.DrawString(
-                        nameLines[i],
-                        normalFont,
-                        XBrushes.Black,
-                        new XPoint(nameValueX, y + i * 16)
-                    );
-                }
-
-                graphics.DrawString("Program:", boldFont, XBrushes.Black, new XPoint(programLabelX, y));
-
-                for (int i = 0; i < programLines.Count; i++)
-                {
-                    graphics.DrawString(
-                        programLines[i],
-                        normalFont,
-                        XBrushes.Black,
-                        new XPoint(programValueX, y + i * 16)
-                    );
-                }
-
-                // Rule under each field, sitting below its last line.
-                double infoBaseline = y + (infoLines - 1) * 16;
-                double nameBaseline = y + (nameLines.Count - 1) * 16;
-                double programBaseline = y + (programLines.Count - 1) * 16;
-
-                graphics.DrawLine(XPens.Black, nameValueX, nameBaseline + 4, nameValueX + nameValueWidth, nameBaseline + 4);
-                graphics.DrawLine(XPens.Black, programValueX, programBaseline + 4, right, programBaseline + 4);
-
-                y = infoBaseline + 24;
-
-                // =========================================================
-                // WORKING TITLE
-                // =========================================================
-
-                graphics.DrawString("Working Title:", boldFont, XBrushes.Black, new XPoint(LeftMargin, y));
-
-                y += 22;
-
-                var titleLines = WrapText(
-                    graphics,
-                    data.WorkingTitle ?? string.Empty,
-                    normalFont,
-                    right - LeftMargin);
-
-                // The template always shows two ruled lines - keep at least that many.
-                while (titleLines.Count < 2) titleLines.Add(string.Empty);
-
-                EnsureSpace(titleLines.Count * 22 + 60);
-
-                foreach (var line in titleLines)
-                {
-                    graphics.DrawString(line, normalFont, XBrushes.Black, new XPoint(LeftMargin, y - 5));
-                    graphics.DrawLine(XPens.Black, LeftMargin, y, right, y);
-                    y += 22;
-                }
-
-                y += 15;
-
-                // Divider under the student-info block
-                graphics.DrawLine(XPens.Black, LeftMargin, y, right, y);
-                y += 25;
-
-                // =========================================================
-                // PANELISTS
-                // =========================================================
-
-                var panelistLines = data.Panelists.Count > 0
-                    ? data.Panelists.Select(p =>
-                        string.IsNullOrWhiteSpace(p.Name)
-                            ? $"Mr./Ms. ______________________________ \u2013 {p.Role}"
-                            : $"Mr./Ms. {p.Name} \u2013 {p.Role}")
-                    : BlankPanelistRoles.Select(role => $"Mr./Ms. ______________________________ \u2013 {role}");
-
-                panelistLines = panelistLines.ToList();
-
-                EnsureSpace(20 + panelistLines.Count() * 20 + 10);
-
-                graphics.DrawString("Panelists:", boldFont, XBrushes.Black, new XPoint(LeftMargin, y));
-                y += 20;
-
-                foreach (var line in panelistLines)
-                {
-                    graphics.DrawString(line, normalFont, XBrushes.Black, new XPoint(LeftMargin + 20, y));
-                    y += 20;
-                }
-
-                y += 10;
-
-                // =========================================================
-                // ADVISER
-                // =========================================================
-
-                EnsureSpace(55);
-
-                graphics.DrawString("Adviser:", boldFont, XBrushes.Black, new XPoint(LeftMargin, y));
-                y += 20;
-
-                graphics.DrawString(
-                    string.IsNullOrWhiteSpace(data.AdviserName)
-                        ? "Mr./Ms. __________________________________________"
-                        : $"Mr./Ms. {data.AdviserName}",
-                    normalFont,
-                    XBrushes.Black,
-                    new XPoint(LeftMargin + 20, y)
-                );
-
-                y += 35;
-
-                // =========================================================
-                // ONE COMMENTS/ACTION-TAKEN TABLE PER PANELIST
-                // =========================================================
-
-                if (blocks.Count > 0)
-                {
-                    foreach (var block in blocks)
-                        DrawCommentBlock(block, blankTemplate: false);
-                }
-                else
-                {
-                    // Nothing scheduled and nothing commented yet - blank template.
-                    foreach (var _ in BlankPanelistRoles)
-                        DrawCommentBlock(new CommentBlock(string.Empty, string.Empty, []), blankTemplate: true);
-                }
-
-                // =========================================================
-                // APPROVAL
-                // =========================================================
-
-                EnsureSpace(220);
-
-                graphics.DrawString("Approved by:", boldFont, XBrushes.Black, new XPoint(LeftMargin, y));
-                y += 45;
-
-                DrawSignatureRow(graphics, normalFont, LeftMargin, y, right);
-                y += 65;
-
-                DrawSignatureRow(graphics, normalFont, LeftMargin, y, right);
-                y += 55;
-
-                // =========================================================
-                // NOTED BY
-                // =========================================================
-
-                EnsureSpace(70);
-
-                graphics.DrawString("Noted by:", boldFont, XBrushes.Black, new XPoint(LeftMargin, y));
-                y += 45;
-
-                graphics.DrawString(
-                    "_______________________________",
-                    normalFont,
-                    XBrushes.Black,
-                    new XPoint(LeftMargin, y)
-                );
-
-                y += 15;
-
-                graphics.DrawString("Research Adviser", normalFont, XBrushes.Black, new XPoint(LeftMargin + 45, y));
-
-                // =========================================================
-                // SAVE PDF
-                // =========================================================
-
-                graphics.Dispose();
-                graphicsDisposed = true;
-
-                using var stream = new MemoryStream();
-                document.Save(stream, false);
-                return stream.ToArray();
+                DrawProceedings(renderer, data, rows);
             }
             finally
             {
-                if (!graphicsDisposed)
-                    graphics.Dispose();
+                renderer.Dispose();
             }
+
+            using var stream = new MemoryStream();
+            document.Save(stream, false);
+            return stream.ToArray();
+        }
+
+        public Task<bool> IsStudentThesisMemberAsync(
+            Guid thesisId,
+            string studentId,
+            CancellationToken cancellationToken)
+        {
+            return _repository.IsStudentThesisMemberAsync(thesisId, studentId, cancellationToken);
         }
 
         /// <summary>Groups comments per panelist (schedule order first), then any other commenter.</summary>
@@ -578,134 +132,101 @@ namespace server.Services.Theses
             return blocks;
         }
 
-        public Task<bool> IsStudentThesisMemberAsync(
-            Guid thesisId,
-            string studentId,
-            CancellationToken cancellationToken)
+        /// <summary>Flattens the per-panelist blocks into Section V's rows.</summary>
+        private static List<CommentRow> BuildCommentRows(IReadOnlyList<CommentBlock> blocks)
         {
-            return _repository.IsStudentThesisMemberAsync(thesisId, studentId, cancellationToken);
-        }
+            var rows = new List<CommentRow>();
 
-        private static string DisplayName(string name)
-            => string.IsNullOrWhiteSpace(name) ? "______________________________" : name;
-
-        /// <summary>Greedy word wrap - hard-splits words that are wider than the column.</summary>
-        private static List<string> WrapText(XGraphics graphics, string text, XFont font, double maxWidth)
-        {
-            var lines = new List<string>();
-
-            if (maxWidth <= 0) return lines;
-
-            foreach (var paragraph in (text ?? string.Empty).Replace("\r", string.Empty).Split('\n'))
+            foreach (var block in blocks)
             {
-                var words = paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-                if (words.Length == 0)
+                foreach (var annotation in block.Comments)
                 {
-                    lines.Add(string.Empty);
-                    continue;
-                }
-
-                var current = graphics.MeasureString(words[0], font).Width <= maxWidth
-                    ? words[0]
-                    : HardWrap(graphics, words[0], font, maxWidth, lines);
-
-                for (int i = 1; i < words.Length; i++)
-                {
-                    var candidate = $"{current} {words[i]}";
-
-                    if (graphics.MeasureString(candidate, font).Width <= maxWidth)
-                    {
-                        current = candidate;
-                        continue;
-                    }
-
-                    lines.Add(current);
-
-                    current = graphics.MeasureString(words[i], font).Width <= maxWidth
-                        ? words[i]
-                        : HardWrap(graphics, words[i], font, maxWidth, lines);
-                }
-
-                lines.Add(current);
-            }
-
-            return lines;
-        }
-
-        private static string HardWrap(XGraphics graphics, string word, XFont font, double maxWidth, List<string> lines)
-        {
-            var chunk = string.Empty;
-
-            foreach (var ch in word)
-            {
-                var candidate = chunk + ch;
-
-                if (chunk.Length > 0 && graphics.MeasureString(candidate, font).Width > maxWidth)
-                {
-                    lines.Add(chunk);
-                    chunk = ch.ToString();
-                }
-                else
-                {
-                    chunk = candidate;
+                    rows.Add(new CommentRow(
+                        string.IsNullOrWhiteSpace(block.Name) ? new string('_', 21) : block.Name.Trim(),
+                        string.IsNullOrWhiteSpace(annotation.Comment)
+                            ? "(no comment)"
+                            : annotation.Comment.Trim(),
+                        ResponseText(annotation)));
                 }
             }
 
-            return chunk;
+            return rows;
         }
 
-        private static void DrawSignatureRow(XGraphics graphics, XFont normalFont, double left, double y, double right)
+        /// <summary>
+        /// Section V's response column: the resolver note itself — no "Resolved:"
+        /// prefix, and a resolved comment without a note still prints "Resolved".
+        /// </summary>
+        private static string ResponseText(ProceedingsAnnotationDto annotation)
         {
-            double columnWidth = (right - left - 40) / 2;
-            double col1 = left + 30;
-            double col2 = left + 40 + columnWidth;
-
-            graphics.DrawLine(XPens.Black, col1, y, col1 + columnWidth - 60, y);
-            graphics.DrawLine(XPens.Black, col2, y, col2 + columnWidth - 60, y);
-
-            graphics.DrawString(
-                "PANEL",
-                normalFont,
-                XBrushes.Black,
-                new XRect(col1, y + 3, columnWidth - 60, 15),
-                XStringFormats.Center
-            );
-
-            graphics.DrawString(
-                "PANEL",
-                normalFont,
-                XBrushes.Black,
-                new XRect(col2, y + 3, columnWidth - 60, 15),
-                XStringFormats.Center
-            );
+            if (!annotation.IsResolved) return string.Empty;
+            return string.IsNullOrWhiteSpace(annotation.ResolverNote)
+                ? "Resolved"
+                : annotation.ResolverNote.Trim();
         }
 
-        private void TryDrawLogo(XGraphics graphics, double x, double y, double size)
+        private XImage? LoadHeaderImage()
         {
             try
             {
-                var logoPath = Path.Combine(
-                    _environment.ContentRootPath,
-                    "assets",
-                    "images",
-                    "cdm-logo.png"
-                );
+                var path = Path.Combine(
+                    _environment.ContentRootPath, "assets", "images", "proceedings-header.png");
 
-                if (!File.Exists(logoPath))
+                if (!File.Exists(path))
                 {
-                    _logger.LogWarning("Logo not found: {LogoPath}", logoPath);
-                    return;
+                    _logger.LogWarning("Proceedings header image not found: {Path}", path);
+                    return null;
                 }
 
-                using var logo = XImage.FromFile(logoPath);
-
-                graphics.DrawImage(logo, x, y, size, size);
+                return XImage.FromFile(path);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to load proceedings logo");
+                _logger.LogWarning(ex, "Failed to load the proceedings header image");
+                return null;
             }
         }
+
+        // ── Form values the database cannot hold directly ─────────────────────
+
+        /// <summary>Long date used by Section III, e.g. "October 21, 2026".</summary>
+        private static string LongDate(DateOnly date)
+            => date.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture);
+
+        private static string FormatTime(TimeOnly? time)
+            => time?.ToString("h:mm tt", CultureInfo.InvariantCulture) ?? Blank(15);
+
+        private static string Blank(int count) => new('_', count);
+
+        /// <summary>
+        /// Academic year from the defense date: the Philippine school year runs
+        /// June 1 – May 31, so a June-or-later date belongs to year→year+1.
+        /// </summary>
+        private static string AcademicYear(DateOnly date)
+        {
+            var start = date.Month >= 6 ? date.Year : date.Year - 1;
+            return $"{start}-{start + 1}";
+        }
+
+        /// <summary>1st semester June–October, 2nd November–March, summer April–May.</summary>
+        private static string Semester(DateOnly date) => date.Month switch
+        {
+            >= 6 and <= 10 => "1st",
+            11 or 12 or 1 or 2 or 3 => "2nd",
+            _ => "Summer",
+        };
+
+        /// <summary>Panelist role as the template words it ("Panel Chairperson" …).</summary>
+        private static string PanelRoleLabel(string? role)
+        {
+            if (string.IsNullOrWhiteSpace(role)) return "Panel Member";
+            if (role.Contains("advis", StringComparison.OrdinalIgnoreCase)) return "Capstone Adviser";
+            if (role.Contains("chair", StringComparison.OrdinalIgnoreCase)) return "Panel Chairperson";
+            if (role.Contains("member", StringComparison.OrdinalIgnoreCase)) return "Panel Member";
+            return role.Trim();
+        }
+
+        private static string FillOrBlank(string? value, int blankCount)
+            => string.IsNullOrWhiteSpace(value) ? Blank(blankCount) : value.Trim();
     }
 }

@@ -17,8 +17,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Keep local development configuration available to dotnet run, but
+         never include credentials or environment-specific settings in a publish.
+         Azure configuration is supplied through App Service settings. -->
+    <Content Update="appsettings.*.json;**/*credential*.json;.env;.env.*;logs/**;.secrets/**;.certs/**;**/*.pem;**/*.key;**/*.pfx;**/*.p12"
+             CopyToPublishDirectory="Never" />
+    <None Update="appsettings.*.json;**/*credential*.json;.env;.env.*;logs/**;.secrets/**;.certs/**;**/*.pem;**/*.key;**/*.pfx;**/*.p12"
+          CopyToPublishDirectory="Never" />
+  </ItemGroup>
 
-	  <PackageReference Include="AutoMapper" Version="16.1.1" />
+  <ItemGroup>
+
+	  <PackageReference Include="AutoMapper" Version="16.3.0" />
 
 	  <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
 

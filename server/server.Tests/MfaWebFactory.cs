@@ -1,4 +1,7 @@
 using System.Data;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -7,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 using server.Data;
 using server.Infrastructure;
 using server.Models.Entities;
@@ -69,10 +73,22 @@ public sealed class FakeFirebasePasswordService : IFirebasePasswordService
 // TOTP MFA flow can be exercised end to end without external services.
 public sealed class MfaWebFactory : WebApplicationFactory<Program>
 {
+    private const string ReceiptIssuer = "https://id-verification.test";
+    private const string ReceiptAudience = "monteai-registration";
+    private const string ReceiptKeyId = "idv-test-1";
+    private const string ReceiptType = "monteai-idv+jwt";
+
     // An in-memory SQLite database only lives as long as its connection, and
     // ConfigureWebHost can run more than once per host build. Re-opening on a
     // disposed connection throws, which surfaces as the host never building.
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    private readonly RSA _receiptSigningKey = RSA.Create(2048);
+    private readonly IReadOnlyDictionary<string, string?>? _idVerificationSettings;
+
+    public MfaWebFactory(IReadOnlyDictionary<string, string?>? idVerificationSettings = null)
+    {
+        _idVerificationSettings = idVerificationSettings;
+    }
 
     public FakeFirebaseTokenVerifier Firebase { get; } = new();
     public FakeEmailService Email { get; } = new();
@@ -89,10 +105,20 @@ public sealed class MfaWebFactory : WebApplicationFactory<Program>
         // in the next, and the factory spins up multiple scopes per test.
         builder.ConfigureAppConfiguration((_, config) =>
         {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
+            var settings = new Dictionary<string, string?>
             {
                 ["Auth:JwtSigningKey"] = Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)i).ToArray()),
-            });
+                ["IdVerification:Issuer"] = ReceiptIssuer,
+                ["IdVerification:Audience"] = ReceiptAudience,
+                ["IdVerification:AllowedTemplateIds:0"] = "cdm-front-v1",
+                ["IdVerification:PublicKeys:0:KeyId"] = ReceiptKeyId,
+                ["IdVerification:PublicKeys:0:PublicKeyPemBase64"] = Convert.ToBase64String(
+                    Encoding.UTF8.GetBytes(_receiptSigningKey.ExportSubjectPublicKeyInfoPem())),
+            };
+            if (_idVerificationSettings is not null)
+                foreach (var setting in _idVerificationSettings)
+                    settings[$"IdVerification:{setting.Key}"] = setting.Value;
+            config.AddInMemoryCollection(settings);
         });
 
         builder.ConfigureServices(services =>
@@ -193,10 +219,51 @@ public sealed class MfaWebFactory : WebApplicationFactory<Program>
 
     public HttpClient CreateJsonClient() => CreateClient();
 
+    public string IssueIdVerificationReceipt(
+        string uid,
+        string email,
+        string studentNumber,
+        string nameKey,
+        string? jti = null,
+        TimeSpan? lifetime = null,
+        string templateId = "cdm-front-v1",
+        DateTime? issuedAt = null)
+    {
+        var now = issuedAt ?? DateTime.UtcNow.AddSeconds(-1);
+        var key = new RsaSecurityKey(_receiptSigningKey) { KeyId = ReceiptKeyId };
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = ReceiptIssuer,
+            Audience = ReceiptAudience,
+            IssuedAt = now,
+            NotBefore = now,
+            Expires = now.Add(lifetime ?? TimeSpan.FromMinutes(10)),
+            TokenType = ReceiptType,
+            SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.RsaSha256),
+            Claims = new Dictionary<string, object>
+            {
+                ["sub"] = uid,
+                ["email"] = email,
+                ["email_verified"] = true,
+                ["jti"] = jti ?? Guid.NewGuid().ToString("D"),
+                ["purpose"] = "student-registration",
+                ["version"] = 1,
+                ["name_normalization"] = "latin-v1",
+                ["student_number"] = studentNumber,
+                ["name_key"] = nameKey,
+                ["template_id"] = templateId,
+            },
+        };
+        return new JwtSecurityTokenHandler().CreateEncodedJwt(descriptor);
+    }
+
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
         if (disposing)
+        {
             _connection.Dispose();
+            _receiptSigningKey.Dispose();
+        }
     }
 }

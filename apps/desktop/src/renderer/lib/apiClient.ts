@@ -13,6 +13,8 @@ export function setTokenProvider(provider: TokenProvider | null) {
 // Firebase ID token. Used by the axios interceptor and by IPC callers that
 // hand a token to the main process.
 export async function getAuthToken(): Promise<string | undefined> {
+  await auth.authStateReady();
+  if (!auth.currentUser) return undefined;
   const sessionToken = await tokenProvider?.();
   return sessionToken ?? (await auth.currentUser?.getIdToken()) ?? undefined;
 }
@@ -22,6 +24,10 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(async (config) => {
+  // A stalled profile check must become a retryable error, not an endless spinner.
+  if (/^\/?auth\/me$/i.test(config.url ?? "") && !config.timeout) {
+    config.timeout = 15000;
+  }
   if (config.headers.has("Authorization")) return config;
   const token = await getAuthToken();
   if (token) {

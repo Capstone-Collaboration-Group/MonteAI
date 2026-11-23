@@ -17,8 +17,7 @@ namespace server.Models.DTOs.User
         [MaxLength(50)]
         public string FirstName { get; set; } = null!;
 
-        [Required]
-        public char MiddleInitial { get; set; }
+        public char? MiddleInitial { get; set; }
 
         [Required]
         [MaxLength(50)]
@@ -30,6 +29,21 @@ namespace server.Models.DTOs.User
         [Required]
         [MaxLength(20)]
         public string Role { get; set; } = null!; // "Student" | "Faculty" | "Admin" | "ProgramHead"
+
+        public bool PrivacyNoticeAccepted { get; set; }
+
+        [MaxLength(32)]
+        public string? PrivacyNoticeVersion { get; set; }
+
+        public bool TermsAccepted { get; set; }
+
+        [MaxLength(32)]
+        public string? TermsVersion { get; set; }
+
+        // Student registration only. This signed receipt is validated and
+        // consumed transactionally; its contents are never persisted.
+        [MaxLength(4096)]
+        public string? IdVerificationReceipt { get; set; }
 
         // ── Student-specific ──────────────────────────────
         public string? StudentNumber { get; set; }
@@ -134,7 +148,7 @@ namespace server.Models.DTOs.User
         public string Id { get; set; } = null!;
         public string Email { get; set; } = null!;
         public string FirstName { get; set; } = null!;
-        public char MiddleInitial { get; set; }
+        public char? MiddleInitial { get; set; }
         public string LastName { get; set; } = null!;
         public string? Suffix { get; set; }
         public string Role { get; set; } = null!;

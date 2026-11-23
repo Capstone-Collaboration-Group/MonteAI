@@ -35,6 +35,8 @@ export default function ThesisViewer() {
     adminService={adminService}
     scheduleService={scheduleService}
       role={toViewerRole(profile?.role)}
+      // ProgramHead schedules are desktop-only — no create/edit on the web.
+      canSchedule={profile?.role !== "ProgramHead"}
       // Ownership for the delete button: leader of THIS thesis's group only.
       isGroupLeader={profile?.role === "Student" && profile.position === "Leader"}
       currentGroupId={

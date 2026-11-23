@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowRight,
+  BadgeCheck,
 } from "lucide-react";
 import type {
   AnnotationResponseDto,
@@ -20,12 +21,33 @@ interface AnnotationSidebarProps {
   unresolvedCount: number;
   resolvedCount: number;
   isResolving: boolean;
+  /** Admin-only: reveals the Approve action on comments awaiting approval. */
+  canApprove?: boolean;
+  isApproving?: boolean;
+  onApprove?: (annotationId: string) => void;
+  /**
+   * Admin bulk action: publishes every pending comment on this version in one
+   * click. Rendered in the header whenever there is something to approve, so
+   * the admin never has to approve a thesis's comments one by one.
+   */
+  onApproveAll?: () => void;
+  /**
+   * Per-comment delete gate (default: allowed). Students may only remove
+   * their own comments — anything authored by faculty, program heads or
+   * admins is theirs alone to delete, so the trash action stays hidden.
+   */
+  canDeleteAnnotation?: (annotation: AnnotationResponseDto) => boolean;
   onResolve: (
     annotationId: string,
     dto: ResolveAnnotationDto
   ) => void;
   onDelete: (annotationId: string) => void;
   onJumpToPage: (page: number) => void;
+}
+
+/** Legacy documents carry no status and count as approved. */
+function isPending(annotation: AnnotationResponseDto) {
+  return (annotation.status ?? "approved") === "pending";
 }
 
 function formatDate(iso: string) {
@@ -39,12 +61,20 @@ function formatDate(iso: string) {
 function AnnotationCard({
   annotation,
   isResolving,
+  canApprove = false,
+  isApproving = false,
+  canDelete = true,
+  onApprove,
   onResolve,
   onDelete,
   onJumpToPage,
 }: {
   annotation: AnnotationResponseDto;
   isResolving: boolean;
+  canApprove?: boolean;
+  isApproving?: boolean;
+  canDelete?: boolean;
+  onApprove?: (annotationId: string) => void;
   onResolve: (
     annotationId: string,
     dto: ResolveAnnotationDto
@@ -54,6 +84,7 @@ function AnnotationCard({
 }) {
   const [resolverNote, setResolverNote] = useState("");
   const [showNoteInput, setShowNoteInput] = useState(false);
+  const pending = isPending(annotation);
 
   const handleResolveToggle = () => {
     if (annotation.isResolved) {
@@ -96,6 +127,13 @@ function AnnotationCard({
           {formatDate(annotation.createdAt)}
         </span>
       </div>
+
+      {/* Awaiting admin approval — only the admin and the author see this card */}
+      {pending && (
+        <span className="mb-2 inline-flex w-fit items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+          Pending approval
+        </span>
+      )}
 
       {/* Highlighted text */}
       {annotation.highlightedText && (
@@ -141,6 +179,18 @@ function AnnotationCard({
 
       {/* Actions */}
       <div className="flex min-w-0 items-center justify-between gap-2">
+        {canApprove && pending && (
+          <button
+            type="button"
+            onClick={() => onApprove?.(annotation.id)}
+            disabled={isApproving}
+            className="flex min-w-0 items-center gap-1.5 rounded-md bg-primary px-2 py-1 text-xs font-semibold text-white transition-colors hover:bg-on-surface disabled:opacity-60"
+          >
+            <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+            {isApproving ? "Approving…" : "Approve"}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={handleResolveToggle}
@@ -163,14 +213,16 @@ function AnnotationCard({
           )}
         </button>
 
-        <button
-          type="button"
-          onClick={() => onDelete(annotation.id)}
-          aria-label="Delete annotation"
-          className="shrink-0 rounded-md p-1 text-outline transition-colors hover:bg-error-container hover:text-error"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(annotation.id)}
+            aria-label="Delete annotation"
+            className="shrink-0 rounded-md p-1 text-outline transition-colors hover:bg-error-container hover:text-error"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -181,6 +233,11 @@ export function AnnotationSidebar({
   unresolvedCount,
   resolvedCount,
   isResolving,
+  canApprove = false,
+  isApproving = false,
+  canDeleteAnnotation = () => true,
+  onApprove,
+  onApproveAll,
   onResolve,
   onDelete,
   onJumpToPage,
@@ -189,6 +246,8 @@ export function AnnotationSidebar({
 
   const unresolved = annotations.filter((a) => !a.isResolved);
   const resolved = annotations.filter((a) => a.isResolved);
+  const pendingCount = annotations.filter((a) => isPending(a)).length;
+  const canApproveAll = canApprove && pendingCount > 0 && !!onApproveAll;
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -212,6 +271,21 @@ export function AnnotationSidebar({
             resolved
           </span>
         </div>
+
+        {/* One click publishes every pending comment on this version. */}
+        {canApproveAll && (
+          <button
+            type="button"
+            onClick={onApproveAll}
+            disabled={isApproving}
+            className="mt-3 flex w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-on-surface disabled:opacity-60"
+          >
+            <BadgeCheck className="h-4 w-4 shrink-0" />
+            {isApproving
+              ? "Approving…"
+              : `Approve all (${pendingCount})`}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 min-w-0 overflow-y-auto px-4 py-4">
@@ -232,6 +306,10 @@ export function AnnotationSidebar({
                 key={a.id}
                 annotation={a}
                 isResolving={isResolving}
+                canApprove={canApprove}
+                isApproving={isApproving}
+                canDelete={canDeleteAnnotation(a)}
+                onApprove={onApprove}
                 onResolve={onResolve}
                 onDelete={onDelete}
                 onJumpToPage={onJumpToPage}
@@ -261,6 +339,10 @@ export function AnnotationSidebar({
                         key={a.id}
                         annotation={a}
                         isResolving={isResolving}
+                        canApprove={canApprove}
+                        isApproving={isApproving}
+                        canDelete={canDeleteAnnotation(a)}
+                        onApprove={onApprove}
                         onResolve={onResolve}
                         onDelete={onDelete}
                         onJumpToPage={onJumpToPage}

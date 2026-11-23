@@ -15,10 +15,10 @@ export default function TabLayout() {
   const router = useRouter();
   // This part will also handle the check for the session. 
   // If there's no existing session, redirect back. Continue if there is.
-  const { session, restoring } = useAuthSession();
+  const { session, restoring, pendingRegistration } = useAuthSession();
 
   if (restoring) return null;
-  if (!session) return <Redirect href="/auth-entry" />;
+  if (!session) return <Redirect href={pendingRegistration ? '/sign-up' : '/auth-entry'} />;
 
   return (
     <Tabs

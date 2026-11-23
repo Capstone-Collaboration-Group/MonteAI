@@ -210,7 +210,12 @@ export function SubmitThesisFlow({ onExit }: SubmitThesisFlowProps) {
   const members =
     profile?.researchGroup?.members.map((m) => m.name).join(', ') ||
     (profile ? `${profile.firstName} ${profile.lastName}` : '');
-  const blocked = !loadingProfile && profile !== null && profile.role !== 'Student';
+  // Mirrors the web modal: students AND faculty may submit — faculty have no
+  // research group and no year level, and the server applies the group /
+  // year-level gates to students only.
+  const isFaculty = profile?.role === 'Faculty';
+  const blocked =
+    !loadingProfile && profile !== null && profile.role !== 'Student' && !isFaculty;
 
   const goBack = useCallback(() => {
     if (step > 1) {
@@ -228,10 +233,14 @@ export function SubmitThesisFlow({ onExit }: SubmitThesisFlowProps) {
       if (!abstract.trim()) next.abstract = 'Abstract is required.';
       if (!profile) {
         next.group = 'Could not load your profile. Check your connection and try again.';
-      } else if (!program || !institute) {
+      } else if (!isFaculty && (!program || !institute)) {
         next.group =
           'Program and institute are missing — make sure your research group is set up.';
-      } else if (profile.yearLevel !== 3 && profile.yearLevel !== 4) {
+      } else if (
+        !isFaculty &&
+        profile.yearLevel !== 3 &&
+        profile.yearLevel !== 4
+      ) {
         // Same gate the server enforces — fails fast before the upload step.
         next.group = 'Only 3rd and 4th year students may submit a manuscript.';
       }
@@ -357,7 +366,7 @@ export function SubmitThesisFlow({ onExit }: SubmitThesisFlowProps) {
                   <MaterialIcons name="block" size={34} color="#ba1a1a" />
                 </View>
                 <Text style={[s.centerTitle, { color: heading }]}>
-                  Only students can submit a thesis
+                  Only students and faculty can submit a thesis
                 </Text>
                 <Text style={[s.centerBody, { color: body }]}>
                   Your account doesn&apos;t have permission to use this feature.
@@ -523,8 +532,9 @@ export function SubmitThesisFlow({ onExit }: SubmitThesisFlowProps) {
                       Review &amp; submit
                     </Text>
                     <Text style={[s.stepHint, { color: body }]}>
-                      Review the details of your research group before final
-                      submission.
+                      {isFaculty
+                        ? 'Review your manuscript details before final submission.'
+                        : 'Review the details of your research group before final submission.'}
                     </Text>
 
                     <View style={[s.reviewCard, { backgroundColor: surface, borderColor: outline }]}>
@@ -576,9 +586,9 @@ export function SubmitThesisFlow({ onExit }: SubmitThesisFlowProps) {
                           Final review required
                         </Text>
                         <Text style={[s.warningBody, { color: '#92400e' }]}>
-                          Please ensure all information above is accurate. Once
-                          submitted, you will not be able to modify the group
-                          composition without administrative approval.
+                          {isFaculty
+                            ? 'Please ensure all information above is accurate. Once submitted, changes require administrative approval.'
+                            : 'Please ensure all information above is accurate. Once submitted, you will not be able to modify the group composition without administrative approval.'}
                         </Text>
                       </View>
                     </View>

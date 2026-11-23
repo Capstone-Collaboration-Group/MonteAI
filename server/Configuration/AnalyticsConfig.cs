@@ -15,6 +15,9 @@ namespace server.Configuration
     {
         public const string SectionName = "Analytics";
 
+        /// <summary>Product-wide cap for dashboard top queries and chat suggestions.</summary>
+        public const int TopQueryLimit = 3;
+
         /// <summary>
         /// How many chat queries one user may send inside the rolling window.
         /// Default: 30. Set to 0 (or negative) to disable the cap entirely.

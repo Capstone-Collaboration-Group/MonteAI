@@ -6,6 +6,7 @@
 import type { AxiosInstance } from "axios";
 import type { AnalyticsOverviewDto, AnalyticsSuggestionsDto } from "@monteai/types";
 import type { AnalyticsService } from "./types";
+import { clampTopQueryLimit, normalizeQuerySuggestions, TOP_QUERY_LIMIT } from "./querySuggestions";
 
 export class LiveAnalyticsService implements AnalyticsService {
   private readonly client: AxiosInstance;
@@ -18,13 +19,13 @@ export class LiveAnalyticsService implements AnalyticsService {
     const { data } = await this.client.get<AnalyticsOverviewDto>("/analytics/overview", {
       params: { days },
     });
-    return data;
+    return { ...data, topQueries: data.topQueries.slice(0, TOP_QUERY_LIMIT) };
   }
 
-  async getSuggestions(limit = 6): Promise<string[]> {
+  async getSuggestions(limit = TOP_QUERY_LIMIT): Promise<string[]> {
     const { data } = await this.client.get<AnalyticsSuggestionsDto>("/analytics/suggestions", {
-      params: { limit },
+      params: { limit: clampTopQueryLimit(limit) },
     });
-    return data?.suggestions ?? [];
+    return normalizeQuerySuggestions(data?.suggestions, limit);
   }
 }

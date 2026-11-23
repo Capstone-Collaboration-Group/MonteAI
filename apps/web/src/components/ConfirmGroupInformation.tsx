@@ -6,6 +6,8 @@ interface ConfirmGroupInformationProps {
   metadata?: ThesisMetadata;
   file: File;
   mode?: "initial" | "revision";
+  /** Faculty submit individually (no research group) — swaps the group wording. */
+  isIndividual?: boolean;
   onCancel: () => void;
   onReplaceFile: () => void;
   onRemoveFile: () => void;
@@ -20,6 +22,7 @@ export function ConfirmGroupInformation({
   metadata,
   file,
   mode = "initial",
+  isIndividual = false,
   onCancel,
   onReplaceFile,
   onRemoveFile,
@@ -37,13 +40,17 @@ export function ConfirmGroupInformation({
         <h2 className="text-xl font-semibold text-primary">
           {mode === "revision"
             ? "Confirm Revised Submission"
-            : "Confirm Group Information"}
+            : isIndividual
+              ? "Confirm Submission"
+              : "Confirm Group Information"}
         </h2>
 
         <p className="mt-2 text-sm text-on-surface-variant">
           {mode === "revision"
             ? "Review the revised PDF before submitting it."
-            : "Review the details of your research group before final submission."}
+            : isIndividual
+              ? "Review your manuscript details before final submission."
+              : "Review the details of your research group before final submission."}
         </p>
 
         {mode === "initial" && metadata && (
@@ -153,7 +160,9 @@ export function ConfirmGroupInformation({
         <p className="mt-1 text-sm text-amber-800">
           {mode === "revision"
             ? "Please ensure the revised PDF is the correct version before submitting."
-            : "Please ensure all information above is accurate. Once submitted, you will not be able to modify the group composition without administrative approval."}
+            : isIndividual
+              ? "Please ensure all information above is accurate. Once submitted, changes require administrative approval."
+              : "Please ensure all information above is accurate. Once submitted, you will not be able to modify the group composition without administrative approval."}
         </p>
       </div>
 

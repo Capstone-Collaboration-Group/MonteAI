@@ -112,10 +112,50 @@ namespace server.Repositories
             var result = await _db.Schedules.FindAsync(id);
             if (result == null) return false;
 
+            // CreateScheduleAsync stamps the group's thesis "Scheduled" —
+            // removing the schedule must take the thesis back out of that
+            // state, or it stays "Scheduled" forever. Only touch a thesis
+            // still marked "Scheduled" (an admin may have moderated it since
+            // the defense was booked). The pre-schedule value isn't stored,
+            // so reconstruct it from the lifecycle timestamps: the most
+            // recently stamped stage wins (ingest stamps Approved then
+            // Indexed milliseconds apart, so an ingested thesis lands on
+            // "Indexed"; an untouched submission has no stamps → "Pending").
+            if (result.GroupId is Guid groupId)
+            {
+                var thesis = await _db.Theses
+                    .FirstOrDefaultAsync(t => t.GroupId == groupId);
+
+                if (thesis != null &&
+                    string.Equals(thesis.Status, "Scheduled", StringComparison.OrdinalIgnoreCase))
+                {
+                    thesis.Status = DeriveStatusBeforeSchedule(thesis);
+                    thesis.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
             _db.Schedules.Remove(result);
             await _db.SaveChangesAsync();
             return true;
 
+        }
+
+        private static string DeriveStatusBeforeSchedule(Thesis thesis)
+        {
+            (DateTime? At, string Status)[] stages =
+            [
+                (thesis.ReviewedAt, "Under Review"),
+                (thesis.ApprovedAt, "Approved"),
+                (thesis.RejectedAt, "Rejected"),
+                (thesis.IndexedAt, "Indexed"),
+            ];
+
+            var reached = stages
+                .Where(stage => stage.At != null)
+                .OrderByDescending(stage => stage.At)
+                .FirstOrDefault();
+
+            return reached.Status ?? "Pending";
         }
 
     }

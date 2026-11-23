@@ -16,6 +16,24 @@ namespace server.Controllers
         ILogger<ScheduleController> _logger
     ): ControllerBase
     {
+        /// <summary>
+        /// Roles the scheduling UI offers — and the only ones the proceedings
+        /// print in Section II. Null/empty is allowed for legacy rows.
+        /// </summary>
+        private static readonly string[] PanelRoles =
+        {
+            "Panel Chairperson",
+            "Panel Member",
+            "Capstone Adviser",
+        };
+
+        private static string? FindInvalidPanelRole(IEnumerable<string?> roles) =>
+            roles
+                .Where(role => !string.IsNullOrWhiteSpace(role))
+                .Select(role => role!.Trim())
+                .FirstOrDefault(role => !PanelRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+
+
         [HttpGet]
         public async Task<IActionResult> GetAllSchedules()
         {
@@ -38,6 +56,13 @@ namespace server.Controllers
         [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> CreateSchedule([FromBody] CreateScheduleDto dto)
         {
+            var badRole = FindInvalidPanelRole(dto.Panelists.Select(p => p.Role));
+            if (badRole != null)
+                return BadRequest(new
+                {
+                    Message = $"Unknown panel role \"{badRole}\". Expected one of: {string.Join(", ", PanelRoles)}.",
+                });
+
             try
             {
                 var result = await _service.CreateAsync(dto);
@@ -59,6 +84,16 @@ namespace server.Controllers
         [Authorize(Roles = "Admin,ProgramHead")]
         public async Task<IActionResult> UpdateSchedule([FromBody] UpdateScheduleDto dto, Guid id)
         {
+            if (dto.Panelists != null)
+            {
+                var badRole = FindInvalidPanelRole(dto.Panelists.Select(p => p.Role));
+                if (badRole != null)
+                    return BadRequest(new
+                    {
+                        Message = $"Unknown panel role \"{badRole}\". Expected one of: {string.Join(", ", PanelRoles)}.",
+                    });
+            }
+
             var result = await _service.UpdateAsync(dto, id);
             if(result)
             {

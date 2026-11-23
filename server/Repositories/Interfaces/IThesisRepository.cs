@@ -25,6 +25,10 @@ namespace server.Repositories.Interfaces
         /// </summary>
         Task<Thesis?> GetByGroupIdAsync(Guid groupId);
 
+        // Faculty submissions have no research group (GroupId is null) — this
+        // powers GET /thesis/my for a faculty account's own manuscript.
+        Task<Thesis?> GetLatestByUploadedByIdAsync(string uploadedById);
+
         /// <summary>
         /// Exact-match (LIKE) search over thesis titles and abstracts — the
         /// keyword half of the agent's hybrid retrieval. Used by the

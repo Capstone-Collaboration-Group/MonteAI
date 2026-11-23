@@ -218,9 +218,10 @@ export function useThesis(thesisService: ThesisService, thesisId: string) {
     };
 }
 
-// The signed-in student's own group thesis (GET /thesis/my) — data is null
-// when the server answers 404 ("not submitted yet"). Pass enabled=false for
-// non-student profiles so no request is made.
+// The signed-in user's own thesis (GET /thesis/my) — students get their
+// group's manuscript, faculty the one they uploaded; data is null when the
+// server answers 404 ("not submitted yet"). Pass enabled=false for profiles
+// that can't submit so no request is made.
 export function useMyThesis(thesisService: ThesisService, enabled = true) {
     const query = useQuery({
         queryKey: [...thesesKeys.all, "my"],

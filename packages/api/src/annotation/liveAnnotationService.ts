@@ -11,6 +11,8 @@ import {
     orderBy,
     query,
     updateDoc,
+    where,
+    writeBatch,
     type DocumentData,
     type Firestore,
     type QuerySnapshot,
@@ -78,6 +80,7 @@ export class LiveAnnotationService implements AnnotationService {
         id: string,
         data: DocumentData
     ): AnnotationResponseDto {
+        const rawStatus = data.status;
         return {
             id,
             thesisId,
@@ -91,6 +94,12 @@ export class LiveAnnotationService implements AnnotationService {
             resolvedAt: data.resolvedAt ?? "",
             createdAt: data.createdAt ?? "",
             resolverNote: data.resolverNote ?? undefined,
+            authorRole: data.authorRole ?? undefined,
+            // Legacy documents predate the approval workflow — treat them as
+            // already approved so existing comments stay visible.
+            status: rawStatus === "pending" ? "pending" : "approved",
+            approvedBy: data.approvedBy ?? undefined,
+            approvedAt: data.approvedAt ?? undefined,
         };
     }
 
@@ -132,6 +141,10 @@ export class LiveAnnotationService implements AnnotationService {
     ): Promise<AnnotationResponseDto> {
         const createdAt = new Date().toISOString();
         const reviewerId = this.auth.currentUser?.uid ?? "unknown";
+        const authorRole = input.authorRole ?? "";
+        // Admin comments are their own approval; everyone else's (faculty,
+        // program heads — students can't annotate) waits for an Admin.
+        const status = authorRole === "Admin" ? "approved" : "pending";
 
         const ref = await addDoc(
             this.annotationsCollection(thesisId, thesisVersionId),
@@ -145,6 +158,8 @@ export class LiveAnnotationService implements AnnotationService {
                 resolvedAt: "",
                 resolverNote: null,
                 createdAt,
+                authorRole,
+                status,
             }
         );
 
@@ -161,6 +176,8 @@ export class LiveAnnotationService implements AnnotationService {
             resolvedAt: "",
             createdAt,
             resolverNote: undefined,
+            authorRole: authorRole || undefined,
+            status,
         };
     }
 
@@ -180,11 +197,54 @@ export class LiveAnnotationService implements AnnotationService {
         );
     }
 
+    async approveAnnotation(
+        thesisId: string,
+        thesisVersionId: string,
+        annotationId: string
+    ): Promise<void> {
+        await updateDoc(
+            this.annotationDoc(thesisId, thesisVersionId, annotationId),
+            {
+                status: "approved",
+                approvedBy: this.auth.currentUser?.uid ?? "unknown",
+                approvedAt: new Date().toISOString(),
+            }
+        );
+    }
+
     async deleteAnnotation(
         thesisId: string,
         thesisVersionId: string,
         annotationId: string
     ): Promise<void> {
         await deleteDoc(this.annotationDoc(thesisId, thesisVersionId, annotationId));
+    }
+
+    async approveAllAnnotations(
+        thesisId: string,
+        thesisVersionId: string
+    ): Promise<number> {
+        // Legacy documents carry no status field and already count as
+        // approved, so querying `status == "pending"` selects exactly the
+        // comments still waiting on an admin.
+        const snap = await getDocs(
+            query(
+                this.annotationsCollection(thesisId, thesisVersionId),
+                where("status", "==", "pending")
+            )
+        );
+
+        if (snap.empty) return 0;
+
+        const approvedBy = this.auth.currentUser?.uid ?? "unknown";
+        const approvedAt = new Date().toISOString();
+        const batch = writeBatch(this.db);
+
+        snap.docs.forEach((d) =>
+            batch.update(d.ref, { status: "approved", approvedBy, approvedAt })
+        );
+
+        await batch.commit();
+        return snap.size;
     }
 }

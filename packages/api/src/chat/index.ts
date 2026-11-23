@@ -9,6 +9,7 @@ export function createChatService(
 ): ChatService  {
     return useMock ? mockChatService : new LiveChatService(client)
 }
-export type { ChatService } from "./types";
+export type { ChatService, ChatStreamHandlers } from "./types";
+export { ChatStreamAbortedError } from "./errors";
 export  { mockChatService } from "./mockChatService";
 export { LiveChatService } from "./chatService";

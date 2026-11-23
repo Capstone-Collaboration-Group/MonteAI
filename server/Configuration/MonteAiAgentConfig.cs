@@ -138,6 +138,14 @@ namespace server.Configuration
         public bool DeterministicFastPathEnabled { get; set; } = true;
 
         /// <summary>
+        /// Minimum score for EACH thesis in a deterministic topic list. A
+        /// source also needs direct topic evidence in its title/abstract:
+        /// similarity alone can match the context while missing the subject.
+        /// If no source qualifies, the agent handles the query. Default: 0.26.
+        /// </summary>
+        public double DeterministicMinScore { get; set; } = 0.26;
+
+        /// <summary>
         /// When true, near-duplicate questions are served from an in-memory
         /// semantic cache (cosine similarity over query embeddings) instead of
         /// running the agent again. Default: true.
