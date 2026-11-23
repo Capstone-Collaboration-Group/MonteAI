@@ -1,11 +1,14 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+# .NET 8 is intentionally retained for the user's temporary test deployment.
+# Container hosting bypasses Azure's runtime picker, not .NET 8's end of support.
+# Build with the audited context from tools/package-azure-container.ps1.
 
 # This stage is used when running from VS in fast mode (Default for Debug configuration)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 USER $APP_UID
 WORKDIR /app
+ENV ASPNETCORE_HTTP_PORTS=8080
+ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 8080
-EXPOSE 8081
 
 
 # This stage is used to build the service project
@@ -16,12 +19,11 @@ COPY ["server.csproj", "."]
 RUN dotnet restore "./server.csproj"
 COPY . .
 WORKDIR "/src/."
-RUN dotnet build "./server.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./server.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./server.csproj" -c $BUILD_CONFIGURATION --no-restore -o /app/publish /p:UseAppHost=false
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final

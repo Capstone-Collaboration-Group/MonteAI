@@ -436,7 +436,9 @@ try
                 "https://localhost:5174",
                 "https://localhost:8080",
                 "https://localhost:5173",
+                "https://192.168.100.8:5173",
                 "https://monteskolar.pnm.edu.ph",
+                "https://monteai-id-verifier.azurewebsites.net",
                 // Stable, secure origin of the installed desktop app.
                 "monteskolar://app",
                 "http://192.168.100.9:8081"

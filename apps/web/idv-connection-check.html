@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Paused ID verification connection check</title>
+    <style>
+      body { margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; font: 16px/1.5 system-ui, sans-serif; }
+      main { max-width: 640px; margin: auto; }
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.25rem; }
+      section { margin-top: 32px; padding-top: 16px; border-top: 1px solid #cbd5e1; }
+      dt { margin-top: 16px; font-weight: 700; }
+      dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+      button { padding: 12px 18px; border: 0; border-radius: 8px; background: #166534; color: white; font: inherit; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: wait; }
+      .result { padding: 16px; border: 1px solid #cbd5e1; border-radius: 8px; white-space: pre-line; overflow-wrap: anywhere; }
+      .result[data-state="pass"] { border-color: #15803d; background: #f0fdf4; }
+      .result[data-state="fail"] { border-color: #b91c1c; background: #fef2f2; }
+      .note { color: #475569; font-size: 0.875rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Paused ID verification connection check</h1>
+      <p>This tests this browser's connection to Azure. It does not open the camera, read Firebase credentials, or call the registration API.</p>
+      <h2>1. Basic browser check</h2>
+      <dl>
+        <dt>Actual browser origin</dt>
+        <dd id="origin"></dd>
+        <dt>Secure context</dt>
+        <dd id="secure"></dd>
+        <dt>Azure endpoint</dt>
+        <dd id="endpoint"></dd>
+      </dl>
+      <p class="note">The check sends only empty JSON and a fixed, deliberately invalid Authorization marker to exercise the same CORS preflight. No ID image or real Firebase token is sent. Verification must remain paused.</p>
+      <button id="check" type="button">Check connection</button>
+      <p id="result" class="result" role="status" aria-live="polite">Ready. Press Check connection.</p>
+      <p class="note">PASS means this browser can read HTTP 503 / verification_disabled. It does not mean an ID was verified or signup completed. This dev-server page is separate from the normal index.html build entry.</p>
+      <section aria-labelledby="shared-title">
+        <h2 id="shared-title">2. Shared signup client (no photo)</h2>
+        <p>This uses signup's actual shared verification service and Axios, with the verifier URL configured in Vite. It substitutes a fixed invalid token instead of using Firebase.</p>
+        <dl>
+          <dt>Configured verifier URL</dt>
+          <dd id="shared-endpoint-status">Waiting for the dev helper…</dd>
+          <dt>Main API origin (setting only)</dt>
+          <dd id="shared-api-status">Waiting for the dev helper…</dd>
+          <dt>Application mode</dt>
+          <dd id="shared-mode">Waiting for the dev helper…</dd>
+        </dl>
+        <p class="note">Keep Azure verification paused. Only the approved Azure endpoint is permitted. The request is empty JSON, without photos, student details, cookies, or real tokens. The main API is never contacted; its setting is shown only as a bare origin (scheme://host:port) plus structural reachability notes—never the path, query, or credentials.</p>
+        <button id="shared-check" type="button" disabled>Check shared client</button>
+        <p id="shared-result" class="result" role="status" aria-live="polite">Loading the shared-client helper. If this does not change, the helper did not load; no request was sent.</p>
+        <p class="note">PASS checks the configured URL, Axios response handling, and shared paused-message mapping—not Firebase login, a capture upload, OCR, or registration. Only safe status/code/message values are shown; successful bodies are discarded before parsing. The shared client's existing one-time HTTP 401 retry is retained.</p>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const endpoint = "https://monteai-id-verifier.azurewebsites.net/api/v1/id-verification";
+        const safeCodes = new Set([
+          "verification_disabled", "service_unavailable", "origin_not_allowed",
+          "authentication_required", "invalid_request", "image_too_large",
+        ]);
+        const button = document.getElementById("check");
+        const result = document.getElementById("result");
+        let activeController;
+
+        document.getElementById("origin").textContent = window.location.origin;
+        document.getElementById("secure").textContent = window.isSecureContext ? "Yes" : "No — use trusted HTTPS; do not bypass certificate checks.";
+        document.getElementById("endpoint").textContent = endpoint;
+
+        function show(message, state) {
+          result.textContent = message;
+          result.dataset.state = state;
+        }
+
+        async function readErrorCode(response) {
+          const reader = response.body?.getReader();
+          if (!reader) return "unrecognized_error_code";
+          const decoder = new TextDecoder();
+          let text = "";
+          let bytes = 0;
+          try {
+            while (true) {
+              const part = await reader.read();
+              if (part.done) break;
+              bytes += part.value.byteLength;
+              if (bytes > 4096) {
+                await reader.cancel();
+                return "unrecognized_error_code";
+              }
+              text += decoder.decode(part.value, { stream: true });
+            }
+            text += decoder.decode();
+            try {
+              const code = JSON.parse(text)?.code;
+              return safeCodes.has(code) ? code : "unrecognized_error_code";
+            } catch {
+              return "unrecognized_error_code";
+            }
+          } finally {
+            text = "";
+            reader.releaseLock();
+          }
+        }
+
+        button.addEventListener("click", async () => {
+          if (activeController) return;
+          const controller = new AbortController();
+          activeController = controller;
+          button.disabled = true;
+          let timedOut = false;
+          const timer = setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+          }, 30000);
+          show("Checking this browser → Azure…", "checking");
+
+          try {
+            const response = await fetch(endpoint, {
+              method: "POST",
+              mode: "cors",
+              credentials: "omit",
+              cache: "no-store",
+              redirect: "error",
+              referrerPolicy: "no-referrer",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer idv-connection-check-not-a-real-token",
+              },
+              body: "{}",
+              signal: controller.signal,
+            });
+
+            // Never read a successful body, which could contain an opaque receipt.
+            if (response.status < 400) {
+              await response.body?.cancel();
+              show(`FAIL — unexpected HTTP ${response.status}. Expected the paused 503 response. Response body was not read.`, "fail");
+              return;
+            }
+
+            // Only bounded, allowlisted error codes are displayed; never raw bodies/messages.
+            const code = await readErrorCode(response);
+            if (response.status === 503 && code === "verification_disabled") {
+              show("PASS — HTTP 503 / verification_disabled.\nThis browser reached Azure and read the paused response. No ID was processed.", "pass");
+            } else {
+              show(`FAIL — HTTP ${response.status} / ${code}.\nThe browser read a response, but it was not the expected paused contract.`, "fail");
+            }
+          } catch {
+            show(timedOut
+              ? "FAIL — no readable response within 30 seconds."
+              : "FAIL — this browser could not read the Azure response. Possible causes: CORS, network, DNS, or TLS. No ID image or real Firebase token was sent.", "fail");
+          } finally {
+            clearTimeout(timer);
+            activeController = undefined;
+            button.disabled = false;
+          }
+        });
+
+        window.addEventListener("pagehide", () => activeController?.abort());
+      })();
+    </script>
+    <script type="module">
+      const sharedResult = document.getElementById("shared-result");
+      if (import.meta.env.DEV) {
+        import("./idv-shared-client-check.ts").then(({ installSharedClientCheck }) => {
+          installSharedClientCheck({
+            development: true,
+            endpoint: import.meta.env.VITE_ID_VERIFICATION_ENDPOINT,
+            apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
+            pageOrigin: window.location.origin,
+            useMock: import.meta.env.VITE_USE_MOCK === "true",
+          });
+        }).catch(() => {
+          document.getElementById("shared-check").disabled = true;
+          sharedResult.textContent = "FAIL — the shared-client helper could not load. No request sent. Report only this message; no logs are needed.";
+          sharedResult.dataset.state = "fail";
+        });
+      } else {
+        sharedResult.textContent = "FAIL — this check is development-only. No request sent.";
+        sharedResult.dataset.state = "fail";
+      }
+    </script>
+  </body>
+</html>
