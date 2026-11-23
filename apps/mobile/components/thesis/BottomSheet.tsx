@@ -92,6 +92,6 @@ const s = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   headerText: { flex: 1 },
-  title: { fontSize: FontSize.lg, fontWeight: '700' },
-  subtitle: { fontSize: FontSize.xs, marginTop: 2 },
+  title: { fontSize: FontSize.lg, fontWeight: '700', fontFamily: 'DM Sans' },
+  subtitle: { fontSize: FontSize.xs, marginTop: 2, fontFamily: 'DM Sans' },
 });

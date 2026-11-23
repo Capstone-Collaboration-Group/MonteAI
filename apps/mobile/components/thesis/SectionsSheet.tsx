@@ -109,9 +109,9 @@ const s = StyleSheet.create({
     paddingRight: Spacing.xl,
   },
   rowText: { flex: 1 },
-  rowTitle: { fontSize: FontSize.sm, lineHeight: 20 },
-  topLevel: { fontWeight: '700' },
-  page: { fontSize: FontSize.xs, fontWeight: '600' },
+  rowTitle: { fontSize: FontSize.sm, lineHeight: 20, fontFamily: 'DM Sans' },
+  topLevel: { fontWeight: '700', fontFamily: 'DM Sans' },
+  page: { fontSize: FontSize.xs, fontWeight: '600', fontFamily: 'DM Sans' },
   pressed: { opacity: 0.85 },
   empty: {
     alignItems: 'center',
@@ -119,5 +119,5 @@ const s = StyleSheet.create({
     paddingVertical: Spacing.xxl,
     paddingHorizontal: Spacing.xl,
   },
-  emptyText: { fontSize: FontSize.sm, textAlign: 'center' },
+  emptyText: { fontSize: FontSize.sm, textAlign: 'center', fontFamily: 'DM Sans' },
 });

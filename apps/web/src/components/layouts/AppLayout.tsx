@@ -78,6 +78,7 @@ function AppSidebar({
   const [renamingSession, setRenamingSession] =
     useState<ChatSessionResponseDto | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const [openSessionMenu, setOpenSessionMenu] = useState<{
     sessionId: string;
     left: number;
@@ -476,6 +477,21 @@ function AppSidebar({
         document.body
       )}
 
+      {createPortal(
+        <ConfirmDialog
+          open={logoutOpen}
+          title="Sign out"
+          description="Are you sure you want to sign out of MonteSkolar?"
+          confirmLabel="Yes, Logout"
+          cancelLabel="No, stay logged in"
+          variant="danger"
+          loading={false}
+          onConfirm={handleLogout}
+          onCancel={() => setLogoutOpen(false)}
+        />,
+        document.body
+      )}
+
       {/* 3. Make the Footer dynamic and add the logout trigger */}
       <Sidebar.Footer className={`flex items-center gap-2.5 px-1 ${collapsed ? "justify-center" : "justify-between"}`}>
         <div className="flex items-center gap-2.5 overflow-hidden">
@@ -491,7 +507,7 @@ function AppSidebar({
         </div>
 
         <button
-          onClick={handleLogout}
+          onClick={() => setLogoutOpen(true)}
           className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
           aria-label="Sign out"
         >
