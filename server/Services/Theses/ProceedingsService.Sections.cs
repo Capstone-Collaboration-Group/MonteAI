@@ -676,7 +676,7 @@ namespace server.Services.Theses
 
             const double row1 = 116.4;
             r.Text("Prepared by:", r.Body, TextLeft, row1);
-            r.Text("Institute of Computer Studies", r.BodyBold, ValueX(r, "Prepared by:", TextLeft), row1);
+            r.Text("Institute of Computing Studies", r.BodyBold, ValueX(r, "Prepared by:", TextLeft), row1);
             r.Text("Version:", r.Body, ColSignature, row1);
             r.Text("1.0", r.BodyBold, ValueX(r, "Version:", ColSignature), row1);
 
