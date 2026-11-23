@@ -48,8 +48,16 @@ namespace server.Services.Theses
             r.SectionBreak(28.8);
             DrawQuestions(r, rows);
 
+            // Close section V at the bottom rail, then open the second page with
+            // its own top border before section VI's heading.
+            if (r.PageNumber == 1) r.DrawRule(ProceedingsRenderer.FrameBottomFirstPage);
             r.SectionBreak(38.8);
             if (r.PageNumber == 1) r.NewPage();
+            if (r.PageNumber > 1)
+            {
+                r.DrawRule(ProceedingsRenderer.RailTop);
+                r.SetCursor(ProceedingsRenderer.ContentTop);
+            }
             DrawEvaluation(r);
 
             r.SectionBreak(5.5);
@@ -296,7 +304,7 @@ namespace server.Services.Theses
                 "or panel recommendations in this section. Record the panel's questions, comments, and required revisions separately in Section V.",
                 r.Body,
                 TextLeft,
-                25.4);
+                20.4);
 
             r.DrawVertical(DividerX, 346.8, 256.3);
 
