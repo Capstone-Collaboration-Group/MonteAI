@@ -4,6 +4,7 @@ import React from "react";
 export { RegistrationForm } from "../../../packages/ui/src/components/auth/RegistrationForm.tsx";
 export { StudentIdVerification } from "../../../packages/ui/src/components/auth/StudentIdVerification.tsx";
 export { PendingRegistrationGate } from "../../../packages/ui/src/components/auth/PendingRegistrationGate.tsx";
+export { GuestRoute } from "../../../packages/ui/src/components/auth/GuestRoute.tsx";
 export { ProtectedRoute } from "../../../packages/ui/src/components/auth/ProtectedRoute.tsx";
 export { Modal } from "../../../packages/ui/src/components/auth/Modal.tsx";
 export { LeftPanel } from "../../../packages/ui/src/components/auth/LeftPanel.tsx";

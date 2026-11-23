@@ -5,6 +5,7 @@ export type { RegistrationFormProps, RegistrationIdVerification } from "./Regist
 export { StudentIdVerification } from "./StudentIdVerification";
 export type { StudentIdVerificationProps } from "./StudentIdVerification";
 export { PendingRegistrationGate } from "./PendingRegistrationGate";
+export { GuestRoute } from "./GuestRoute";
 export { PasswordInput } from "./PasswordInput";
 export { ProtectedRoute } from "./ProtectedRoute";
 export { TextInput } from "./TextInput";
