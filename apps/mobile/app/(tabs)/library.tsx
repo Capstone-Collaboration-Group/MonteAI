@@ -19,17 +19,22 @@ import { TabScreenTransition } from '@/components/ui/TabScreenTransition';
 import { BottomSheet } from '@/components/thesis/BottomSheet';
 import { Spacing, Radius, FontSize } from '@/constants/theme';
 import { thesisService } from '@/lib/thesisService';
-import { THESIS_PROGRAMS, type ThesisProgram, type ThesisResponseDto } from '@monteai/types';
+import { THESIS_PROGRAMS, instituteMatchesProgram, type ThesisProgram, type ThesisResponseDto } from '@monteai/types';
 
 const PAGE_SIZE = 10;
+/** Debounce for the search box — mirrors the web catalog's 400ms delay. */
+const SEARCH_DEBOUNCE_MS = 400;
+/** Exact matches below this count fall through to semantic search (web parity). */
+const SPARSE_SEARCH_THRESHOLD = 3;
 
 /**
  * Library tab — published-thesis catalog.
  *
- * Filtering is backend-driven: the selected program is passed to
+ * The program filter is backend-driven: the selected program is passed to
  * `thesisService.getTheses(program)` (?program=ICS), matching the server's
- * keyword filter on the research group leader's institute. Search is
- * client-side over the returned set so both can be active at once. The
+ * keyword filter on the research group leader's institute. Search hits the
+ * backend `searchTheses` endpoint (debounced, exact → semantic fallback) so
+ * theses beyond the catalog endpoint's first 20 are still findable; the
  * selection lives in screen state, which survives tab switches and
  * detail push/back (expo-router keeps tab screens mounted).
  */
@@ -46,6 +51,11 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true);
   const [program, setProgram] = useState<ThesisProgram | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<ThesisResponseDto[] | null>(null);
+  const [searchMode, setSearchMode] = useState<'exact' | 'semantic' | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [shown, setShown] = useState(PAGE_SIZE);
   const { recentChats, loading: chatsLoading } = useDrawerChats();
@@ -70,18 +80,73 @@ export default function LibraryScreen() {
 
   const { refreshControl } = usePullToRefresh(loadTheses);
 
+  // Debounce the search box (mirrors the web catalog's 400ms delay).
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeoutId);
+  }, [search]);
+
+  // Backend-driven search. The catalog endpoint only returns the first 20
+  // theses, so searching the already-fetched list misses everything beyond
+  // that — route the query through thesisService.searchTheses instead.
+  // Mirrors the web ThesisCatalog: exact first, semantic fallback on sparse
+  // results, merged by id and capped at 10.
+  useEffect(() => {
+    const query = debouncedSearch.trim();
+    if (!query) {
+      setSearchResults(null);
+      setSearchMode(null);
+      setSearchError(null);
+      setSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    setSearchLoading(true);
+
+    (async () => {
+      try {
+        const exactResults = await thesisService.searchTheses(query, 'exact');
+        if (!active) return;
+        if (exactResults.length >= SPARSE_SEARCH_THRESHOLD) {
+          setSearchResults(exactResults);
+          setSearchMode('exact');
+          setSearchError(null);
+        } else {
+          const semanticResults = await thesisService.searchTheses(query, 'semantic');
+          if (!active) return;
+          const exactIds = new Set(exactResults.map((t) => t.id));
+          setSearchResults([
+            ...exactResults,
+            ...semanticResults.filter((t) => !exactIds.has(t.id)),
+          ].slice(0, 10));
+          setSearchMode('semantic');
+        }
+      } catch {
+        if (!active) return;
+        setSearchResults(null);
+        setSearchMode(null);
+        setSearchError('Search is unavailable right now. Try again in a moment.');
+      } finally {
+        if (active) setSearchLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [debouncedSearch]);
+
+  const isSearching = debouncedSearch.trim().length > 0;
+
   // Search composes with the backend program filter — both can be active.
+  // While a query is active we use backend search results (which are not
+  // program-filtered server-side); the base list is already program-filtered.
   const visibleTheses = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return theses;
-    return theses.filter(
-      (t) =>
-        t.title?.toLowerCase().includes(q) ||
-        (t.authors ?? []).some((a) => a.toLowerCase().includes(q)) ||
-        (t.institute ?? '').toLowerCase().includes(q) ||
-        t.abstract?.toLowerCase().includes(q),
-    );
-  }, [theses, search]);
+    const source = isSearching ? (searchResults ?? []) : theses;
+    if (!program) return source;
+    return source.filter((t) => instituteMatchesProgram(t.institute, program));
+  }, [theses, searchResults, program, isSearching]);
 
   // Client-side pagination — "Load More" reveals the next page.
   const page = useMemo(() => visibleTheses.slice(0, shown), [visibleTheses, shown]);
@@ -90,7 +155,7 @@ export default function LibraryScreen() {
   // Reset pagination whenever the result set changes (new search/filter).
   useEffect(() => { setShown(PAGE_SIZE); }, [search, program]);
 
-  const hasFilter = program !== null || search.trim().length > 0;
+  const hasFilter = program !== null || isSearching;
 
   return (
     <TabScreenTransition>
@@ -104,7 +169,13 @@ export default function LibraryScreen() {
         {/* Header */}
         <Text style={[s.heading, { color: heading }]}>Published Theses</Text>
         <Text style={[s.sub, { color: body }]}>
-          Explore a curated collection of peer-reviewed research and institutional defense records.
+          {isSearching
+            ? searchLoading
+              ? 'Searching the repository…'
+              : searchMode === 'semantic'
+                ? 'Showing closest matches'
+                : `${visibleTheses.length} result${visibleTheses.length === 1 ? '' : 's'}`
+            : 'Explore a curated collection of peer-reviewed research and institutional defense records.'}
         </Text>
 
         {/* Search */}
@@ -142,11 +213,15 @@ export default function LibraryScreen() {
         </Pressable>
 
         {/* Thesis cards */}
-        {loading ? (
+        {(loading || searchLoading) ? (
           <ActivityIndicator size="small" color={body} style={{ marginVertical: Spacing.xl }} />
         ) : visibleTheses.length === 0 ? (
           <Text style={[s.emptyText, { color: body }]}>
-            {hasFilter ? 'No theses match your filters' : 'No theses found'}
+            {searchError
+              ? searchError
+              : hasFilter
+                ? 'No theses match your filters'
+                : 'No theses found'}
           </Text>
         ) : (
           page.map((t) => (
@@ -178,7 +253,7 @@ export default function LibraryScreen() {
           ))
         )}
 
-        {!loading && hasMore && (
+        {!loading && !searchLoading && hasMore && (
           <Pressable
             onPress={() => setShown((n) => n + PAGE_SIZE)}
             accessibilityRole="button"
