@@ -5,6 +5,7 @@ import {
 } from "@monteai/types";
 import { Button } from "../Button";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "../common/Modal";
+import { AgreementNotice } from "./AgreementNotice";
 
 type TermsAndConditionsProps = {
   accepted: boolean;
@@ -21,22 +22,12 @@ export function TermsAndConditions({
 
   return (
     <>
-      <section className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <input
-          type="checkbox"
-          checked={accepted}
-          onChange={(event) => {
-            if (accepted) {
-              onAcceptedChange(event.target.checked);
-            } else {
-              setIsOpen(true);
-            }
-          }}
-          required
-          aria-label="I agree to the terms and conditions"
-          className="mt-1 h-4 w-4 shrink-0 accent-primary"
-        />
-        <div className="text-sm text-slate-800">
+      <AgreementNotice
+        accepted={accepted}
+        onAcceptedChange={onAcceptedChange}
+        onRequestAccept={() => setIsOpen(true)}
+        ariaLabel="I agree to the terms and conditions"
+        label={<>
           <p>
             I have read and agree to the{" "}
             <button
@@ -48,12 +39,12 @@ export function TermsAndConditions({
             </button>
             .
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-on-surface-variant">
             Required to create an account · Version{" "}
             {TERMS_AND_CONDITIONS_VERSION}
           </p>
-        </div>
-      </section>
+        </>}
+      />
 
       <Modal
         isOpen={isOpen}

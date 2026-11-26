@@ -13,6 +13,7 @@ import { PRIVACY_NOTICE_VERSION, TERMS_AND_CONDITIONS_VERSION, type Registration
 import { FACULTY_EMAIL_DOMAIN, isValidEmailForRole, toRegistrationDraft } from "@monteai/utils";
 import { clearPendingRegistration, getActivePendingRegistration, savePendingRegistration, subscribePendingRegistration,
   type PendingRegistration } from "./pendingRegistration";
+import { instituteLabel, normalizeInstitute, normalizeProgram, programLabel, PROGRAM_INSTITUTE } from "./registrationOptions";
 import { BROWSER_CAPTURE_TIMEOUT_MS, BrowserMemoryCameraError, createBrowserMemoryCameraSession,
   type BrowserMemoryCameraSession } from "./idCapture/browserMemoryCamera";
 import { awaitBrowserSignupCleanup, retireStudentSignupFlow } from "./idCapture/signupCleanup";
@@ -43,7 +44,7 @@ const POLL_INTERVAL_MS = 4000;
 
 export const initialRegistrationForm = {
   role: "Student" as RegistrationRole, firstName: "", middleInitial: "", lastName: "", suffix: "", email: "",
-  studentNumber: "", institute: "", program: "BS Information Technology", year: "1", section: "", password: "", confirmPassword: "",
+  studentNumber: "", institute: "", program: "", year: "", section: "", password: "", confirmPassword: "",
 };
 type RegistrationFields = typeof initialRegistrationForm;
 
@@ -77,9 +78,10 @@ export function registrationFormProblem(form: RegistrationFields, privacy: boole
 function payloadFor(form: RegistrationFields, uid: string, privacy: boolean, terms: boolean): RegistrationDraft {
   const draft = toRegistrationDraft({
     id: uid, email: form.email.trim(), firstName: form.firstName.trim(), lastName: form.lastName.trim(),
-    middleInitial: form.middleInitial || undefined, suffix: form.suffix.trim() || undefined, role: form.role, institute: form.institute,
+    middleInitial: form.middleInitial || undefined, suffix: form.suffix.trim() || undefined, role: form.role,
+    institute: instituteLabel(form.institute),
     privacyNoticeAccepted: privacy, privacyNoticeVersion: PRIVACY_NOTICE_VERSION, termsAccepted: terms, termsVersion: TERMS_AND_CONDITIONS_VERSION,
-    ...(form.role === "Student" ? { studentNumber: form.studentNumber, position: "Member", program: form.program,
+    ...(form.role === "Student" ? { studentNumber: form.studentNumber, position: "Member", program: programLabel(form.program),
       yearLevel: Number(form.year), section: form.section } : {}),
   });
   if (!draft) throw new RegistrationError("invalid_request");
@@ -225,8 +227,9 @@ export function useRegistrationFlow(props: RegistrationFormProps) {
 
   const hydrateForm = useCallback((draft: RegistrationDraft) => {
     const fields = { role: draft.role, firstName: draft.firstName, middleInitial: draft.middleInitial ?? "", lastName: draft.lastName,
-      suffix: draft.suffix ?? "", email: draft.email, studentNumber: draft.studentNumber ?? "", institute: draft.institute,
-      program: draft.program ?? initialRegistrationForm.program, year: String(draft.yearLevel ?? 1), section: draft.section ?? "",
+      suffix: draft.suffix ?? "", email: draft.email, studentNumber: draft.studentNumber ?? "",
+      institute: normalizeInstitute(draft.institute), program: normalizeProgram(draft.program ?? ""),
+      year: draft.yearLevel ? String(draft.yearLevel) : "", section: draft.section ?? "",
       password: "", confirmPassword: "" };
     formRef.current = fields;
     setForm(fields);
@@ -493,6 +496,18 @@ export function useRegistrationFlow(props: RegistrationFormProps) {
     setMessage(null);
     setAccountExists(false);
   };
+  const handleSelectChange = (name: "institute" | "program" | "year" | "section", value: string) => {
+    invalidate(true);
+    const next = { ...formRef.current, [name]: value };
+    if (name === "institute") {
+      if (next.program && PROGRAM_INSTITUTE[next.program] !== value) next.program = "";
+    }
+    if (name === "program") next.institute = PROGRAM_INSTITUTE[value] ?? next.institute;
+    formRef.current = next;
+    setForm(next);
+    setMessage(null);
+    setAccountExists(false);
+  };
   const handleRoleChange = (role: RegistrationRole) => {
     invalidate(true);
     formRef.current = { ...formRef.current, role };
@@ -687,7 +702,7 @@ export function useRegistrationFlow(props: RegistrationFormProps) {
 
   return { form, phase, loading, checking, resendIn, message, accountExists, privacyAccepted, termsAccepted, active,
     studentFlow, studentState, signupBusy: signupBusy || resettingAccount, ownedAccount, pendingDraft: pendingSnapshot?.payload,
-    handleChange, handleRoleChange, handleSubmit, recheckVerification: () => recheckVerification(true), resendVerification,
+    handleChange, handleSelectChange, handleRoleChange, handleSubmit, recheckVerification: () => recheckVerification(true), resendVerification,
     startOver, editDetails, onRegistered, goToLogin, changePrivacy, changeTerms, completeFacultyRegistration,
     ensureVerifiedAccount: async () => { await getVerifiedDraft(); } };
 }

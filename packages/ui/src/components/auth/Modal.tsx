@@ -51,7 +51,7 @@ export function Modal({ children, onClose, onCloseRequest }: ModalProps) {
             type="button"
             aria-label="Close"
             onClick={handleClose}
-            className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full transition duration-200 hover:bg-gray-100 active:scale-95 sm:right-6 sm:top-6"
+            className="absolute right-6 top-6 z-10 flex h-9 w-9 items-center justify-center rounded-full transition duration-200 hover:bg-gray-100 active:scale-95 sm:right-12 sm:top-12"
           >
             <img src={closeIcon} alt="Close" className="h-5 w-5" />
           </button>

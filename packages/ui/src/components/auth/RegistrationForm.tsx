@@ -4,23 +4,18 @@ import type { RegistrationRole } from "@monteai/types";
 import { FACULTY_EMAIL_DOMAIN } from "@monteai/utils";
 import { Button } from "../Button";
 import { Input } from "../Input";
+import { Select } from "../common/Select";
 import { PrivacyNotice } from "./PrivacyNotice";
 import { TermsAndConditions } from "./TermsAndConditions";
 import { StudentIdVerification } from "./StudentIdVerification";
 import { useRegistrationFlow, type RegistrationFormProps, type RegistrationMessage } from "./useRegistrationFlow";
+import { INSTITUTE_OPTIONS, SECTION_OPTIONS, YEAR_OPTIONS, programsForInstitute } from "./registrationOptions";
 
 export type { RegistrationFormProps, RegistrationIdVerification } from "./useRegistrationFlow";
 
-const INSTITUTES = [
-  "Institute of Computing Studies",
-  "Institute of Teaching Education",
-  "Institute of Business and Entrepreneurship",
-];
-const PROGRAMS = ["BS Information Technology", "BS Computer Science", "BS Data Science"];
-
 function Field({ label, icon: Icon, children }: { label: string; icon: React.ElementType; children: ReactNode }) {
   return (
-    <label className="space-y-2">
+    <label className="min-w-0 space-y-2">
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Icon className="h-4 w-4 text-primary" />{label}</span>
       {children}
     </label>
@@ -36,6 +31,7 @@ export function RegistrationForm(props: RegistrationFormProps) {
   const registration = useRegistrationFlow(props);
   const { form, phase, loading, checking, resendIn, message, accountExists, privacyAccepted, termsAccepted,
     active, studentFlow, studentState, signupBusy, ownedAccount, pendingDraft, handleChange, handleRoleChange,
+    handleSelectChange,
     handleSubmit, recheckVerification, resendVerification, startOver, editDetails, onRegistered, goToLogin,
     changePrivacy, changeTerms, completeFacultyRegistration, ensureVerifiedAccount } = registration;
   const [showPassword, setShowPassword] = useState(false);
@@ -101,57 +97,85 @@ export function RegistrationForm(props: RegistrationFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <fieldset disabled={loading} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+    <form className="min-w-0" onSubmit={handleSubmit}>
+      <fieldset disabled={loading} className="min-w-0 space-y-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {(["Student", "Faculty"] as RegistrationRole[]).map(role => <button key={role} type="button" onClick={() => handleRoleChange(role)}
             className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition ${form.role === role
               ? "border-primary bg-primary/10 text-primary" : "border-gray-300 bg-white text-slate-600 hover:border-primary/50"}`}>
             {role === "Student" ? <GraduationCap className="h-4 w-4" /> : <BookUser className="h-4 w-4" />}{role}
           </button>)}
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="First / given names" icon={UserRound}><Input name="firstName" value={form.firstName} onChange={handleChange} placeholder="Juan" maxLength={50} required /></Field>
-          <Field label="Last name" icon={UserRound}><Input name="lastName" value={form.lastName} onChange={handleChange} placeholder="Dela Cruz" maxLength={50} required /></Field>
+        <div className="grid min-w-0 gap-4 md:grid-cols-2">
+          <Field label="First / given names" icon={UserRound}><Input className="h-10" name="firstName" value={form.firstName} onChange={handleChange} placeholder="Juan" maxLength={50} required /></Field>
+          <Field label="Last name" icon={UserRound}><Input className="h-10" name="lastName" value={form.lastName} onChange={handleChange} placeholder="Dela Cruz" maxLength={50} required /></Field>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Middle initial (optional)" icon={UserRound}><Input name="middleInitial" value={form.middleInitial} onChange={handleChange} placeholder="D" maxLength={1} /></Field>
-          <Field label="Suffix (optional)" icon={UserRound}><Input name="suffix" value={form.suffix} onChange={handleChange} placeholder="Jr." maxLength={10} /></Field>
+        <div className="grid min-w-0 gap-4 md:grid-cols-2">
+          <Field label="Middle initial (optional)" icon={UserRound}><Input className="h-10" name="middleInitial" value={form.middleInitial} onChange={handleChange} placeholder="D" maxLength={1} /></Field>
+          <Field label="Suffix (optional)" icon={UserRound}><Input className="h-10" name="suffix" value={form.suffix} onChange={handleChange} placeholder="Jr." maxLength={10} /></Field>
         </div>
         <Field label="Email address" icon={Mail}>
-          <Input type="email" name="email" value={form.email} onChange={handleChange} placeholder={form.role === "Student" ? "juan@example.com" : "juan@pnm.edu.ph"} maxLength={100} required />
-          <span className="block text-xs text-slate-500">{form.role === "Student" ? "Personal email addresses are allowed. You must verify this email and your student ID."
+          <Input className="h-10" type="email" name="email" value={form.email} onChange={handleChange} placeholder={form.role === "Student" ? "juan@example.com" : "juan@pnm.edu.ph"} maxLength={100} required />
+          <span className="block pb-2 text-xs text-slate-500">{form.role === "Student" ? "Personal email addresses are allowed. You must verify this email and your student ID."
             : `Must be a ${FACULTY_EMAIL_DOMAIN} address.`}</span>
         </Field>
-        <div className={`grid gap-4 ${form.role === "Student" ? "md:grid-cols-2" : ""}`}>
+        <div className={`grid min-w-0 gap-4 ${form.role === "Student" ? "md:grid-cols-2" : ""}`}>
           {form.role === "Student" && <Field label="Student number" icon={GraduationCap}>
-            <Input name="studentNumber" value={form.studentNumber} onChange={handleChange} placeholder="00-00123" maxLength={8} pattern="[0-9]{2}-[0-9]{5}" required />
-            <span className="block text-xs text-slate-500">Exactly NN-NNNNN. Keep the leading zeros.</span>
+            <Input className="h-10" name="studentNumber" value={form.studentNumber} onChange={handleChange} placeholder="00-00123" maxLength={8} pattern="[0-9]{2}-[0-9]{5}" required />
+            <span className="block text-xs text-slate-500">Please follow the format.</span>
           </Field>}
           <Field label="Institute" icon={Building2}>
-            <select name="institute" value={form.institute} onChange={handleChange} required className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
-              <option value="" disabled>Select your institute</option>{INSTITUTES.map(institute => <option key={institute}>{institute}</option>)}
-            </select>
+            <Select
+              value={form.institute}
+              onChange={(value) => handleSelectChange("institute", value)}
+              placeholder="Select your institute"
+              options={INSTITUTE_OPTIONS}
+              displayValue
+              wrapOptions
+              className="w-full"
+            />
           </Field>
         </div>
-        {form.role === "Student" && <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Program" icon={GraduationCap}>
-            <select name="program" value={form.program} onChange={handleChange} required className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
-              {PROGRAMS.map(program => <option key={program}>{program}</option>)}
-            </select>
-          </Field>
-          <Field label="Year level" icon={CalendarDays}>
-            <select name="year" value={form.year} onChange={handleChange} required className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
-              <option value="1">1st Year</option><option value="2">2nd Year</option><option value="3">3rd Year</option><option value="4">4th Year</option>
-            </select>
-          </Field>
-          <Field label="Section" icon={CalendarDays}><Input name="section" value={form.section} onChange={handleChange} placeholder="A" maxLength={1} required /></Field>
-        </div>}
+        {form.role === "Student" && <>
+          <div className="!mt-1">
+            <Field label="Program" icon={GraduationCap}>
+              <Select
+                value={form.program}
+                onChange={(value) => handleSelectChange("program", value)}
+                placeholder="Select your program"
+                options={programsForInstitute(form.institute)}
+                displayValue
+                wrapOptions
+                className="w-full"
+              />
+            </Field>
+          </div>
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Year level" icon={CalendarDays}>
+              <Select
+                value={form.year}
+                onChange={(value) => handleSelectChange("year", value)}
+                placeholder="Select year level"
+                options={YEAR_OPTIONS}
+                className="w-full"
+              />
+            </Field>
+            <Field label="Section" icon={CalendarDays}>
+              <Select
+                value={form.section}
+                onChange={(value) => handleSelectChange("section", value)}
+                placeholder="Select your section"
+                options={SECTION_OPTIONS}
+                className="w-full"
+              />
+            </Field>
+          </div>
+        </>}
         {ownedAccount ? <p className="text-sm text-slate-600">Using your pending Firebase account. Editing details discards any earlier ID verification.</p> : <>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 gap-4 md:grid-cols-2">
             <Field label="Password" icon={Lock}>
               <div className="relative">
-                <Input type={showPassword ? "text" : "password"} name="password" value={form.password} onChange={handleChange} placeholder="Create a password" minLength={8} required />
+                <Input className="h-10" type={showPassword ? "text" : "password"} name="password" value={form.password} onChange={handleChange} placeholder="Create a password" minLength={8} required />
                 <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(value => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -159,7 +183,7 @@ export function RegistrationForm(props: RegistrationFormProps) {
             </Field>
             <Field label="Confirm password" icon={Lock}>
               <div className="relative">
-                <Input type={showConfirmPassword ? "text" : "password"} name="confirmPassword" value={form.confirmPassword} onChange={handleChange} placeholder="Re-enter password" minLength={8} required />
+                <Input className="h-10" type={showConfirmPassword ? "text" : "password"} name="confirmPassword" value={form.confirmPassword} onChange={handleChange} placeholder="Re-enter password" minLength={8} required />
                 <button type="button" aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"} onClick={() => setShowConfirmPassword(value => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -167,8 +191,10 @@ export function RegistrationForm(props: RegistrationFormProps) {
             </Field>
           </div>
         </>}
-        <PrivacyNotice accepted={privacyAccepted} onAcceptedChange={changePrivacy} />
-        <TermsAndConditions accepted={termsAccepted} onAcceptedChange={changeTerms} role={form.role} />
+        <div className="space-y-0">
+          <PrivacyNotice accepted={privacyAccepted} onAcceptedChange={changePrivacy} />
+          <TermsAndConditions accepted={termsAccepted} onAcceptedChange={changeTerms} role={form.role} />
+        </div>
         {messageBox(message)}
         {accountExists && props.onGoToLogin && <Button type="button" variant="secondary" onClick={goToLogin} className="w-full justify-center py-3">Go to login</Button>}
         {(studentState.busy || signupBusy) && <p role="status" className="text-xs text-slate-500">Earlier camera or signup work is still finishing. New signup work stays blocked until cleanup completes.</p>}
