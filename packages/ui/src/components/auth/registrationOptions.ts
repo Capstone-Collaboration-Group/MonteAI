@@ -1,7 +1,7 @@
 import type { SelectOption } from "../common/Select";
 
 export const INSTITUTE_OPTIONS: SelectOption[] = [
-  { value: "ICS", label: "Institute of Computer Studies" },
+  { value: "ICS", label: "Institute of Computing Studies" },
   { value: "IBE", label: "Institute of Business and Entrepreneurship" },
   { value: "ITE", label: "Institute of Teacher Education" },
 ];
