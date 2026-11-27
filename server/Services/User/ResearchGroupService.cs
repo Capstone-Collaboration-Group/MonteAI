@@ -19,7 +19,7 @@ namespace server.Services.User
         INotificationService notifications
     ) : IResearchGroupService
     {
-        private const int MaxGroupSize = 4;
+        private const int MaxGroupSize = 8;
 
         private string UserId => httpContext.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new UnauthorizedAccessException();

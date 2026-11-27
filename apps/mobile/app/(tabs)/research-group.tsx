@@ -34,7 +34,7 @@ import type {
   StudentResponseDto,
 } from '@monteai/types';
 
-const MAX_MEMBERS = 4;
+const MAX_MEMBERS = 8;
 
 /** Fade + slide entrance used to stagger the group card and member rows. */
 function FadeIn({
@@ -70,7 +70,7 @@ function initials(first?: string, last?: string): string {
 /**
  * Research Group screen — the student-facing view of their thesis team.
  * Students can create their one group (becoming its leader), rename it,
- * invite up to 3 classmates, and remove members. Reached from the
+ * invite up to 7 classmates, and remove members. Reached from the
  * sidebar drawer.
  */
 export default function ResearchGroupScreen() {

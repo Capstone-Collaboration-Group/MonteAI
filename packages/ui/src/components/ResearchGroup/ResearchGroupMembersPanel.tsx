@@ -77,7 +77,7 @@ export function ResearchGroupMembersPanel({
     [directory, memberIds],
   );
 
-  const isFull = (group?.members.length ?? 0) >= 4;
+  const isFull = (group?.members.length ?? 0) >= 8;
 
   const pendingName = pending
     ? pending.kind === "add"
@@ -109,7 +109,7 @@ export function ResearchGroupMembersPanel({
               {group?.groupName ?? "Group"} — members
             </p>
             <p className="mt-0.5 text-xs font-normal text-on-surface-variant">
-              A research group may have up to four students, including the
+              A research group may have up to eight students, including the
               leader.
             </p>
           </div>
@@ -127,7 +127,7 @@ export function ResearchGroupMembersPanel({
                 </p>
               </div>
               <Badge variant={isFull ? "defense" : "surface"} dot>
-                {group.members.length}/4
+                {group.members.length}/8
               </Badge>
             </div>
           )}

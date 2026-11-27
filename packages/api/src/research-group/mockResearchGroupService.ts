@@ -122,7 +122,7 @@ export const mockResearchGroupService: ResearchGroupService = {
   async addMember(id: string, studentId: string) {
     await delay(200);
     const group = researchGroupsMap.get(id);
-    if (!group || group.members.length >= 4) return false;
+    if (!group || group.members.length >= 8) return false;
     if (group.members.some((member) => member.id === studentId)) return false;
     group.members = [...group.members, { id: studentId, studentNumber: studentId, name: studentId, position: "Member", program: "" }];
     return true;

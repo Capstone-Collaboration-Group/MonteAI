@@ -78,8 +78,8 @@ export function ResearchGroupView({
       {
         id: "full",
         icon: Users,
-        label: "Full groups (4/4)",
-        value: groups.filter((group) => group.members.length >= 4).length,
+        label: "Full groups (8/8)",
+        value: groups.filter((group) => group.members.length >= 8).length,
         accent: "bg-surface-container-high text-on-surface-variant",
       },
     ],
@@ -185,12 +185,12 @@ export function ResearchGroupView({
                         </div>
                         <Badge
                           variant={
-                            group.members.length >= 4 ? "defense" : "surface"
+                            group.members.length >= 8 ? "defense" : "surface"
                           }
                           dot
                           size="sm"
                         >
-                          {group.members.length}/4 members
+                          {group.members.length}/8 members
                         </Badge>
                       </div>
 
