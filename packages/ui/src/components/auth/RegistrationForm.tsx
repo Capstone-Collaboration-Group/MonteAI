@@ -50,6 +50,7 @@ export function RegistrationForm(props: RegistrationFormProps) {
           <p className="text-sm text-slate-600">Email verified. Student ID capture is not enabled in this application. Finish signup in the web portal or native Android app. There is no file or gallery alternative.</p>
           <Button type="button" variant="secondary" onClick={editDetails}>Edit registration details</Button>
         </>}
+        <Button type="button" variant="secondary" disabled={busy || !active} onClick={() => { void startOver(); }}>Cancel sign up</Button>
         <Button type="button" variant="ghost" onClick={() => { void startOver(); }}>Use a different email</Button>
       </div>
     );
