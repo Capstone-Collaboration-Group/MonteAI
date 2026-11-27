@@ -3,6 +3,7 @@ import {
     type ResearchGroupResponseDto,
     type CreateResearchGroupDto,
     type UpdateResearchGroupDto,
+    type ResearchGroupInvitationDto
 } from "@monteai/types";
 import { handle404 } from "@monteai/utils";
 
@@ -60,9 +61,29 @@ export class LiveResearchGroupService implements ResearchGroupService {
         }
     }
 
-    async addMember(researchGroupId: string, studentId: string): Promise<boolean> {
+    async sendInvitation(researchGroupId: string, studentId: string): Promise<boolean> {
         const { data } = await this.client.post<ResultEnvelope>(`researchgroup/${researchGroupId}/members`, { studentId });
         return data.result;
+    }
+
+    async acceptInvitation(researchGroupId: string, studentId: string): Promise<boolean> {
+        const { data } = await this.client.post<ResultEnvelope>(`researchgroup/${researchGroupId}/members/${studentId}/accept`);
+        return data.result;
+    }
+
+    async declineInvitation(researchGroupId: string, studentId: string): Promise<boolean> {
+        const { data } = await this.client.post<ResultEnvelope>(`researchgroup/${researchGroupId}/members/${studentId}/decline`);
+        return data.result;
+    }
+
+    async cancelInvitation(researchGroupId: string, studentId: string): Promise<boolean> {
+        const { data } = await this.client.delete<ResultEnvelope>(`researchgroup/${researchGroupId}/invitations/${studentId}`);
+        return data.result;
+    }
+
+    async getInvitations(researchGroupId: string): Promise<ResearchGroupInvitationDto[]> {
+        const { data } = await this.client.get<ResearchGroupInvitationDto[]>(`researchgroup/${researchGroupId}/invitations`);
+        return data;
     }
 
     async removeMember(researchGroupId: string, studentId: string): Promise<boolean> {

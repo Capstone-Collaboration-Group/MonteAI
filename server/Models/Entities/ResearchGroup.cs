@@ -22,6 +22,7 @@ namespace server.Models.Entities
 
         public DateTime UpdatedAt { get; set; }
         public virtual ICollection<Student> Students { get; set; } = [];
+        public virtual ICollection<ResearchGroupInvitation> Invitations { get; set; } = [];
         public Faculty?  Adviser { get; set; }
 
         // Leader = the student referenced by LeaderId. Needed to resolve the

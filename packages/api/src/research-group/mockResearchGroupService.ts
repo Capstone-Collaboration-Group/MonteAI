@@ -5,6 +5,7 @@ import type {
   ResearchGroupResponseDto,
   CreateResearchGroupDto,
   UpdateResearchGroupDto,
+  ResearchGroupInvitationDto,
 } from "@monteai/types";
 
 function delay(ms: number) {
@@ -53,6 +54,9 @@ function buildSeed(): ResearchGroupResponseDto[] {
 }
 
 const researchGroupsMap = new Map<string, ResearchGroupResponseDto>();
+
+const researchGroupInvitationsMap = new Map<number, ResearchGroupInvitationDto>();
+let invitationSeq = 0;
 
 buildSeed().forEach((group) =>
   researchGroupsMap.set(group.id, group)
@@ -119,13 +123,66 @@ export const mockResearchGroupService: ResearchGroupService = {
     return researchGroupsMap.delete(id);
   },
 
-  async addMember(id: string, studentId: string) {
+  async sendInvitation(id: string, studentId: string) {
     await delay(200);
     const group = researchGroupsMap.get(id);
     if (!group || group.members.length >= 8) return false;
     if (group.members.some((member) => member.id === studentId)) return false;
-    group.members = [...group.members, { id: studentId, studentNumber: studentId, name: studentId, position: "Member", program: "" }];
+    const pending = Array.from(researchGroupInvitationsMap.values()).some(
+      (invitation) =>
+        invitation.groupId === id &&
+        invitation.studentId === studentId &&
+        invitation.status === "Pending"
+    );
+    if (pending) return false;
+    const invitationId = ++invitationSeq;
+    researchGroupInvitationsMap.set(invitationId, {
+      id: invitationId,
+      groupId: id,
+      leaderId: group.leaderId,
+      studentId,
+      status: "Pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
     return true;
+  },
+
+  async acceptInvitation(id: string, studentId: string) {
+    await delay(200);
+    const invitation = Array.from(researchGroupInvitationsMap.values()).find(
+      (i) => i.groupId === id && i.studentId === studentId && i.status === "Pending"
+    );
+    if (!invitation) return false;
+    researchGroupInvitationsMap.set(invitation.id, { ...invitation, status: "Accepted", updatedAt: new Date().toISOString() });
+    return true;
+  },
+
+  async declineInvitation(id: string, studentId: string) {
+    await delay(200);
+    const invitation = Array.from(researchGroupInvitationsMap.values()).find(
+      (i) => i.groupId === id && i.studentId === studentId && i.status === "Pending"
+    );
+    if (!invitation) return false;
+    researchGroupInvitationsMap.set(invitation.id, { ...invitation, status: "Declined", updatedAt: new Date().toISOString() });
+    return true;
+  },
+
+  async cancelInvitation(id: string, studentId: string) {
+    await delay(200);
+    const invitation = Array.from(researchGroupInvitationsMap.values()).find(
+      (i) => i.groupId === id && i.studentId === studentId && i.status === "Pending"
+    );
+    if (!invitation) return false;
+    researchGroupInvitationsMap.set(invitation.id, { ...invitation, status: "Canceled", updatedAt: new Date().toISOString() });
+    return true;
+  },
+
+  async getInvitations(id: string) {
+    await delay(200);
+    return Array.from(researchGroupInvitationsMap.values()).filter(
+      (invitation) => invitation.groupId === id && invitation.status === "Pending"
+    );
   },
 
   async removeMember(id: string, studentId: string) {

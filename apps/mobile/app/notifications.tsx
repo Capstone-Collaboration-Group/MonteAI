@@ -22,6 +22,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FontSize, Radius, Spacing } from '@/constants/theme';
 import { notificationService } from '@/lib/notificationService';
+import { researchGroupService } from '@/lib/researchGroupService';
+import { useAuthSession } from '@/contexts/AuthSessionContext';
 import type { NotificationResponseDto } from '@monteai/types';
 
 const POLL_MS = 30_000;
@@ -54,6 +56,7 @@ function timeAgo(iso: string): string {
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { session } = useAuthSession();
 
   const background = useThemeColor({}, 'background');
   const heading = useThemeColor({}, 'onSurface');
@@ -66,6 +69,7 @@ export default function NotificationsScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const mounted = useRef(true);
 
   const load = useCallback(async () => {
@@ -124,20 +128,51 @@ export default function NotificationsScreen() {
     }
   }, []);
 
+  // Research group invitations: accept (join) or decline (stay out) — self-service only.
+  const respondToInvitation = useCallback(
+    async (notification: NotificationResponseDto, accept: boolean) => {
+      const groupId = notification.targetId;
+      const studentId = session?.uid;
+      if (!groupId || !studentId) return;
+      setBusyId(notification.id);
+      try {
+        const ok = accept
+          ? await researchGroupService.acceptInvitation(groupId, studentId)
+          : await researchGroupService.declineInvitation(groupId, studentId);
+        if (ok) {
+          setItems((list) => list.filter((n) => n.id !== notification.id));
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
+      } catch {
+        // best-effort
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [session?.uid],
+  );
+
   const renderItem = ({ item }: { item: NotificationResponseDto }) => (
-    <Pressable
-      onPress={() => openNotification(item)}
-      accessibilityRole="button"
-      accessibilityLabel={`Notification: ${item.title}`}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.card,
         {
           backgroundColor: item.isRead ? surface : `${primary}0A`,
           borderColor: outline,
         },
-        pressed && { opacity: 0.85 },
       ]}>
-      <View style={styles.cardRow}>
+      <Pressable
+        onPress={() => openNotification(item)}
+        accessibilityRole="button"
+        accessibilityLabel={`Notification: ${item.title}`}
+        style={({ pressed }) => [
+          styles.cardRow,
+          {
+            backgroundColor: item.isRead ? surface : `${primary}0A`,
+            borderColor: outline,
+          },
+          pressed && { opacity: 0.85 },
+        ]}>
         {!item.isRead && <View style={[styles.dot, { backgroundColor: primary }]} />}
         <View style={styles.cardText}>
           <View style={styles.cardTop}>
@@ -156,8 +191,30 @@ export default function NotificationsScreen() {
           </Text>
         </View>
         <MaterialIcons name="chevron-right" size={20} color={body} />
-      </View>
-    </Pressable>
+      </Pressable>
+      {item.type === 'GroupInvitation' && (
+        <View style={styles.inviteActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Accept research group invitation"
+            hitSlop={8}
+            disabled={busyId === item.id}
+            onPress={() => void respondToInvitation(item, true)}
+            style={({ pressed }) => [styles.inviteAction, pressed && { opacity: 0.7 }]}>
+            <Text style={[styles.inviteActionText, { color: primary }]}>Accept</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Decline research group invitation"
+            hitSlop={8}
+            disabled={busyId === item.id}
+            onPress={() => void respondToInvitation(item, false)}
+            style={({ pressed }) => [styles.inviteAction, pressed && { opacity: 0.7 }]}>
+            <Text style={[styles.inviteActionText, { color: body }]}>Decline</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
   );
 
   return (
@@ -225,6 +282,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Radius.md,
     padding: Spacing.md,
+  },
+  inviteActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e7eb',
+  },
+  inviteAction: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+  },
+  inviteActionText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   cardRow: {
     flexDirection: 'row',

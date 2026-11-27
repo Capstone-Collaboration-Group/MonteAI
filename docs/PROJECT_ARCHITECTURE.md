@@ -564,7 +564,9 @@ Announcements(Id pk, Subject, Content, AttachmentUrls (JSON list), Category,
 | GET `/researchgroup`, GET `/researchgroup/{id}` | Student, Faculty, ProgramHead, Admin |
 | POST `/researchgroup/create`, DELETE `/researchgroup/{id}` | Student, Admin |
 | PATCH `/researchgroup/update/{id}` | Student, ProgramHead, Admin |
-| POST `/researchgroup/{id}/members`, DELETE `/researchgroup/{id}/members/{studentId}` | Student, ProgramHead, Admin |
+| POST `/researchgroup/{id}/members` (send invitation), DELETE `/researchgroup/{id}/members/{studentId}` (remove member) | Student, ProgramHead, Admin |
+| POST `/researchgroup/{id}/members/{studentId}/accept`, POST `/researchgroup/{id}/members/{studentId}/decline` (invitee only) | Student, ProgramHead, Admin |
+| GET `/researchgroup/{id}/invitations`, DELETE `/researchgroup/{id}/invitations/{studentId}` (cancel) | Student, ProgramHead, Admin |
 
 #### Review — `api/v1/Review`
 | Method | Endpoint | Access |

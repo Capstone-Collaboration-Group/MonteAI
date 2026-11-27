@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using server.Data;
 using server.Models.DTOs.Notification;
+using server.Models.DTOs.ResearchGroup;
 using server.Models.Entities;
 using server.Services.Interfaces;
 using Xunit;
@@ -279,7 +280,7 @@ public class NotificationIntegrationTests
     }
 
     [Fact]
-    public async Task AddMember_CreatesGroupAddedNotificationForStudent()
+    public async Task InviteThenAccept_CreatesGroupAddedNotificationForStudent()
     {
         using var factory = new MfaWebFactory();
         factory.EnsureSchema();
@@ -299,16 +300,21 @@ public class NotificationIntegrationTests
         var groupId = SeedGroup(factory, leaderUid);
 
         var adminClient = CreateAuthedClient(factory, adminToken);
+        // Leader (via admin) sends an invitation instead of adding directly.
         var res = await adminClient.PostAsJsonAsync(
             $"/api/v1/researchgroup/{groupId}/members", new { studentId = memberUid });
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
 
-        // The notification lands in the ADDED student's feed, not the admin's.
+        // The invitee must accept the invitation before joining.
+        var acceptRes = await CreateAuthedClient(factory, memberToken).PostAsync(
+            $"/api/v1/researchgroup/{groupId}/members/{memberUid}/accept", null);
+        Assert.Equal(HttpStatusCode.OK, acceptRes.StatusCode);
+
+        // The notification lands in the ADDED student's feed (after accepting), not the admin's.
         var memberClient = CreateAuthedClient(factory, memberToken);
         var page = await (await memberClient.GetAsync("/api/v1/notification"))
             .Content.ReadFromJsonAsync<NotificationPageResponseDto>();
-        var item = Assert.Single(page!.Items);
-        Assert.Equal(NotificationKinds.GroupAdded, item.Type);
+        var item = Assert.Single(page!.Items.Where(n => n.Type == NotificationKinds.GroupAdded));
         Assert.Equal(NotificationKinds.TargetResearchGroup, item.TargetType);
         Assert.Equal(groupId.ToString(), item.TargetId);
 
@@ -342,6 +348,11 @@ public class NotificationIntegrationTests
             $"/api/v1/researchgroup/{groupId}/members", new { studentId = memberUid });
         Assert.Equal(HttpStatusCode.OK, addRes.StatusCode);
 
+        // Invitation -> acceptance -> membership before the remove can happen.
+        var acceptRes = await CreateAuthedClient(factory, memberToken).PostAsync(
+            $"/api/v1/researchgroup/{groupId}/members/{memberUid}/accept", null);
+        Assert.Equal(HttpStatusCode.OK, acceptRes.StatusCode);
+
         var removeRes = await adminClient.DeleteAsync(
             $"/api/v1/researchgroup/{groupId}/members/{memberUid}");
         Assert.Equal(HttpStatusCode.OK, removeRes.StatusCode);
@@ -349,9 +360,90 @@ public class NotificationIntegrationTests
         var memberClient = CreateAuthedClient(factory, memberToken);
         var page = await (await memberClient.GetAsync("/api/v1/notification"))
             .Content.ReadFromJsonAsync<NotificationPageResponseDto>();
-        Assert.Equal(2, page!.Items.Count);
-        // Newest first: the removal is on top.
+        // Newest first: the removal is on top, then the acceptance add, then the original invite.
+        Assert.Equal(3, page!.Items.Count);
         Assert.Equal(NotificationKinds.GroupRemoved, page.Items[0].Type);
         Assert.Equal(NotificationKinds.GroupAdded, page.Items[1].Type);
+        Assert.Equal(NotificationKinds.GroupInvitation, page.Items[2].Type);
+    }
+
+    [Fact]
+    public async Task GetInvitations_ReturnsPendingInvitationForGroup()
+    {
+        using var factory = new MfaWebFactory();
+        factory.EnsureSchema();
+        const string adminUid = "notif-rg-admin3";
+        const string adminEmail = "notif.rg.admin3@pnm.edu.ph";
+        const string adminToken = "fake-firebase-token-notif-rg-admin3";
+        const string leaderUid = "notif-rg-leader3";
+        const string leaderEmail = "notif.rg.leader3@student.pnm.edu.ph";
+        const string memberUid = "notif-rg-member3";
+        const string memberEmail = "notif.rg.member3@student.pnm.edu.ph";
+        const string memberToken = "fake-firebase-token-notif-rg-member3";
+        factory.SeedAdmin(adminUid, adminEmail);
+        factory.SeedStudent(leaderUid, leaderEmail, studentNumber: "92200001");
+        factory.SeedStudent(memberUid, memberEmail, studentNumber: "92200002");
+        factory.Firebase.Register(adminToken, new FakeFirebaseUser(adminUid, adminEmail));
+        factory.Firebase.Register(memberToken, new FakeFirebaseUser(memberUid, memberEmail));
+        var groupId = SeedGroup(factory, leaderUid);
+
+        var adminClient = CreateAuthedClient(factory, adminToken);
+        var sendRes = await adminClient.PostAsJsonAsync(
+            $"/api/v1/researchgroup/{groupId}/members", new { studentId = memberUid });
+        Assert.Equal(HttpStatusCode.OK, sendRes.StatusCode);
+
+        var listRes = await adminClient.GetAsync($"/api/v1/researchgroup/{groupId}/invitations");
+        Assert.Equal(HttpStatusCode.OK, listRes.StatusCode);
+        var invitations = await listRes.Content.ReadFromJsonAsync<List<ResearchGroupInvitationDto>>();
+        var invitation = Assert.Single(invitations!);
+        Assert.Equal("Pending", invitation.Status);
+
+        // The leader can cancel a pending invitation; it no longer shows up.
+        var cancelRes = await adminClient.DeleteAsync(
+            $"/api/v1/researchgroup/{groupId}/invitations/{memberUid}");
+        Assert.Equal(HttpStatusCode.OK, cancelRes.StatusCode);
+        var afterCancel = await adminClient.GetAsync($"/api/v1/researchgroup/{groupId}/invitations");
+        var remaining = await afterCancel.Content.ReadFromJsonAsync<List<ResearchGroupInvitationDto>>();
+        Assert.Empty(remaining!);
+    }
+
+    [Fact]
+    public async Task DeleteGroup_ResetsLeaderPositionAndAllowsReinvite()
+    {
+        using var factory = new MfaWebFactory();
+        factory.EnsureSchema();
+        const string adminUid = "notif-rg-admin4";
+        const string adminEmail = "notif.rg.admin4@pnm.edu.ph";
+        const string adminToken = "fake-firebase-token-notif-rg-admin4";
+        const string leaderUid = "notif-rg-leader4";
+        const string leaderEmail = "notif.rg.leader4@student.pnm.edu.ph";
+        const string otherLeaderUid = "notif-rg-other-leader4";
+        const string otherLeaderEmail = "notif.rg.other-leader4@student.pnm.edu.ph";
+        factory.SeedAdmin(adminUid, adminEmail);
+        factory.SeedStudent(leaderUid, leaderEmail, studentNumber: "92300001");
+        factory.SeedStudent(otherLeaderUid, otherLeaderEmail, studentNumber: "92300002");
+        factory.Firebase.Register(adminToken, new FakeFirebaseUser(adminUid, adminEmail));
+        var groupId = SeedGroup(factory, leaderUid);
+
+        var adminClient = CreateAuthedClient(factory, adminToken);
+        var deleteRes = await adminClient.DeleteAsync($"/api/v1/researchgroup/delete/{groupId}");
+        Assert.Equal(HttpStatusCode.OK, deleteRes.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var formerLeader = await db.Students.FindAsync(leaderUid);
+            Assert.NotNull(formerLeader);
+            Assert.Null(formerLeader!.GroupId);
+            // The bug: this stayed "Leader" forever after deleting the group,
+            // hiding the student from the invitation directory forever.
+            Assert.Equal("Member", formerLeader.Position);
+        }
+
+        // A former leader with no group is invitable again.
+        var otherGroupId = SeedGroup(factory, otherLeaderUid);
+        var inviteRes = await adminClient.PostAsJsonAsync(
+            $"/api/v1/researchgroup/{otherGroupId}/members", new { studentId = leaderUid });
+        Assert.Equal(HttpStatusCode.OK, inviteRes.StatusCode);
     }
 }

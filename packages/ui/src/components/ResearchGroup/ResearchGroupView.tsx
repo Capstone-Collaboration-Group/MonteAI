@@ -140,7 +140,7 @@ export function ResearchGroupView({
                 title="No research groups yet"
                 description={
                   canCreate
-                    ? "Research groups are teams of up to four students working on one thesis. Create the first one to get started."
+                    ? "Research groups are teams of up to eight students working on one thesis. Create the first one to get started."
                     : "Research groups will appear here once students start forming their thesis teams."
                 }
                 action={

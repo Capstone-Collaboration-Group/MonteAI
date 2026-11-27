@@ -6,12 +6,14 @@ import type {
   FacultyService,
 } from "@monteai/api";
 import {
-  useAddResearchGroupMember,
+  useCancelResearchGroupInvitation,
   useCreateResearchGroup,
   useDeleteResearchGroup,
   useFaculties,
   useRemoveResearchGroupMember,
+  useResearchGroupInvitations,
   useResearchGroups,
+  useSendResearchGroupInvitation,
   useStudents,
   useUpdateResearchGroup,
 } from "@monteai/hooks";
@@ -59,7 +61,8 @@ export function ResearchGroupPage({
   const create = useCreateResearchGroup(researchGroupService);
   const update = useUpdateResearchGroup(researchGroupService);
   const remove = useDeleteResearchGroup(researchGroupService);
-  const addMember = useAddResearchGroupMember(researchGroupService);
+  const sendInvitation = useSendResearchGroupInvitation(researchGroupService);
+  const cancelInvitation = useCancelResearchGroupInvitation(researchGroupService);
   const removeMember = useRemoveResearchGroupMember(researchGroupService);
 
   const { data: students = [] } = useStudents(studentService);
@@ -74,6 +77,11 @@ export function ResearchGroupPage({
     null,
   );
 
+  const { data: invitations = [] } = useResearchGroupInvitations(
+    researchGroupService,
+    membersGroup?.id,
+  );
+
   const canCreate = role === "Admin" || role === "Student";
   const canEdit =
     role === "Admin" || role === "ProgramHead" || role === "Student";
@@ -85,7 +93,8 @@ export function ResearchGroupPage({
     create.isPending ||
     update.isPending ||
     remove.isPending ||
-    addMember.isPending ||
+    sendInvitation.isPending ||
+    cancelInvitation.isPending ||
     removeMember.isPending;
 
   const openCreate = () => {
@@ -151,18 +160,18 @@ export function ResearchGroupPage({
     }
   };
 
-  const handleAddMember = async (studentId: string) => {
+  const handleSendInvitation = async (studentId: string) => {
     if (!membersGroup) return;
     try {
-      const ok = await addMember.mutateAsync({
+      const ok = await sendInvitation.mutateAsync({
         researchGroupId: membersGroup.id,
         studentId,
       });
-      if (ok) toast.success("Member added to the group");
-      else toast.error("The student is already in a research group.");
+      if (ok) toast.success("Invitation sent to the student");
+      else toast.error("The student could not be invited. They may already belong to a group or have a pending invitation.");
     } catch (err) {
       toast.error(
-        extractMessage(err, "Couldn't add the member. The group may be full."),
+        extractMessage(err, "Couldn't send the invitation. The group may be full."),
       );
     }
   };
@@ -178,6 +187,20 @@ export function ResearchGroupPage({
       else toast.error("Couldn't remove the member.");
     } catch (err) {
       toast.error(extractMessage(err, "Couldn't remove the member."));
+    }
+  };
+
+  const handleCancelInvitation = async (studentId: string) => {
+    if (!membersGroup) return;
+    try {
+      const ok = await cancelInvitation.mutateAsync({
+        researchGroupId: membersGroup.id,
+        studentId,
+      });
+      if (ok) toast.success("Invitation canceled");
+      else toast.error("Couldn't cancel the invitation.");
+    } catch (err) {
+      toast.error(extractMessage(err, "Couldn't cancel the invitation."));
     }
   };
 
@@ -228,8 +251,11 @@ export function ResearchGroupPage({
           }
           busy={mutationBusy}
           canManage={canManageMembers}
-          onAddMember={handleAddMember}
+          invitations={invitations}
+          students={students}
+          onSendInvitation={handleSendInvitation}
           onRemoveMember={handleRemoveMember}
+          onCancelInvitation={handleCancelInvitation}
           onClose={() => setMembersGroup(null)}
         />
       )}

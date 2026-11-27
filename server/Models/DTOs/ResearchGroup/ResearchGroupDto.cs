@@ -76,4 +76,21 @@ namespace server.Models.DTOs.ResearchGroup
         [Required]
         public string StudentId { get; set; } = string.Empty;
     }
+
+    public class ResearchGroupInvitationDto
+    {
+        public int Id { get; set; }
+
+        public Guid GroupId { get; set; }
+
+        public string LeaderId { get; set; } = string.Empty;
+
+        public string StudentId { get; set; } = string.Empty;
+
+        public string Status { get; set; } = "Pending";
+
+        public DateTime CreatedAt { get; set; }
+
+        public DateTime UpdatedAt { get; set; }
+    }
 }

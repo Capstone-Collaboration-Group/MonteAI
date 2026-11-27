@@ -52,6 +52,55 @@ namespace server.Controllers
             }
         }
 
+        [HttpGet("{id}/invitations")]
+        [Authorize(Roles = "Student,ProgramHead,Admin")]
+        public async Task<IActionResult> GetResearchGroupInvitations(Guid id)
+        {
+            try
+            {
+                var result = await _service.GetInvitationsAsync(id);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { Message = "Research Group Not Found" });
+            }
+        }
+
+        [HttpDelete("{id}/invitations/{studentId}")]
+        [Authorize(Roles = "Student,ProgramHead,Admin")]
+        public async Task<IActionResult> CancelResearchGroupInvitation(Guid id, string studentId)
+        {
+            try
+            {
+                var result = await _service.CancelInvitationAsync(id, studentId);
+
+                if (result)
+                {
+                    _logger.LogInformation("Canceled research group invitation {GroupId} for student {StudentId}", id, studentId);
+                    return Ok(new { Message = "Invitation canceled successfully...", result });
+                }
+
+                return BadRequest(new { Message = "The research group invitation could not be canceled." });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { Message = "Research Group Invitation Not Found" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
+            }
+        }
+
         [HttpPost("create")]
         [Authorize(Roles = "Student,Admin")]
         public async Task<IActionResult> CreateResearchGroup([FromBody] CreateResearchGroupDto dto)
@@ -175,12 +224,12 @@ namespace server.Controllers
         {
             try
             {
-                var result = await _service.AddMemberAsync(id, dto.StudentId);
+                var result = await _service.SendInvitationAsync(id, dto.StudentId);
 
                 if (result)
                 {
-                    _logger.LogInformation("Added student {StudentId} to ResearchGroup {Id}", dto.StudentId, id);
-                    return Ok(new { Message = "Member added successfully...", result });
+                    _logger.LogInformation("Sent research group invitation to student {StudentId} for ResearchGroup {Id}", dto.StudentId, id);
+                    return Ok(new { Message = "Invitation sent successfully...", result });
                 }
 
                 return Conflict(new
@@ -200,6 +249,58 @@ namespace server.Controllers
             catch (InvalidOperationException ex)
             {
                 return Conflict(new { Message = ex.Message });
+            }
+        }
+
+        [HttpPost("{id}/members/{studentId}/accept")]
+        [Authorize(Roles = "Student,ProgramHead,Admin")]
+        public async Task<IActionResult> AcceptResearchGroupMember(Guid id, string studentId)
+        {
+            try
+            {
+                var result = await _service.AcceptInvitationAsync(id, studentId);
+
+                if (result)
+                {
+                    _logger.LogInformation("Accepted research group invitation {GroupId} for student {StudentId}", id, studentId);
+                    return Ok(new { Message = "Invitation accepted successfully...", result });
+                }
+
+                return BadRequest(new { Message = "The research group invitation could not be accepted." });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { Message = "Research Group Invitation Not Found" });
+            }
+        }
+
+        [HttpPost("{id}/members/{studentId}/decline")]
+        [Authorize(Roles = "Student,ProgramHead,Admin")]
+        public async Task<IActionResult> DeclineResearchGroupMember(Guid id, string studentId)
+        {
+            try
+            {
+                var result = await _service.DeclineInvitationAsync(id, studentId);
+
+                if (result)
+                {
+                    _logger.LogInformation("Declined research group invitation {GroupId} for student {StudentId}", id, studentId);
+                    return Ok(new { Message = "Invitation declined successfully...", result });
+                }
+
+                return BadRequest(new { Message = "The research group invitation could not be declined." });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { Message = "Research Group Invitation Not Found" });
             }
         }
 

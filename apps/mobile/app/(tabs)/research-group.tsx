@@ -29,6 +29,7 @@ import { FontSize, Radius, Spacing } from '@/constants/theme';
 import { studentService } from '@/lib/studentService';
 import { researchGroupService } from '@/lib/researchGroupService';
 import type {
+  ResearchGroupInvitationDto,
   ResearchGroupMemberDto,
   ResearchGroupResponseDto,
   StudentResponseDto,
@@ -70,7 +71,8 @@ function initials(first?: string, last?: string): string {
 /**
  * Research Group screen — the student-facing view of their thesis team.
  * Students can create their one group (becoming its leader), rename it,
- * invite up to 7 classmates, and remove members. Reached from the
+ * invite up to 7 classmates, remove members, cancel pending invitations,
+ * and delete the group once it has no other members. Reached from the
  * sidebar drawer.
  */
 export default function ResearchGroupScreen() {
@@ -91,6 +93,7 @@ export default function ResearchGroupScreen() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [invitations, setInvitations] = useState<ResearchGroupInvitationDto[]>([]);
 
   // Create-group form
   const [newGroupName, setNewGroupName] = useState('');
@@ -152,6 +155,33 @@ export default function ResearchGroupScreen() {
 
   const isLeader = !!myGroup && !!currentStudent && myGroup.leaderId === currentStudent.id;
   const isFull = (myGroup?.members.length ?? 0) >= MAX_MEMBERS;
+  // Server rule: a student leader may only delete a group once it has no other members.
+  const hasOtherMembers = (myGroup?.members.length ?? 0) > 1;
+
+  // Leader view: keep pending invitations in sync so invitees aren't re-offered.
+  useEffect(() => {
+    let active = true;
+    if (!myGroup || !isLeader) {
+      setInvitations([]);
+      return;
+    }
+    researchGroupService
+      .getInvitations(myGroup.id)
+      .then((list) => {
+        if (active) setInvitations(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (active) setInvitations([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [myGroup, isLeader, reloadKey]);
+
+  const pendingIds = useMemo(
+    () => new Set(invitations.map((invitation) => invitation.studentId)),
+    [invitations],
+  );
 
   const invitable = useMemo(() => {
     if (!myGroup) return [];
@@ -161,6 +191,8 @@ export default function ResearchGroupScreen() {
 
     return students.filter((s) => {
       if (memberIds.has(s.id)) return false;
+      // Already invited (pending) students cannot be invited twice.
+      if (pendingIds.has(s.id)) return false;
       // A student who already belongs to a group cannot be invited.
       if (s.researchGroup) return false;
       // Leaders may only invite classmates from their own program.
@@ -170,7 +202,7 @@ export default function ResearchGroupScreen() {
         .toLowerCase();
       return fullName.includes(query) || s.studentNumber.toLowerCase().includes(query);
     });
-  }, [students, myGroup, currentStudent, inviteQuery]);
+  }, [students, myGroup, currentStudent, inviteQuery, pendingIds]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, successMessage: string) => {
@@ -218,15 +250,39 @@ export default function ResearchGroupScreen() {
     if (!myGroup) return;
     Alert.alert(
       'Invite student?',
-      `Add ${student.firstName} ${student.lastName} (${student.studentNumber}) to ${myGroup.groupName}?`,
+      `Send an invitation to ${student.firstName} ${student.lastName} (${student.studentNumber}) to join ${myGroup.groupName}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Confirm Invite',
+          text: 'Send Invitation',
           onPress: () =>
             void runAction(
-              () => researchGroupService.addMember(myGroup.id, student.id),
-              'Member invited to the group.',
+              () => researchGroupService.sendInvitation(myGroup.id, student.id),
+              'Invitation sent to the student.',
+            ),
+        },
+      ],
+    );
+  };
+
+  const cancelInvitation = (invitation: ResearchGroupInvitationDto) => {
+    if (!myGroup) return;
+    const invitee = students.find((s) => s.id === invitation.studentId);
+    const name = invitee
+      ? `${invitee.firstName} ${invitee.lastName}`
+      : invitation.studentId;
+    Alert.alert(
+      'Cancel invitation?',
+      `Cancel the pending invitation to ${name}?`,
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Cancel Invitation',
+          style: 'destructive',
+          onPress: () =>
+            void runAction(
+              () => researchGroupService.cancelInvitation(myGroup.id, invitation.studentId),
+              'Invitation canceled.',
             ),
         },
       ],
@@ -247,6 +303,34 @@ export default function ResearchGroupScreen() {
             void runAction(
               () => researchGroupService.removeMember(myGroup.id, member.id),
               'Member removed from the group.',
+            ),
+        },
+      ],
+    );
+  };
+
+  const deleteGroup = () => {
+    if (!myGroup) return;
+    // The server only lets a leader delete once every other member is gone.
+    if (hasOtherMembers) {
+      Alert.alert(
+        'Remove members first',
+        `Before deleting ${myGroup.groupName}, remove all of its members.`,
+      );
+      return;
+    }
+    Alert.alert(
+      'Delete research group?',
+      `This will permanently delete "${myGroup.groupName}". This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Group',
+          style: 'destructive',
+          onPress: () =>
+            void runAction(
+              () => researchGroupService.deleteResearchGroup(myGroup.id),
+              'Research group deleted.',
             ),
         },
       ],
@@ -431,6 +515,47 @@ export default function ResearchGroupScreen() {
                   </View>
                 </FadeIn>
 
+                {isLeader && invitations.length > 0 && (
+                  <FadeIn delay={170}>
+                    <Text style={[s.sectionHeading, { color: heading }]}>Pending invitations</Text>
+                    <View style={[s.memberList, { borderColor: outline, backgroundColor: surface }]}>
+                      {invitations.map((invitation, i) => {
+                        const invitee = students.find((st) => st.id === invitation.studentId);
+                        const name = invitee
+                          ? `${invitee.firstName} ${invitee.lastName}`
+                          : invitation.studentId;
+                        return (
+                          <FadeIn key={invitation.id} delay={200 + i * 60}>
+                            <View style={[s.memberRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: outline }]}>
+                              <View style={[s.memberAvatar, { backgroundColor: primary }]}>
+                                <Text style={s.memberAvatarText}>
+                                  {initials(invitee?.firstName, invitee?.lastName)}
+                                </Text>
+                              </View>
+                              <View style={s.memberInfo}>
+                                <Text style={[s.memberName, { color: heading }]} numberOfLines={1}>
+                                  {name}
+                                </Text>
+                                <Text style={[s.memberMeta, { color: body }]}>
+                                  {invitee?.studentNumber ?? 'Invitation pending'}
+                                </Text>
+                              </View>
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`Cancel invitation for ${name}`}
+                                hitSlop={8}
+                                disabled={busy}
+                                onPress={() => cancelInvitation(invitation)}>
+                                <MaterialIcons name="person-remove" size={20} color="#ba1a1a" />
+                              </Pressable>
+                            </View>
+                          </FadeIn>
+                        );
+                      })}
+                    </View>
+                  </FadeIn>
+                )}
+
                 {isLeader && !isFull && (
                   <FadeIn delay={220}>
                     <Pressable
@@ -526,6 +651,37 @@ export default function ResearchGroupScreen() {
                     <Text style={[s.fullNote, { color: body }]}>
                       Your group is full ({MAX_MEMBERS}/{MAX_MEMBERS} members).
                     </Text>
+                  </FadeIn>
+                )}
+
+                {isLeader && (
+                  <FadeIn delay={260}>
+                    <View style={[s.dangerZone, { borderColor: outline }]}>
+                      <Text style={[s.dangerHeading, { color: heading }]}>
+                        Danger zone
+                      </Text>
+                      {hasOtherMembers && (
+                        <Text style={[s.dangerHint, { color: body }]}>
+                          Remove all members before deleting this group.
+                        </Text>
+                      )}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete research group"
+                        disabled={busy}
+                        style={({ pressed }) => [
+                          s.deleteBtn,
+                          { borderColor: '#ba1a1a' },
+                          pressed && { opacity: 0.85 },
+                          busy && s.btnDisabled,
+                        ]}
+                        onPress={deleteGroup}>
+                        <MaterialIcons name="delete-forever" size={20} color="#ba1a1a" />
+                        <Text style={[s.deleteBtnText, { color: '#ba1a1a' }]}>
+                          Delete group
+                        </Text>
+                      </Pressable>
+                    </View>
                   </FadeIn>
                 )}
               </>
@@ -639,5 +795,24 @@ const s = StyleSheet.create({
   searchInput: { flex: 1, fontSize: FontSize.sm, paddingVertical: Spacing.sm },
   emptyText: { padding: Spacing.lg, fontSize: FontSize.sm, textAlign: 'center' },
   fullNote: { fontSize: FontSize.sm, textAlign: 'center', paddingVertical: Spacing.sm },
+  dangerZone: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  dangerHeading: { fontSize: FontSize.md, fontWeight: '700' },
+  dangerHint: { fontSize: FontSize.xs },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.md,
+  },
+  deleteBtnText: { fontSize: FontSize.md, fontWeight: '700' },
   feedback: { fontSize: FontSize.sm, textAlign: 'center', marginTop: Spacing.sm },
 });

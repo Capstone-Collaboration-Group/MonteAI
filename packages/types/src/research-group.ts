@@ -34,4 +34,14 @@ export interface ResearchGroupMemberDto {
   program: string;
 }
 
+export interface ResearchGroupInvitationDto {
+  id: number;
+  groupId: string;
+  leaderId: string;
+  studentId: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ResearchGroupResponseListDto = ResearchGroupResponseDto[];
