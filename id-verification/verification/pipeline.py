@@ -39,7 +39,7 @@ def artwork_similarity(image: np.ndarray, reference: np.ndarray) -> float:
 def joined_text(lines: list[TextLine]) -> str:
     # Reading order within a single narrow field, allowing words split by the detector.
     return " ".join(
-        line.text for line in sorted(lines, key=lambda line: (round(line.y * 3), line.x))
+        line.text for line in sorted(lines, key=lambda line: (line.y, line.x))
     )
 
 
@@ -53,6 +53,12 @@ def text_rows(lines: list[TextLine]) -> list[list[TextLine]]:
     return rows
 
 
+def region_lines(lines: list[TextLine], box: list[float]) -> list[TextLine]:
+    """Keep OCR lines whose normalized coordinates fall inside a region box."""
+    x1, y1, x2, y2 = box
+    return [line for line in lines if x1 <= line.x <= x2 and y1 <= line.y <= y2]
+
+
 def match_fields(
     fields: dict[str, list[TextLine]], student: StudentIdentity, template: dict
 ) -> None:
@@ -64,12 +70,25 @@ def match_fields(
             for line in lines
         )
 
-    # The address may also be visible below the school heading; it is not part
-    # of the school name and its OCR confidence must not invalidate that heading.
-    if not any(
-        normalize_name(joined_text(row)) == template["school_name"]
-        and confident(row, "school")
+    school_name = template["school_name"]
+    # The address may also be visible inside the school region and share the
+    # row, so accept any row that contains a heading line starting with the
+    # school name; the heading line's own confidence must clear the floor.
+    heading_rows = [
+        row
         for row in text_rows(fields["school"])
+        if any(normalize_name(line.text).startswith(school_name) for line in row)
+    ]
+    heading_confidences = [
+        max(
+            line.confidence
+            for line in row
+            if normalize_name(line.text).startswith(school_name)
+        )
+        for row in heading_rows
+    ]
+    if not heading_confidences or not any(
+        confidence >= thresholds["school"] for confidence in heading_confidences
     ):
         raise retake("school_unreadable")
     for field in ("name", "number"):
@@ -78,7 +97,9 @@ def match_fields(
             raise retake(f"{field}_unreadable")
 
     number_text = joined_text(fields["number"]).translate(DASHES)
-    if not re.search(r"\bSTUDENT\s*NUMBER\b", number_text, re.IGNORECASE):
+    # Tolerate OCR noise around the "STUDENT NUMBER" label; the structured
+    # pattern below is the source of truth for what was actually read.
+    if not re.search(r"\d{2}\s*-\s*\d{5}", number_text):
         raise retake("number_unreadable")
     numbers = {
         normalize_number(match.group())
@@ -149,9 +170,9 @@ class VerificationPipeline:
             deadline()
             if self._reader is None:
                 self._reader = OcrReader()
+            lines = self._reader.read(card)
             for name in ("school", "name", "number"):
-                deadline()
-                fields[name] = self._reader.read(crop(card, regions[name]))
+                fields[name] = region_lines(lines, self.template["regions"][name])
                 metrics[f"{name}_confidence"] = round(
                     min((line.confidence for line in fields[name]), default=0), 3
                 )

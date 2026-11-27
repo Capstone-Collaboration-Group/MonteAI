@@ -66,7 +66,9 @@ def warp_card(image: np.ndarray, points: np.ndarray, width: int, height: int) ->
 def green_fraction(image: np.ndarray) -> float:
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     try:
-        return float(np.mean(cv2.inRange(hsv, (32, 45, 25), (98, 255, 255)) > 0))
+        # Accept dark and light green header captures alike (dark green or
+        # light green); only clearly non-green hues are excluded.
+        return float(np.mean(cv2.inRange(hsv, (30, 15, 15), (100, 255, 255)) > 0))
     finally:
         hsv.fill(0)
 
@@ -79,7 +81,7 @@ def color_anchor_candidates(small: np.ndarray) -> list[np.ndarray]:
     """
     hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
     yellow = cv2.inRange(hsv, (15, 80, 60), (40, 255, 255))
-    green = cv2.inRange(hsv, (32, 45, 20), (98, 255, 130))
+    green = cv2.inRange(hsv, (30, 15, 15), (100, 255, 255))
     kernel = np.ones((7, 7), np.uint8)
     yellow = cv2.morphologyEx(yellow, cv2.MORPH_CLOSE, kernel)
     green = cv2.morphologyEx(green, cv2.MORPH_CLOSE, kernel)
@@ -157,7 +159,7 @@ def locate_card(image: np.ndarray, width: int = 720, height: int = 1120) -> np.n
             if area < image_area * 0.20:
                 continue
             perimeter = cv2.arcLength(contour, True)
-            for epsilon in (0.02, 0.035):
+            for epsilon in (0.02, 0.035, 0.05, 0.08):
                 approx = cv2.approxPolyDP(contour, epsilon * perimeter, True)
                 if len(approx) != 4 or not cv2.isContourConvex(approx):
                     continue

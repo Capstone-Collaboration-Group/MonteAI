@@ -37,7 +37,7 @@ class OcrReader:
                 "Global.use_cls": False,
                 "Global.model_root_dir": str(model_dir),
                 "Global.max_side_len": 1200,
-                "Global.text_score": 0.5,
+                "Global.text_score": 0.40,
                 "Det.engine_type": EngineType.ONNXRUNTIME,
                 "Det.ocr_version": OCRVersion.PPOCRV5,
                 "Det.model_type": ModelType.MOBILE,

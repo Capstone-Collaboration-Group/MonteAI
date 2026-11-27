@@ -97,14 +97,18 @@ def test_late_pipeline_outcomes_release_arrays_and_worker_lock(
     decoded = np.full((1200, 800, 3), 220, np.uint8)
     card = np.full((1120, 720, 3), 220, np.uint8)
     clock = [0.0]
-    values = iter(fields.values())
 
     def read(_):
         if outcome == "timeout":
             clock[0] = 19
         if outcome == "exception":
             raise RuntimeError("decoder failure")
-        return next(values)
+        # Full-card detections, sliced per region by the pipeline.
+        return [
+            TextLine("COLEGIO DE MONTALBAN", 0.99, 0.5, 0.03),
+            TextLine("MARIA SOFIA C. DELA CRUZ", 0.99, 0.5, 0.5),
+            TextLine("STUDENT NUMBER: 00-00123", 0.99, 0.5, 0.58),
+        ]
 
     monkeypatch.setattr("verification.pipeline.decode_image", lambda _: decoded)
     monkeypatch.setattr("verification.pipeline.locate_card", lambda *args: card)
