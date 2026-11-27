@@ -41,6 +41,7 @@ export default function ProfileSettingsScreen() {
 
   const isStudent = profile?.role === 'Student';
   const showInstitute = profile != null && profile.role !== 'Admin';
+  const locked = isStudent; // Verified students cannot modify personal information.
 
   const loadProfile = useCallback(async () => {
     try {
@@ -67,6 +68,11 @@ export default function ProfileSettingsScreen() {
 
   const handleSave = async () => {
     if (!profile) return;
+    if (isStudent) {
+      Alert.alert('Not modifiable', 'Your verified student information cannot be modified. Contact the ICT office to request changes.');
+      return;
+    }
+
 
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert('Missing name', 'First name and last name are required.');
@@ -176,6 +182,7 @@ export default function ProfileSettingsScreen() {
             <TextInput
               value={firstName}
               onChangeText={setFirstName}
+              readOnly={locked}
               style={[
                 styles.input,
                 { color: heading, borderColor: border },
@@ -194,6 +201,7 @@ export default function ProfileSettingsScreen() {
               onChangeText={(text) => setMiddleInitial(text.slice(0, 1))}
               maxLength={1}
               autoCapitalize="characters"
+              readOnly={locked}
               style={[
                 styles.input,
                 { color: heading, borderColor: border },
@@ -210,6 +218,7 @@ export default function ProfileSettingsScreen() {
             <TextInput
               value={lastName}
               onChangeText={setLastName}
+              readOnly={locked}
               style={[
                 styles.input,
                 { color: heading, borderColor: border },
@@ -243,7 +252,7 @@ export default function ProfileSettingsScreen() {
             </View>
 
             <Text style={[styles.hint, { color: body }]}>
-              Contact the ICT office to change your email.
+              Contact monte.skolar.admin@gmail.com to change your email.
             </Text>
 
             {/* Student Number (students only) */}
@@ -256,6 +265,7 @@ export default function ProfileSettingsScreen() {
                 <TextInput
                   value={studentNo}
                   onChangeText={setStudentNo}
+                  readOnly={locked}
                   style={[
                     styles.input,
                     { color: heading, borderColor: border },
@@ -277,6 +287,7 @@ export default function ProfileSettingsScreen() {
                   onPress={() =>
                     setShowInstituteOptions(!showInstituteOptions)
                   }
+                  disabled={locked}
                   style={[
                     styles.dropdown,
                     {
@@ -358,12 +369,12 @@ export default function ProfileSettingsScreen() {
             {/* Save */}
             <Pressable
               onPress={handleSave}
-              disabled={saving || !profile}
+              disabled={saving || !profile || isStudent}
               style={[
                 styles.saveButton,
                 {
                   backgroundColor: primary,
-                  opacity: saving || !profile ? 0.6 : 1,
+                  opacity: saving || !profile || isStudent ? 0.6 : 1,
                 },
               ]}
             >

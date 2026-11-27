@@ -25,6 +25,7 @@ export function AccountSettings({ userService }: AccountSettingsProps) {
 
   const isStudent = profile?.role === "Student";
   const showInstitute = profile != null && profile.role !== "Admin";
+  const locked = isStudent; // Verified students cannot modify personal information.
 
   useEffect(() => {
     let active = true;
@@ -51,7 +52,7 @@ export function AccountSettings({ userService }: AccountSettingsProps) {
   }, [userService]);
 
   const handleSave = async () => {
-    if (!profile || saving) return;
+    if (!profile || saving || locked) return;
 
     if (!firstName.trim() || !lastName.trim()) {
       showToast({
@@ -122,7 +123,7 @@ export function AccountSettings({ userService }: AccountSettingsProps) {
                 value={firstName}
                 placeholder="Enter your first name"
                 onChange={(event) => setFirstName(event.target.value)}
-                disabled={loading}
+                disabled={loading || locked}
               />
             </label>
 
@@ -139,7 +140,7 @@ export function AccountSettings({ userService }: AccountSettingsProps) {
                 onChange={(event) =>
                   setMiddleInitial(event.target.value.slice(0, 1))
                 }
-                disabled={loading}
+                disabled={loading || locked}
               />
             </label>
 
@@ -153,7 +154,7 @@ export function AccountSettings({ userService }: AccountSettingsProps) {
                 value={lastName}
                 placeholder="Enter your last name"
                 onChange={(event) => setLastName(event.target.value)}
-                disabled={loading}
+                disabled={loading || locked}
               />
             </label>
 
@@ -185,7 +186,7 @@ export function AccountSettings({ userService }: AccountSettingsProps) {
                   value={studentNo}
                   placeholder="Enter your student number"
                   onChange={(event) => setStudentNo(event.target.value)}
-                  disabled={loading}
+                  disabled={loading || locked}
                 />
               </label>
             )}
@@ -204,7 +205,7 @@ export function AccountSettings({ userService }: AccountSettingsProps) {
                   id="institute"
                   value={institute}
                   onChange={(event) => setInstitute(event.target.value)}
-                  disabled={loading}
+                  disabled={loading || locked}
                   className="w-full rounded-xl border border-outline/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary-container focus:ring-2 focus:ring-primary-container/20"
                 >
                   <option value="" disabled>
@@ -236,13 +237,19 @@ export function AccountSettings({ userService }: AccountSettingsProps) {
 
       {/* Save Changes */}
       <div className="flex justify-end border-t border-outline/10 px-6 py-4">
-        <Button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || loading || !profile}
-        >
-          {saving ? "Saving…" : "Save Changes"}
-        </Button>
+        {locked ? (
+          <p className="text-xs text-on-surface-variant">
+            Your verified student information cannot be modified. Contact the ICT office to request changes.
+          </p>
+        ) : (
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || loading || !profile}
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        )}
       </div>
     </Card>
   );
