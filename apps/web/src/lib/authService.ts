@@ -6,4 +6,3 @@ export const { getFreshFirebaseIdToken } = createFirebaseTokenAccessors(auth);
 export const profileService = createProfileService(apiClient)
 
 const token = await getFreshFirebaseIdToken();
-console.log("TOKEN IS: " + token);
