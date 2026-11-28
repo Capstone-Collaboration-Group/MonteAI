@@ -38,7 +38,7 @@ const INSTITUTES = [
   'Institute of Business and Entrepreneurship',
 ];
 
-const PROGRAMS = ['BS Information Technology', 'BS Computer Science', 'BS Data Science'];
+const PROGRAMS = ['BSIT', 'BSCPE', 'BSBA-HRM', 'BSE', 'BSEd-Sci', 'BEEd-Gen', 'BECEd', 'BTLEd-ICT'];
 
 const YEAR_LEVELS = [
   { label: '1st Year', value: 1 },
@@ -277,7 +277,7 @@ export default function SignUpFlow({
     } else if (step === 5) {
       const value = email.trim().toLowerCase();
       if (!value) next.email = 'Email is required.';
-      else if (!isValidEmailForRole(value, 'Student') || value.length > 100) next.email = 'Enter a valid email address (at most 100 characters).';
+      else if (!isValidEmailForRole(value, 'Student') || value.length > 100) next.email = 'Use your personal or institutional pnm email address.';
       if (!privacyAccepted || !termsAccepted) next.consent = 'Read and accept both the privacy notice and terms to continue.';
     }
     setErrors(next);

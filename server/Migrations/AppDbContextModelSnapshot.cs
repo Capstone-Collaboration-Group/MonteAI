@@ -567,6 +567,47 @@ namespace server.Migrations
                     b.ToTable("ResearchGroups", (string)null);
                 });
 
+            modelBuilder.Entity("server.Models.Entities.ResearchGroupInvitation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LeaderId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("GroupId", "StudentId");
+
+                    b.ToTable("ResearchGroupInvitations", (string)null);
+                });
+
             modelBuilder.Entity("server.Models.Entities.Review", b =>
                 {
                     b.Property<Guid>("Id")
@@ -940,6 +981,25 @@ namespace server.Migrations
                     b.Navigation("Leader");
                 });
 
+            modelBuilder.Entity("server.Models.Entities.ResearchGroupInvitation", b =>
+                {
+                    b.HasOne("server.Models.Entities.ResearchGroup", "Group")
+                        .WithMany("Invitations")
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("server.Models.Entities.Student", "Student")
+                        .WithMany("Invitations")
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Group");
+
+                    b.Navigation("Student");
+                });
+
             modelBuilder.Entity("server.Models.Entities.Review", b =>
                 {
                     b.HasOne("server.Models.Entities.Thesis", "Thesis")
@@ -1014,6 +1074,8 @@ namespace server.Migrations
 
             modelBuilder.Entity("server.Models.Entities.ResearchGroup", b =>
                 {
+                    b.Navigation("Invitations");
+
                     b.Navigation("Schedules");
 
                     b.Navigation("Students");
@@ -1022,6 +1084,11 @@ namespace server.Migrations
             modelBuilder.Entity("server.Models.Entities.Schedule", b =>
                 {
                     b.Navigation("Panelists");
+                });
+
+            modelBuilder.Entity("server.Models.Entities.Student", b =>
+                {
+                    b.Navigation("Invitations");
                 });
 
             modelBuilder.Entity("server.Models.Entities.Thesis", b =>

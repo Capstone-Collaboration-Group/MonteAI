@@ -11,9 +11,11 @@ export interface SelectProps {
   error?: string;
   disabled?: boolean;
   className?: string;
+  displayValue?: boolean;
+  wrapOptions?: boolean;
 }
 
-export function Select({ options, value: ctrlVal, defaultValue = "", onChange, placeholder = "Select...", label, error, disabled = false, className = "" }: SelectProps) {
+export function Select({ options, value: ctrlVal, defaultValue = "", onChange, placeholder = "Select...", label, error, disabled = false, className = "", displayValue = false, wrapOptions = false }: SelectProps) {
   const [internalVal, setInternalVal] = useState(defaultValue);
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -41,14 +43,14 @@ export function Select({ options, value: ctrlVal, defaultValue = "", onChange, p
           type="button"
           disabled={disabled}
           onClick={() => setIsOpen(!isOpen)}
-          className={`w-full px-3.5 py-2.5 rounded-lg border text-sm text-left flex items-center justify-between transition-colors bg-surface text-on-surface focus:outline-none focus:ring-2 disabled:opacity-50 cursor-pointer ${
+          className={`w-full h-10 px-3.5 rounded-lg border text-sm text-left flex items-center justify-between transition-colors bg-surface text-on-surface focus:outline-none focus:ring-2 disabled:opacity-50 cursor-pointer ${
             error ? "border-error focus:ring-error/20" : "border-outline/30 focus:border-primary focus:ring-primary/20"
           }`}
         >
           <span className="flex items-center gap-2 truncate">
             {selectedOption?.icon}
             <span className={selectedOption ? "text-on-surface" : "text-on-surface-variant/60"}>
-              {selectedOption ? selectedOption.label : placeholder}
+              {selectedOption ? (displayValue ? selectedOption.value : selectedOption.label) : placeholder}
             </span>
           </span>
           <svg className={`w-4 h-4 text-on-surface-variant transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,18 +66,18 @@ export function Select({ options, value: ctrlVal, defaultValue = "", onChange, p
                 type="button"
                 disabled={opt.disabled}
                 onClick={() => selectOption(opt)}
-                className={`w-full px-3.5 py-2 text-sm text-left flex items-center justify-between transition-colors cursor-pointer disabled:opacity-40 ${
+                className={`w-full px-3.5 py-2 text-sm text-left flex ${wrapOptions ? "items-start" : "items-center"} justify-between transition-colors cursor-pointer disabled:opacity-40 ${
                   opt.value === currentVal 
                     ? "bg-primary/15 text-primary font-medium" 
                     : "hover:bg-surface-container-high text-on-surface"
                 }`}
               >
-                <span className="flex items-center gap-2 truncate">
+                <span className={`flex min-w-0 items-center gap-2 ${wrapOptions ? "whitespace-normal break-words" : "truncate"}`}>
                   {opt.icon}
-                  <span>{opt.label}</span>
+                  <span className={wrapOptions ? "whitespace-normal break-words" : "truncate"}>{opt.label}</span>
                 </span>
                 {opt.value === currentVal && (
-                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 shrink-0 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 )}

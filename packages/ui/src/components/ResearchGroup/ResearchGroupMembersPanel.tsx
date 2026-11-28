@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { UserMinus, UserPlus, Search } from "lucide-react";
 import type {
+  ResearchGroupInvitationDto,
   ResearchGroupMemberDto,
   ResearchGroupResponseDto,
   StudentResponseDto,
@@ -25,8 +26,13 @@ export interface ResearchGroupMembersPanelProps {
   leaderProgram?: string;
   busy?: boolean;
   canManage?: boolean;
-  onAddMember: (studentId: string) => void;
+  /** Pending invitations for this group (leader view). */
+  invitations?: ResearchGroupInvitationDto[];
+  /** Full student list — used to resolve invitee names for pending rows. */
+  students?: StudentResponseDto[];
+  onSendInvitation: (studentId: string) => void;
   onRemoveMember: (studentId: string) => void;
+  onCancelInvitation?: (studentId: string) => void;
   onClose: () => void;
 }
 
@@ -37,8 +43,11 @@ export function ResearchGroupMembersPanel({
   leaderProgram,
   busy = false,
   canManage = false,
-  onAddMember,
+  invitations = [],
+  students = [],
+  onSendInvitation,
   onRemoveMember,
+  onCancelInvitation,
   onClose,
 }: ResearchGroupMembersPanelProps) {
   const [search, setSearch] = useState("");
@@ -66,18 +75,31 @@ export function ResearchGroupMembersPanel({
     [group],
   );
 
+  const pendingIds = useMemo(
+    () => new Set(invitations.map((invitation) => invitation.studentId)),
+    [invitations],
+  );
+
   const invitable = useMemo(
     () =>
       directory.filter(
         (student) =>
           !memberIds.has(student.id) &&
+          !pendingIds.has(student.id) &&
           !student.researchGroup &&
           student.position.toLowerCase() !== "leader",
       ),
-    [directory, memberIds],
+    [directory, memberIds, pendingIds],
   );
 
-  const isFull = (group?.members.length ?? 0) >= 4;
+  // Invitee display names for the pending list (falls back to the raw id).
+  const studentById = useMemo(() => {
+    const map = new Map<string, StudentResponseDto>();
+    for (const student of students) map.set(student.id, student);
+    return map;
+  }, [students]);
+
+  const isFull = (group?.members.length ?? 0) >= 8;
 
   const pendingName = pending
     ? pending.kind === "add"
@@ -91,7 +113,7 @@ export function ResearchGroupMembersPanel({
     : "";
 
   const confirmInvite = () => {
-    if (pending?.kind === "add") onAddMember(pending.student.id);
+    if (pending?.kind === "add") onSendInvitation(pending.student.id);
     setPending(null);
   };
 
@@ -109,7 +131,7 @@ export function ResearchGroupMembersPanel({
               {group?.groupName ?? "Group"} — members
             </p>
             <p className="mt-0.5 text-xs font-normal text-on-surface-variant">
-              A research group may have up to four students, including the
+              A research group may have up to eight students, including the
               leader.
             </p>
           </div>
@@ -127,7 +149,7 @@ export function ResearchGroupMembersPanel({
                 </p>
               </div>
               <Badge variant={isFull ? "defense" : "surface"} dot>
-                {group.members.length}/4
+                {group.members.length}/8
               </Badge>
             </div>
           )}
@@ -175,6 +197,53 @@ export function ResearchGroupMembersPanel({
             )}
           </section>
 
+          {canManage && invitations.length > 0 && (
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold text-on-surface">
+                Pending invitations
+              </h3>
+              <ul className="divide-y divide-outline-variant rounded-xl border border-outline-variant">
+                {invitations.map((invitation) => {
+                  const invitee = studentById.get(invitation.studentId);
+                  const displayName = invitee
+                    ? fullNameHelper(
+                        invitee.firstName,
+                        invitee.middleInitial,
+                        invitee.lastName,
+                        invitee.suffix,
+                      )
+                    : invitation.studentId;
+                  return (
+                    <li
+                      key={invitation.id}
+                      className="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-on-surface">
+                          {displayName}
+                        </p>
+                        <p className="text-xs text-on-surface-variant">
+                          {invitee?.studentNumber ?? "Invitation pending"}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        className="shrink-0 px-2 py-1 text-xs text-error hover:text-error"
+                        disabled={busy}
+                        onClick={() => onCancelInvitation?.(invitation.studentId)}
+                        aria-label={`Cancel invitation for ${displayName}`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <UserMinus className="h-3.5 w-3.5" /> Cancel
+                        </span>
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+
           {canManage && (
             <section className="space-y-3">
               <h3 className="text-sm font-semibold text-on-surface">
@@ -182,7 +251,7 @@ export function ResearchGroupMembersPanel({
               </h3>
               {isFull ? (
                 <p className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
-                  This group is full (4/4). Remove a member before inviting
+                  This group is full (8/8). Remove a member before inviting
                   another student.
                 </p>
               ) : (
@@ -265,7 +334,7 @@ export function ResearchGroupMembersPanel({
         description={
           pending?.kind === "remove"
             ? `Remove ${pendingName} from ${group?.groupName ?? "this group"}? This frees a slot for another student.`
-            : `Invite ${pendingName} to ${group?.groupName ?? "this group"}? They will be added as a member.`
+            : `Invite ${pendingName} to ${group?.groupName ?? "this group"}? They will receive an invitation and must accept before joining.`
         }
         confirmLabel={
           pending?.kind === "remove" ? "Confirm Remove" : "Confirm Invite"

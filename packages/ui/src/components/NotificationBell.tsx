@@ -10,12 +10,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bell, CheckCheck } from "lucide-react";
-import type { NotificationService } from "@monteai/api";
+import type { NotificationService, ResearchGroupService } from "@monteai/api";
 import type { NotificationResponseDto } from "@monteai/types";
 import {
+  notificationKeys,
+  researchGroupKeys,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotifications,
+  useQueryClient,
 } from "@monteai/hooks";
 
 export type NotificationTargetNavigator = (
@@ -30,6 +33,10 @@ interface NotificationBellProps {
   /** Poll cadence in ms; 0 disables polling. Default 30s. */
   pollIntervalMs?: number;
   className?: string;
+  /** Optional — enables Accept/Decline on research-group invitation items. */
+  researchGroupService?: ResearchGroupService;
+  /** Signed-in user's uid (the invitee) — required with researchGroupService. */
+  currentUserId?: string;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -49,9 +56,13 @@ function formatRelativeTime(iso: string): string {
 function NotificationItem({
   notification,
   onClick,
+  onRespond,
+  responding = false,
 }: {
   notification: NotificationResponseDto;
   onClick: (notification: NotificationResponseDto) => void;
+  onRespond?: (notification: NotificationResponseDto, accept: boolean) => void;
+  responding?: boolean;
 }) {
   return (
     <li>
@@ -88,6 +99,26 @@ function NotificationItem({
           </div>
         </div>
       </button>
+      {onRespond && notification.type === "GroupInvitation" && (
+        <div className="flex items-center justify-end gap-2 border-b border-gray-100 bg-white px-4 py-2">
+          <button
+            type="button"
+            disabled={responding}
+            onClick={() => onRespond(notification, true)}
+            className="rounded border border-blue-600 px-2.5 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-50"
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            disabled={responding}
+            onClick={() => onRespond(notification, false)}
+            className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            Decline
+          </button>
+        </div>
+      )}
     </li>
   );
 }
@@ -97,6 +128,8 @@ export function NotificationBell({
   onNavigate,
   pollIntervalMs = 30_000,
   className = "",
+  researchGroupService,
+  currentUserId,
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   // Viewport coordinates for the portalled panel — computed from the bell's
@@ -105,6 +138,8 @@ export function NotificationBell({
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+  const [respondingId, setRespondingId] = useState<string | null>(null);
 
   const { notifications, unreadCount } = useNotifications(notificationService, {
     pageSize: 15,
@@ -112,6 +147,34 @@ export function NotificationBell({
   });
   const markRead = useMarkNotificationRead(notificationService);
   const markAllRead = useMarkAllNotificationsRead(notificationService);
+
+  const canRespond = !!researchGroupService && !!currentUserId;
+
+  // Research group invitations: accept (join the group) or decline — self-service only.
+  const respondToInvitation = useCallback(
+    async (notification: NotificationResponseDto, accept: boolean) => {
+      if (!researchGroupService || !currentUserId || !notification.targetId) return;
+      setRespondingId(notification.id);
+      try {
+        const ok = accept
+          ? await researchGroupService.acceptInvitation(notification.targetId, currentUserId)
+          : await researchGroupService.declineInvitation(notification.targetId, currentUserId);
+        if (ok) {
+          if (!notification.isRead) await markRead.mutateAsync(notification.id);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
+            queryClient.invalidateQueries({ queryKey: researchGroupKeys.all }),
+          ]);
+          setOpen(false);
+        }
+      } catch {
+        // best-effort — leave the notification in place so it can be retried
+      } finally {
+        setRespondingId(null);
+      }
+    },
+    [researchGroupService, currentUserId, markRead, queryClient],
+  );
 
   const placePanel = useCallback(() => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -232,6 +295,8 @@ export function NotificationBell({
                     key={notification.id}
                     notification={notification}
                     onClick={handleItemClick}
+                    onRespond={canRespond ? respondToInvitation : undefined}
+                    responding={respondingId === notification.id}
                   />
                 ))}
               </ul>

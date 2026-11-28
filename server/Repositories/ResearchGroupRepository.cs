@@ -62,16 +62,6 @@ namespace server.Repositories
             return true;
         }
 
-        public async Task<bool> AddMemberAsync(Guid groupId, string studentId)
-        {
-            var student = await _db.Students.FindAsync(studentId);
-            if (student is null || student.GroupId.HasValue) return false;
-            student.GroupId = groupId;
-            student.Position = "Member";
-            await _db.SaveChangesAsync();
-            return true;
-        }
-
         public async Task<bool> RemoveMemberAsync(Guid groupId, string studentId)
         {
             var student = await _db.Students.FirstOrDefaultAsync(s => s.Id == studentId && s.GroupId == groupId);

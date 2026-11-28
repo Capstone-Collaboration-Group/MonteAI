@@ -70,12 +70,47 @@ export function useDeleteResearchGroup(researchGroupService: ResearchGroupServic
   });
 }
 
-export function useAddResearchGroupMember(researchGroupService: ResearchGroupService) {
+export function useSendResearchGroupInvitation(researchGroupService: ResearchGroupService) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ researchGroupId, studentId }: { researchGroupId: string; studentId: string }) =>
-      researchGroupService.addMember(researchGroupId, studentId),
+      researchGroupService.sendInvitation(researchGroupId, studentId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: researchGroupKeys.all }),
+  });
+}
+
+export function useAcceptResearchGroupInvitation(researchGroupService: ResearchGroupService) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ researchGroupId, studentId }: { researchGroupId: string; studentId: string }) =>
+      researchGroupService.acceptInvitation(researchGroupId, studentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: researchGroupKeys.all }),
+  });
+}
+
+export function useDeclineResearchGroupInvitation(researchGroupService: ResearchGroupService) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ researchGroupId, studentId }: { researchGroupId: string; studentId: string }) =>
+      researchGroupService.declineInvitation(researchGroupId, studentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: researchGroupKeys.all }),
+  });
+}
+
+export function useCancelResearchGroupInvitation(researchGroupService: ResearchGroupService) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ researchGroupId, studentId }: { researchGroupId: string; studentId: string }) =>
+      researchGroupService.cancelInvitation(researchGroupId, studentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: researchGroupKeys.all }),
+  });
+}
+
+export function useResearchGroupInvitations(researchGroupService: ResearchGroupService, researchGroupId: string | undefined) {
+  return useQuery({
+    queryKey: [...researchGroupKeys.detail(researchGroupId ?? ""), "invitations"],
+    queryFn: () => researchGroupService.getInvitations(researchGroupId ?? ""),
+    enabled: !!researchGroupId,
   });
 }
 

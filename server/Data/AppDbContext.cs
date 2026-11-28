@@ -13,6 +13,7 @@ namespace server.Data
         public DbSet<ProgramHead> ProgramHeads { get; set; }
         public DbSet<Student> Students { get; set; }
         public DbSet<ResearchGroup> ResearchGroups { get; set; }
+        public DbSet<ResearchGroupInvitation> ResearchGroupInvitations { get; set; }
         public DbSet<Thesis> Theses { get; set; }
         public DbSet<Submission> Submissions { get; set; }
         public DbSet<Review> Reviews { get; set; }
@@ -148,6 +149,39 @@ namespace server.Data
                       .WithMany()
                       .HasForeignKey(e => e.LeaderId)
                       .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ResearchGroupInvitation>(entity =>
+            {
+                entity.ToTable("ResearchGroupInvitations");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.GroupId).IsRequired();
+                entity.Property(e => e.LeaderId)
+                      .HasMaxLength(128)
+                      .IsRequired();
+                entity.Property(e => e.StudentId)
+                      .HasMaxLength(128)
+                      .IsRequired();
+                entity.Property(e => e.Status)
+                      .HasMaxLength(20)
+                      .IsRequired();
+                entity.Property(e => e.CreatedAt).IsRequired();
+                entity.Property(e => e.UpdatedAt).IsRequired();
+
+                entity.HasOne(e => e.Group)
+                      .WithMany(g => g.Invitations)
+                      .HasForeignKey(e => e.GroupId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Student)
+                      .WithMany(s => s.Invitations)
+                      .HasForeignKey(e => e.StudentId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Not unique: a student may be invited, decline, then be
+                // invited again (each attempt is its own row). Only one row
+                // per (group, student) may be Pending — enforced in the service.
+                entity.HasIndex(e => new { e.GroupId, e.StudentId });
             });
 
             modelBuilder.Entity<Thesis>(entity =>

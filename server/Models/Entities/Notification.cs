@@ -54,6 +54,7 @@ namespace server.Models.Entities
     {
         public const string GroupAdded = "GroupAdded";
         public const string GroupRemoved = "GroupRemoved";
+        public const string GroupInvitation = "GroupInvitation";
         public const string DefenseScheduled = "DefenseScheduled";
         public const string DefenseRescheduled = "DefenseRescheduled";
         public const string DefenseCancelled = "DefenseCancelled";

@@ -42,6 +42,16 @@ function buildSeed(): NotificationResponseDto[] {
       isRead: true,
       createdAt: iso(1440),
     },
+    {
+      id: "notif-4",
+      type: "GroupInvitation",
+      title: "Research group invitation",
+      body: 'You have been invited to research group "Group B" — Smart Attendance Monitoring System.',
+      targetType: "research_group",
+      targetId: "00000000-0000-0000-0000-000000000003",
+      isRead: false,
+      createdAt: iso(60),
+    },
   ];
 }
 

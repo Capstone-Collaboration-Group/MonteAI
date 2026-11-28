@@ -1,6 +1,7 @@
 export type NotificationType =
   | "GroupAdded"
   | "GroupRemoved"
+  | "GroupInvitation"
   | "DefenseScheduled"
   | "DefenseRescheduled"
   | "DefenseCancelled"

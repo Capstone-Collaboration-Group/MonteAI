@@ -1,7 +1,14 @@
-import { app, BrowserWindow, protocol } from 'electron';
+import { app, BrowserWindow, nativeImage, protocol } from 'electron';
+import fs from 'node:fs';
 import path from 'node:path';
 import { registerBackupHandlers } from './handlers/backup';
 import { DESKTOP_PARTITION, registerAppProtocol } from './handlers/appProtocol';
+
+// CDM seal used as the window/taskbar icon (the packagerConfig icon only
+// covers the executable; this covers the live window). `public/` is inside the
+// app path in both dev and the packaged asar.
+const iconPath = path.join(app.getAppPath(), 'public', 'cdm-logo.png');
+const windowIcon = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : undefined;
 
 app.setName('MonteSkolar');
 
@@ -24,6 +31,7 @@ const createWindow = () => {
     width: 1920,
     height: 1080,
     title: 'MonteSkolar',
+    icon: windowIcon?.isEmpty() ? undefined : windowIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

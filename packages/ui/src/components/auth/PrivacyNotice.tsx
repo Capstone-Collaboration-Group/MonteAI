@@ -2,6 +2,7 @@ import { useState } from "react";
 import { PRIVACY_NOTICE_VERSION } from "@monteai/types";
 import { Button } from "../Button";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "../common/Modal";
+import { AgreementNotice } from "./AgreementNotice";
 
 type PrivacyNoticeProps = {
   accepted: boolean;
@@ -16,22 +17,12 @@ export function PrivacyNotice({
 
   return (
     <>
-      <section className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <input
-          type="checkbox"
-          checked={accepted}
-          onChange={(event) => {
-            if (accepted) {
-              onAcceptedChange(event.target.checked);
-            } else {
-              setIsOpen(true);
-            }
-          }}
-          required
-          aria-label="I agree to the privacy notice"
-          className="mt-1 h-4 w-4 shrink-0 accent-primary"
-        />
-        <div className="text-sm text-slate-800">
+      <AgreementNotice
+        accepted={accepted}
+        onAcceptedChange={onAcceptedChange}
+        onRequestAccept={() => setIsOpen(true)}
+        ariaLabel="I agree to the privacy notice"
+        label={<>
           <p>
             I have read and agree to the{" "}
             <button
@@ -43,11 +34,11 @@ export function PrivacyNotice({
             </button>
             .
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-on-surface-variant">
             Required to create an account · Version {PRIVACY_NOTICE_VERSION}
           </p>
-        </div>
-      </section>
+        </>}
+      />
 
       <Modal
         isOpen={isOpen}

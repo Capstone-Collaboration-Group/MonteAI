@@ -35,6 +35,7 @@ import type { ChatSessionResponseDto } from "@monteai/types";
 import { profileService } from "../../lib/authService";
 import { chatService } from "../../lib/chat/chatService";
 import { notificationService } from "../../lib/notificationService";
+import { researchGroupService } from "../../lib/researchGroupService";
 import { auth } from "../../lib/firebase";
 
 // Deep links for notification clicks — each app maps targetType to its router.
@@ -273,6 +274,8 @@ function AppSidebar({
               const route = notificationRoute(targetType);
               if (route) navigate(route);
             }}
+            researchGroupService={researchGroupService}
+            currentUserId={user?.uid}
             className="shrink-0"
           />
         </div>
@@ -522,6 +525,7 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -578,6 +582,8 @@ export default function AppLayout() {
               const route = notificationRoute(targetType);
               if (route) navigate(route);
             }}
+            researchGroupService={researchGroupService}
+            currentUserId={user?.uid}
             className="ml-auto"
           />
         </header>

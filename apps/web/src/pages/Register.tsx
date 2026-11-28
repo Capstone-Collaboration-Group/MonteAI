@@ -16,17 +16,17 @@ export default function Register() {
         <button
           type="button"
           onClick={() => leave('/')}
-          className="flex w-fit items-center gap-2 text-sm font-semibold text-primary transition hover:opacity-80"
+          className="flex w-fit translate-y-2 items-center gap-2 text-sm font-semibold text-primary transition hover:opacity-80"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to home
         </button>
 
         <Card className="overflow-hidden rounded-[32px] !border-0 bg-white p-0 !shadow-none">
-          <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid min-w-0 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             <LeftPanel />
 
-            <div className="p-6 sm:p-8 lg:p-10">
+            <div className="min-w-0 p-4 sm:p-8 lg:p-10">
               <RegistrationForm
                 auth={auth}
                 register={registerPendingProfile}

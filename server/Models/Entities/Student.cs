@@ -15,6 +15,8 @@ namespace server.Models.Entities
 
         public virtual ResearchGroup? ResearchGroup { get; set; }
 
+        public virtual ICollection<ResearchGroupInvitation> Invitations { get; set; } = [];
+
         [Required]
         [MaxLength(50)]
         public string Position { get; set; } = string.Empty;
