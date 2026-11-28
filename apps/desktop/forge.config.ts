@@ -11,6 +11,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     executableName: 'MonteSkolar',
+    icon: 'public/icon.ico',
   },
   rebuildConfig: {},
   makers: [
